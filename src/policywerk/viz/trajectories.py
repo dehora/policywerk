@@ -55,6 +55,91 @@ def draw_target(
                marker="*", zorder=10, edgecolors=DARK_GRAY, linewidths=0.5)
 
 
+def draw_chain(
+    ax: plt.Axes,
+    labels: list[str],
+    values: list[float] | None = None,
+    path: list[str] | None = None,
+    outcome: str | None = None,
+) -> None:
+    """Draw a chain of states (e.g. the random walk A-B-C-D-E).
+
+    labels: state names in order (left to right).
+    values: optional value estimates for each state (shown as color fill).
+    path: optional list of state labels visited this episode (drawn as line).
+    outcome: "left" or "right" — which terminal was reached.
+    """
+    n = len(labels)
+    node_y = 0.5
+    spacing = 1.0
+
+    ax.clear()
+    ax.set_xlim(-1.5, n * spacing + 0.5)
+    ax.set_ylim(-0.3, 1.0)
+    ax.set_aspect("equal")
+    ax.axis("off")
+
+    # Draw terminal zones
+    ax.text(-1.0, node_y, "[0]", ha="center", va="center", fontsize=11,
+            fontweight="bold", color="red" if outcome == "left" else DARK_GRAY)
+    ax.text(n * spacing, node_y, "[+1]", ha="center", va="center", fontsize=11,
+            fontweight="bold", color="green" if outcome == "right" else DARK_GRAY)
+
+    # Draw connecting lines between nodes
+    for i in range(n - 1):
+        ax.plot([i * spacing + 0.2, (i + 1) * spacing - 0.2], [node_y, node_y],
+                color=LIGHT_GRAY, linewidth=2, zorder=1)
+    # Lines to terminals
+    ax.plot([-0.6, -0.2], [node_y, node_y], color=LIGHT_GRAY, linewidth=2, zorder=1)
+    ax.plot([(n - 1) * spacing + 0.2, n * spacing - 0.4], [node_y, node_y],
+            color=LIGHT_GRAY, linewidth=2, zorder=1)
+
+    # Draw the path if provided (line through visited nodes)
+    if path and len(path) > 1:
+        path_xs = []
+        path_ys = []
+        for label in path:
+            if label in labels:
+                idx = labels.index(label)
+                path_xs.append(idx * spacing)
+                path_ys.append(node_y)
+        # Add terminal position
+        if outcome == "left":
+            path_xs.append(-1.0)
+            path_ys.append(node_y)
+        elif outcome == "right":
+            path_xs.append(n * spacing)
+            path_ys.append(node_y)
+        # Offset path slightly below nodes so it's visible
+        path_ys_offset = [y - 0.12 for y in path_ys]
+        ax.plot(path_xs, path_ys_offset, color=TEAL, linewidth=1.5, alpha=0.5, zorder=2)
+
+    # Draw nodes
+    for i, label in enumerate(labels):
+        x = i * spacing
+        # Color node by value if provided
+        if values is not None:
+            val = values[i]
+            # Map value 0-1 to color intensity (white to teal)
+            r = int(255 - val * (255 - 92))   # 92 = 0x5C (TEAL red)
+            g = int(255 - val * (255 - 184))   # 184 = 0xB8 (TEAL green)
+            b = int(255 - val * (255 - 178))   # 178 = 0xB2 (TEAL blue)
+            color = f"#{r:02x}{g:02x}{b:02x}"
+        else:
+            color = "white"
+
+        circle = plt.Circle((x, node_y), 0.18, facecolor=color,
+                             edgecolor=DARK_GRAY, linewidth=1.5, zorder=5)
+        ax.add_patch(circle)
+        ax.text(x, node_y, label, ha="center", va="center",
+                fontsize=10, fontweight="bold", color=DARK_GRAY, zorder=6)
+
+        # Show value below node
+        if values is not None:
+            ax.text(x, node_y - 0.28, f"{values[i]:.2f}", ha="center",
+                    va="top", fontsize=7, color=DARK_GRAY)
+
+
 def draw_pole(
     ax: plt.Axes,
     angle: float,

@@ -21,6 +21,7 @@ from policywerk.viz.animate import (
 )
 from policywerk.viz.values import draw_value_bars
 from policywerk.viz.traces import update_trace_axes
+from policywerk.viz.trajectories import draw_chain
 
 import matplotlib
 matplotlib.use("Agg")
@@ -36,6 +37,8 @@ class TDSnapshot(FrameSnapshot):
     estimated: list[float]
     rms: float
     episode_num: int
+    path: list[str] | None = None
+    outcome: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -302,6 +305,8 @@ def main():
                 estimated=h["values"],
                 rms=h["rms"],
                 episode_num=ep_idx,
+                path=h.get("path"),
+                outcome=h.get("outcome"),
             ))
 
     true_values = list(RandomWalk.TRUE_VALUES)
@@ -319,27 +324,17 @@ def main():
     def update(frame_idx):
         snap = snapshots[frame_idx]
 
-        # Top-left: bar chart of estimated vs true values
-        draw_value_bars(axes["env"], snap.estimated, true_values, labels)
-        axes["env"].set_ylim(0, 1.0)
-        axes["env"].set_title(f"Value Estimates -- Episode {snap.episode_num}", fontsize=10)
+        # Top-left: chain diagram showing the walk path and current values
+        outcome_label = snap.outcome if snap.outcome else None
+        draw_chain(axes["env"], labels, values=snap.estimated,
+                   path=snap.path, outcome=outcome_label)
+        result = f"-> {'won' if snap.outcome == 'right' else 'lost'}" if snap.outcome else ""
+        axes["env"].set_title(f"Episode {snap.episode_num} {result}", fontsize=10)
 
-        # Top-right: info
-        axes["algo"].clear()
-        axes["algo"].axis("off")
-        info_lines = [
-            f"Episode: {snap.episode_num}",
-            f"RMS error: {snap.rms:.4f}",
-            "",
-            f"Method: TD(0)",
-            f"alpha: {alpha}",
-            f"gamma: {gamma}",
-        ]
-        text = "\n".join(info_lines)
-        axes["algo"].text(0.1, 0.9, text, transform=axes["algo"].transAxes,
-                          fontsize=10, verticalalignment="top",
-                          fontfamily="monospace", color=DARK_GRAY)
-        axes["algo"].set_title("Training State", fontsize=10)
+        # Top-right: bar chart of estimated vs true values
+        draw_value_bars(axes["algo"], snap.estimated, true_values, labels)
+        axes["algo"].set_ylim(0, 1.0)
+        axes["algo"].set_title(f"Estimates vs True (RMS={snap.rms:.3f})", fontsize=10)
 
         # Bottom: RMS error trace
         n = min(snap.episode_num + 1, len(real_rms))
@@ -361,24 +356,14 @@ def main():
     )
 
     def update_poster(frame_idx):
-        draw_value_bars(axes2["env"], hist_td[-1]["values"], true_values, labels)
-        axes2["env"].set_ylim(0, 1.0)
-        axes2["env"].set_title("Final TD(0) Estimates vs True Values", fontsize=10)
+        # Chain with final learned values
+        draw_chain(axes2["env"], labels, values=hist_td[-1]["values"])
+        axes2["env"].set_title("Learned Values (TD(0))", fontsize=10)
 
-        axes2["algo"].clear()
-        axes2["algo"].axis("off")
-        info = (
-            f"TD(0): RMS = {hist_td[-1]['rms']:.4f}\n"
-            f"MC:    RMS = {hist_mc[-1]['rms']:.4f}\n\n"
-            f"True values are known:\n"
-            f"  [1/6, 2/6, 3/6, 4/6, 5/6]\n\n"
-            f"TD learns from guesses about\n"
-            f"guesses -- and converges."
-        )
-        axes2["algo"].text(0.1, 0.9, info, transform=axes2["algo"].transAxes,
-                           fontsize=10, verticalalignment="top",
-                           fontfamily="monospace", color=DARK_GRAY)
-        axes2["algo"].set_title("Summary", fontsize=10)
+        # Bar chart comparison
+        draw_value_bars(axes2["algo"], hist_td[-1]["values"], true_values, labels)
+        axes2["algo"].set_ylim(0, 1.0)
+        axes2["algo"].set_title(f"Estimates vs True (RMS={hist_td[-1]['rms']:.3f})", fontsize=10)
 
         # Show both TD and MC RMS curves
         axes2["trace"].plot(range(num_episodes), [h["rms"] for h in hist_td],

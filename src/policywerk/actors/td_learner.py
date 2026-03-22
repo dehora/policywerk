@@ -87,6 +87,8 @@ def td_zero(
 
     for ep in range(num_episodes):
         state = env.reset()
+        path: list[str] = [state.label]  # track visited states for viz
+        outcome = None
 
         while True:
             # Random policy: equal probability left/right
@@ -97,6 +99,7 @@ def td_zero(
                 # Terminal state has value 0 (no future reward)
                 # td_error = reward + gamma * 0 - V(s) = reward - V(s)
                 td_error = scalar.subtract(reward, V.get(state.label))
+                outcome = "right" if reward > 0 else "left"
             else:
                 # td_error = reward + gamma * V(s') - V(s)
                 td_error = scalar.subtract(
@@ -110,6 +113,7 @@ def td_zero(
             if done:
                 break
             state = next_state
+            path.append(state.label)
 
         # Record history for this episode
         values = [V.get(label) for label in RandomWalk.LABELS]
@@ -117,6 +121,8 @@ def td_zero(
             "episode": ep,
             "values": list(values),
             "rms": rms_error(V, RandomWalk.TRUE_VALUES, RandomWalk.LABELS),
+            "path": path,
+            "outcome": outcome,
         })
 
     return V, history
