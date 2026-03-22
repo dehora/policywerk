@@ -61,7 +61,9 @@ Sweep-by-sweep convergence (max value change):
   Sweep  9:  0.000000  [........................................]
 ```
 
-With synchronous updates, information travels exactly one cell per sweep — each state reads the previous sweep's values. The max change decays by gamma (0.9) each sweep because each new wavefront cell's change is gamma times the previous one's (the goal reward, discounted one step further). The start cell is 8 steps from the goal, so it takes 8 sweeps for goal information to reach it. Sweep 9 confirms nothing changed — convergence.
+With synchronous updates, information travels exactly one cell per sweep — each state reads the previous sweep's values. The start cell is 8 steps from the goal, so it takes 8 sweeps for goal information to reach it. Sweep 9 confirms nothing changed — convergence.
+
+The max change decays by exactly gamma (0.9) each sweep. This is because the step cost cancels in the difference: on sweep 2, cell (0,2) changes from -0.04 (its old step-cost value) to +0.86 (= -0.04 + 0.9 x 1.0), a *change* of 0.90 — not the new value 0.86. Each wavefront cell's old and new values both include the same step cost, so the difference is purely the discounted goal reward propagating one step further.
 
 ### Final State Values
 
@@ -152,7 +154,7 @@ Reward information ripples backward from the goal through the grid, one sweep at
 
 ![Convergence trace](img/01_bellman_trace.png)
 
-Max value change per sweep. The change decays by a factor of gamma (0.9) each sweep — each new wavefront cell's update is the goal reward discounted one step further. The values themselves also include step costs, but the *change* between sweeps follows a clean geometric decay.
+Max value change per sweep. The change decays by exactly gamma (0.9) each sweep. Although the values themselves include step costs, the step cost cancels in the difference between old and new values, so the max change follows a clean geometric series: 1.0, 0.9, 0.81, 0.729, ...
 
 ## Next
 
