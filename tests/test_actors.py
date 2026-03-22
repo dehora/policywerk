@@ -1,7 +1,14 @@
 """Tests for RL actors."""
 
 from policywerk.world.gridworld import GridWorld
+from policywerk.world.balance import Balance
 from policywerk.actors.bellman import value_iteration, policy_iteration, extract_policy
+from policywerk.actors.barto_sutton import (
+    create_ace_ase, state_to_input, state_to_box, select_action,
+    compute_td_error, update_ace, update_ase, train,
+)
+from policywerk.primitives.random import create_rng
+from policywerk.primitives import vector
 
 
 class TestBellman:
@@ -76,3 +83,68 @@ class TestBellman:
         policy = extract_policy(env, V, gamma=0.9)
         non_terminal = [s for s in env.states() if not env.is_terminal(s)]
         assert len(policy) == len(non_terminal)
+
+
+class TestBartoSutton:
+    def test_ace_ase_creation(self):
+        ace, ase = create_ace_ase(36)
+        assert len(ace.weights) == 36
+        assert len(ace.traces) == 36
+        assert len(ase.weights) == 36
+        assert len(ase.traces) == 36
+        assert ace.prev_prediction == 0.0
+
+    def test_state_to_input(self):
+        """One-hot encoding should have a single 1.0 at the correct index."""
+        from policywerk.building_blocks.mdp import State
+        state = State(features=[0.05, 0.1], label="2,3")
+        x = state_to_input(state, 36)
+        assert len(x) == 36
+        assert sum(x) == 1.0
+        # box = 2*6 + 3 = 15
+        assert x[15] == 1.0
+        assert x[0] == 0.0
+
+    def test_select_action_returns_binary(self):
+        rng = create_rng(42)
+        _, ase = create_ace_ase(36)
+        x = vector.zeros(36)
+        x[0] = 1.0
+        for _ in range(20):
+            action = select_action(ase, x, rng, noise_std=1.0)
+            assert action in (0, 1)
+
+    def test_compute_td_error(self):
+        """With known weights, TD error should match hand calculation."""
+        ace, _ = create_ace_ase(36)
+        # Set weight for box 0 to 5.0, box 1 to 3.0
+        ace.weights[0] = 5.0
+        ace.weights[1] = 3.0
+        ace.prev_prediction = 5.0  # p(t-1)
+
+        x_current = vector.zeros(36)
+        x_current[1] = 1.0  # current state is box 1, prediction = 3.0
+        x_prev = vector.zeros(36)
+        x_prev[0] = 1.0
+
+        # TD error = reward + gamma * p(t) - p(t-1) = 0 + 0.95 * 3.0 - 5.0 = -2.15
+        td = compute_td_error(ace, x_current, x_prev, reward=0.0, gamma=0.95, done=False)
+        assert abs(td - (-2.15)) < 1e-10
+
+    def test_compute_td_error_terminal(self):
+        """On failure (done=True), TD error = reward - prev_prediction."""
+        ace, _ = create_ace_ase(36)
+        ace.prev_prediction = 2.0
+        x = vector.zeros(36)
+        # TD error = -1 - 2.0 = -3.0
+        td = compute_td_error(ace, x, x, reward=-1.0, gamma=0.95, done=True)
+        assert abs(td - (-3.0)) < 1e-10
+
+    def test_train_improves(self):
+        """After training, later episodes should be longer than early ones."""
+        env = Balance()
+        ace, ase, lengths, _ = train(env, num_episodes=150, seed=42)
+        # Average of first 20 episodes should be shorter than last 20
+        early_avg = sum(lengths[:20]) / 20
+        late_avg = sum(lengths[-20:]) / 20
+        assert late_avg > early_avg, f"Training did not improve: early={early_avg:.1f}, late={late_avg:.1f}"
