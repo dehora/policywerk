@@ -62,7 +62,11 @@ class Spinner:
         self._stop.set()
         if self._thread:
             self._thread.join()
-        self._stream.write(f"\r    {_BRAILLE[0]} {self._message}... done.\n")
+        # Overwrite the spinner line completely — pad with spaces to
+        # clear any residual characters from the spinning text
+        done_text = f"    {self._message}... done."
+        padding = " " * 10  # extra spaces to overwrite spinner char
+        self._stream.write(f"\r{done_text}{padding}\n")
         self._stream.flush()
 
     def _spin(self):
