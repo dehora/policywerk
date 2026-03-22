@@ -14,7 +14,7 @@ from policywerk.viz.values import (
 )
 from policywerk.viz.trajectories import (
     draw_trajectory, draw_agent, draw_target, draw_pixel_env,
-    draw_policy_gaussian, draw_real_vs_imagined,
+    draw_policy_gaussian, draw_real_vs_imagined, draw_cliff_grid,
 )
 
 
@@ -183,4 +183,24 @@ class TestTrajectories:
         real = [[0.0] * 8 for _ in range(8)]
         imagined = [[0.5] * 8 for _ in range(8)]
         draw_real_vs_imagined(ax, real, imagined)
+        plt.close(fig)
+
+    def test_draw_cliff_grid(self):
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots()
+        cliff = [(3, c) for c in range(1, 11)]
+        draw_cliff_grid(ax, 4, 12, cliff, (3, 0), (3, 11))
+        plt.close(fig)
+
+    def test_draw_cliff_grid_with_agent(self):
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots()
+        cliff = [(3, c) for c in range(1, 11)]
+        draw_cliff_grid(ax, 4, 12, cliff, (3, 0), (3, 11),
+                        path=[(3, 0), (2, 0), (2, 1)],
+                        agent_pos=(2, 1),
+                        caption="test caption")
+        # Verify the agent marker was drawn (scatter collection exists)
+        collections = ax.collections
+        assert len(collections) > 0, "Agent marker should create a scatter collection"
         plt.close(fig)

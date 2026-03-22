@@ -40,6 +40,7 @@ class QLearningSnapshot(FrameSnapshot):
     method: str
     agent_pos: tuple[int, int] | None = None
     step_label: str | None = None
+    completed: bool = True  # False for mid-episode step-by-step frames
 
 
 # ---------------------------------------------------------------------------
@@ -271,6 +272,7 @@ def main():
                 method="Q-learning",
                 agent_pos=pos,
                 step_label=f"Episode {ep_idx}, step {si}",
+                completed=False,  # mid-episode: don't advance trace
             ))
         # Duplicate last step frame for pause
         snapshots.append(snapshots[-1])
@@ -346,8 +348,11 @@ def main():
                           fontfamily="monospace", color=DARK_GRAY)
         axes["algo"].set_title("Training State", fontsize=10)
 
-        # Bottom: reward trace
-        n = min(snap.episode_num + 1, len(ql_rewards))
+        # Bottom: reward trace — only show completed episodes
+        if snap.completed:
+            n = min(snap.episode_num + 1, len(ql_rewards))
+        else:
+            n = min(snap.episode_num, len(ql_rewards))
         update_trace_axes(axes["trace"], ql_rewards[:n],
                           label="Episode reward", color=TEAL)
         axes["trace"].set_ylabel("Reward", fontsize=9)
