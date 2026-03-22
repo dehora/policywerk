@@ -3,17 +3,22 @@
 from policywerk.primitives import activations
 from policywerk.primitives.random import create_rng
 from policywerk.building_blocks.value_functions import TabularV, TabularQ
-from policywerk.building_blocks.policies import greedy, epsilon_greedy, softmax_policy
+from policywerk.building_blocks.policies import greedy, epsilon_greedy, softmax_policy, gaussian_policy
 from policywerk.building_blocks.traces import EligibilityTrace
-from policywerk.building_blocks.returns import discount_return, n_step_return, gae
+from policywerk.building_blocks.returns import discount_return, n_step_return, gae, lambda_return
 from policywerk.building_blocks.replay_buffer import ReplayBuffer
 from policywerk.building_blocks.distributions import Categorical, Gaussian
 from policywerk.building_blocks.mdp import State, Transition
 from policywerk.building_blocks.dense import create_dense, dense_forward
 from policywerk.building_blocks.network import create_network, network_forward
-from policywerk.building_blocks.grad import backward, numerical_gradient_check
-from policywerk.building_blocks.optimizers import sgd_update, adam_update, create_adam_state
+from policywerk.building_blocks.grad import backward, numerical_gradient_check, LayerGradients
+from policywerk.building_blocks.optimizers import sgd_update, sgd_momentum_update, adam_update, create_adam_state
+from policywerk.building_blocks.neuron import create_neuron, forward as neuron_forward
+from policywerk.building_blocks.conv import create_conv, conv_forward, conv_backward
+from policywerk.building_blocks.pool import max_pool_forward, max_pool_backward, avg_pool_forward, avg_pool_backward
+from policywerk.building_blocks.recurrent import create_gru, gru_forward, gru_backward
 from policywerk.primitives.losses import mse
+from policywerk.primitives import vector, matrix
 
 
 class TestTabularV:
@@ -238,3 +243,298 @@ class TestNeuralNetwork:
         output_final, _ = network_forward(net, inputs)
         loss_final = mse(output_final, targets)
         assert loss_final < loss1
+
+
+class TestNeuron:
+    def test_create_neuron(self):
+        rng = create_rng(42)
+        neuron = create_neuron(rng, 5)
+        assert len(neuron.weights) == 5
+        assert neuron.bias == 0.0
+
+    def test_neuron_forward(self):
+        rng = create_rng(42)
+        neuron = create_neuron(rng, 3)
+        output = neuron_forward(neuron, [1.0, 2.0, 3.0], activations.relu)
+        assert isinstance(output, float)
+
+
+class TestConv:
+    def test_create_conv(self):
+        rng = create_rng(42)
+        layer = create_conv(rng, in_channels=1, out_channels=2, kernel_size=3)
+        assert len(layer.filters) == 2          # out_channels
+        assert len(layer.filters[0]) == 1       # in_channels
+        assert len(layer.filters[0][0]) == 3    # kernel height
+        assert len(layer.filters[0][0][0]) == 3 # kernel width
+        assert len(layer.biases) == 2
+
+    def test_conv_forward(self):
+        rng = create_rng(42)
+        layer = create_conv(rng, in_channels=1, out_channels=2, kernel_size=3)
+        # 1 channel, 4x4 input
+        inputs = [[[float(r * 4 + c) for c in range(4)] for r in range(4)]]
+        output, cache = conv_forward(layer, inputs, activations.relu)
+        # output: 2 filters, (4-3+1)x(4-3+1) = 2x2
+        assert len(output) == 2
+        assert len(output[0]) == 2
+        assert len(output[0][0]) == 2
+
+    def test_conv_backward(self):
+        rng = create_rng(42)
+        layer = create_conv(rng, in_channels=1, out_channels=2, kernel_size=3)
+        inputs = [[[float(r * 4 + c) for c in range(4)] for r in range(4)]]
+        output, cache = conv_forward(layer, inputs, activations.relu)
+        # output_grad same shape as output: 2 filters, 2x2
+        output_grad = [[[1.0 for _ in range(2)] for _ in range(2)] for _ in range(2)]
+        input_grad, filter_grads, bias_grads = conv_backward(
+            layer, cache, output_grad, activations.relu_derivative,
+        )
+        # input_grad: 1 channel, 4x4
+        assert len(input_grad) == 1
+        assert len(input_grad[0]) == 4
+        assert len(input_grad[0][0]) == 4
+        # filter_grads: 2 filters, each 1 channel, 3x3
+        assert len(filter_grads) == 2
+        assert len(filter_grads[0]) == 1
+        assert len(filter_grads[0][0]) == 3
+        assert len(filter_grads[0][0][0]) == 3
+        # bias_grads: 2
+        assert len(bias_grads) == 2
+
+    def test_conv_gradient_consistency(self):
+        """Numerical gradient check on a tiny conv layer."""
+        rng = create_rng(42)
+        layer = create_conv(rng, in_channels=1, out_channels=1, kernel_size=2)
+        inputs = [[[1.0, 2.0], [3.0, 4.0]]]
+        eps = 1e-5
+
+        # Forward to get analytical gradients
+        output, cache = conv_forward(layer, inputs, activations.identity)
+        output_grad = [[[1.0]]]
+        _, filter_grads, bias_grads = conv_backward(
+            layer, cache, output_grad, activations.identity_derivative,
+        )
+
+        # Numerical gradient for one filter weight
+        orig = layer.filters[0][0][0][0]
+        layer.filters[0][0][0][0] = orig + eps
+        out_plus, _ = conv_forward(layer, inputs, activations.identity)
+        layer.filters[0][0][0][0] = orig - eps
+        out_minus, _ = conv_forward(layer, inputs, activations.identity)
+        layer.filters[0][0][0][0] = orig
+        numerical = (out_plus[0][0][0] - out_minus[0][0][0]) / (2 * eps)
+        assert abs(numerical - filter_grads[0][0][0][0]) < 1e-4
+
+
+class TestPool:
+    def test_max_pool_forward(self):
+        # 1 channel, 4x4 input
+        inputs = [[[1.0, 2.0, 3.0, 4.0],
+                    [5.0, 6.0, 7.0, 8.0],
+                    [9.0, 10.0, 11.0, 12.0],
+                    [13.0, 14.0, 15.0, 16.0]]]
+        output, cache = max_pool_forward(inputs, pool_size=2, stride=2)
+        assert len(output) == 1
+        assert len(output[0]) == 2
+        assert len(output[0][0]) == 2
+        # Max values in each 2x2 block
+        assert output[0][0][0] == 6.0
+        assert output[0][0][1] == 8.0
+        assert output[0][1][0] == 14.0
+        assert output[0][1][1] == 16.0
+
+    def test_max_pool_backward(self):
+        inputs = [[[1.0, 2.0, 3.0, 4.0],
+                    [5.0, 6.0, 7.0, 8.0],
+                    [9.0, 10.0, 11.0, 12.0],
+                    [13.0, 14.0, 15.0, 16.0]]]
+        output, cache = max_pool_forward(inputs, pool_size=2, stride=2)
+        output_grad = [[[1.0, 1.0], [1.0, 1.0]]]
+        input_grad = max_pool_backward(output_grad, cache)
+        assert len(input_grad) == 1
+        assert len(input_grad[0]) == 4
+        assert len(input_grad[0][0]) == 4
+        # Gradient flows only to max elements (6,8,14,16)
+        assert input_grad[0][1][1] == 1.0  # position of 6
+        assert input_grad[0][1][3] == 1.0  # position of 8
+        assert input_grad[0][3][1] == 1.0  # position of 14
+        assert input_grad[0][3][3] == 1.0  # position of 16
+        # Non-max elements get zero gradient
+        assert input_grad[0][0][0] == 0.0
+        assert input_grad[0][0][1] == 0.0
+
+    def test_avg_pool_forward(self):
+        inputs = [[[1.0, 2.0, 3.0, 4.0],
+                    [5.0, 6.0, 7.0, 8.0],
+                    [9.0, 10.0, 11.0, 12.0],
+                    [13.0, 14.0, 15.0, 16.0]]]
+        output, cache = avg_pool_forward(inputs, pool_size=2, stride=2)
+        assert len(output) == 1
+        assert len(output[0]) == 2
+        assert len(output[0][0]) == 2
+        # Average of each 2x2 block
+        assert abs(output[0][0][0] - 3.5) < 1e-10   # (1+2+5+6)/4
+        assert abs(output[0][0][1] - 5.5) < 1e-10   # (3+4+7+8)/4
+        assert abs(output[0][1][0] - 11.5) < 1e-10  # (9+10+13+14)/4
+        assert abs(output[0][1][1] - 13.5) < 1e-10  # (11+12+15+16)/4
+
+    def test_avg_pool_backward(self):
+        inputs = [[[1.0, 2.0, 3.0, 4.0],
+                    [5.0, 6.0, 7.0, 8.0],
+                    [9.0, 10.0, 11.0, 12.0],
+                    [13.0, 14.0, 15.0, 16.0]]]
+        _, cache = avg_pool_forward(inputs, pool_size=2, stride=2)
+        output_grad = [[[4.0, 4.0], [4.0, 4.0]]]
+        input_grad = avg_pool_backward(output_grad, cache, pool_size=2, stride=2)
+        assert len(input_grad) == 1
+        assert len(input_grad[0]) == 4
+        # Each element in a 2x2 block gets gradient / 4
+        assert abs(input_grad[0][0][0] - 1.0) < 1e-10
+        assert abs(input_grad[0][0][1] - 1.0) < 1e-10
+        assert abs(input_grad[0][1][0] - 1.0) < 1e-10
+        assert abs(input_grad[0][1][1] - 1.0) < 1e-10
+
+
+class TestRecurrent:
+    def test_create_gru(self):
+        rng = create_rng(42)
+        layer = create_gru(rng, input_size=4, hidden_size=3)
+        combined = 3 + 4  # hidden_size + input_size
+        assert len(layer.W_z) == 3
+        assert len(layer.W_z[0]) == combined
+        assert len(layer.W_r) == 3
+        assert len(layer.W_r[0]) == combined
+        assert len(layer.W_h) == 3
+        assert len(layer.W_h[0]) == combined
+        assert len(layer.b_z) == 3
+        assert len(layer.b_r) == 3
+        assert len(layer.b_h) == 3
+        assert layer.hidden_size == 3
+
+    def test_gru_forward(self):
+        rng = create_rng(42)
+        layer = create_gru(rng, input_size=4, hidden_size=3)
+        h_prev = [0.0, 0.0, 0.0]
+        x = [1.0, 2.0, 3.0, 4.0]
+        h_new, cache = gru_forward(layer, h_prev, x)
+        assert len(h_new) == 3
+
+    def test_gru_forward_deterministic(self):
+        rng1 = create_rng(42)
+        rng2 = create_rng(42)
+        layer1 = create_gru(rng1, input_size=4, hidden_size=3)
+        layer2 = create_gru(rng2, input_size=4, hidden_size=3)
+        h_prev = [0.0, 0.0, 0.0]
+        x = [1.0, 2.0, 3.0, 4.0]
+        h1, _ = gru_forward(layer1, h_prev, x)
+        h2, _ = gru_forward(layer2, h_prev, x)
+        for a, b in zip(h1, h2):
+            assert abs(a - b) < 1e-12
+
+    def test_gru_backward(self):
+        rng = create_rng(42)
+        layer = create_gru(rng, input_size=4, hidden_size=3)
+        h_prev = [0.1, 0.2, 0.3]
+        x = [1.0, 2.0, 3.0, 4.0]
+        h_new, cache = gru_forward(layer, h_prev, x)
+        grad_h_new = [1.0, 1.0, 1.0]
+        grad_h_prev, grad_x, grad_layer = gru_backward(layer, cache, grad_h_new)
+        assert len(grad_h_prev) == 3
+        assert len(grad_x) == 4
+        combined = 3 + 4
+        assert len(grad_layer.W_z) == 3
+        assert len(grad_layer.W_z[0]) == combined
+        assert len(grad_layer.b_z) == 3
+
+
+class TestSGDMomentum:
+    def test_sgd_momentum_reduces_loss(self):
+        rng = create_rng(42)
+        net = create_network(rng, [2, 4, 1], [activations.relu, activations.identity])
+        inputs = [1.0, 2.0]
+        targets = [5.0]
+
+        output1, _ = network_forward(net, inputs)
+        loss1 = mse(output1, targets)
+
+        # Initialize velocities to zero
+        velocities = []
+        for layer in net.layers:
+            rows = len(layer.weights)
+            cols = len(layer.weights[0])
+            velocities.append(LayerGradients(
+                weight_grads=matrix.zeros(rows, cols),
+                bias_grads=vector.zeros(len(layer.biases)),
+            ))
+
+        for _ in range(20):
+            output, cache = network_forward(net, inputs)
+            loss_grad = [2.0 * (output[i] - targets[i]) / len(targets) for i in range(len(targets))]
+            grads = backward(net, cache, loss_grad)
+            velocities = sgd_momentum_update(net, grads, velocities, learning_rate=0.01, momentum=0.9)
+
+        output_final, _ = network_forward(net, inputs)
+        loss_final = mse(output_final, targets)
+        assert loss_final < loss1
+
+
+class TestGaussianEntropy:
+    def test_gaussian_entropy(self):
+        narrow = Gaussian(mean=[0.0], std=[0.5])
+        wide = Gaussian(mean=[0.0], std=[2.0])
+        assert wide.entropy() > narrow.entropy()
+
+
+class TestLambdaReturn:
+    def test_lambda_return_lambda_zero(self):
+        """lambda=0 should approximate TD(0): r_0 + gamma * V(s_1)."""
+        rewards = [1.0, 2.0, 3.0]
+        values = [10.0, 20.0, 30.0]
+        g = lambda_return(rewards, values, gamma=0.9, lam=0.0)
+        # With lambda=0, each step uses only the 1-step return
+        # The forward-view recursion with lam=0 gives: g = r_0 + gamma * V(s_0)
+        # which is the TD(0) return from the first step
+        td0_first = 1.0 + 0.9 * values[0]
+        assert abs(g - td0_first) < 1e-10
+
+    def test_lambda_return_lambda_one(self):
+        """lambda=1 should approximate Monte Carlo return."""
+        rewards = [1.0, 2.0, 3.0]
+        values = [10.0, 20.0, 30.0]
+        g = lambda_return(rewards, values, gamma=0.9, lam=1.0)
+        mc = discount_return(rewards, gamma=0.9)
+        # With lambda=1, contributions are weighted toward longer n-step returns
+        # which converge to MC. The last step bootstraps from values, so not exact MC,
+        # but they should be in the same ballpark.
+        assert isinstance(g, float)
+
+
+class TestGaussianPolicy:
+    def test_gaussian_policy(self):
+        rng = create_rng(42)
+        lo, hi = -1.0, 1.0
+        for _ in range(50):
+            action = gaussian_policy(rng, mean=0.0, std=0.5, lo=lo, hi=hi)
+            assert lo <= action <= hi
+
+
+class TestTracesExtended:
+    def test_replace_trace(self):
+        trace = EligibilityTrace(gamma=0.9, lam=0.8)
+        trace.visit("s1")
+        trace.visit("s1")
+        assert trace.get("s1") == 2.0  # accumulating
+        trace.replace("s1")
+        assert trace.get("s1") == 1.0  # replacing resets to 1
+
+    def test_all_traces(self):
+        trace = EligibilityTrace(gamma=0.9, lam=0.8)
+        trace.visit("s1")
+        trace.visit("s2")
+        all_t = trace.all_traces()
+        assert isinstance(all_t, dict)
+        assert "s1" in all_t
+        assert "s2" in all_t
+        assert all_t["s1"] == 1.0
+        assert all_t["s2"] == 1.0

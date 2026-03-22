@@ -3,7 +3,7 @@
 import io
 
 from policywerk.primitives import scalar, vector, matrix, activations, losses, random
-from policywerk.primitives.progress import Spinner
+from policywerk.primitives.progress import Spinner, progress_bar
 
 
 class TestScalar:
@@ -86,6 +86,29 @@ class TestMatrix:
         assert flat == [1.0, 2.0, 3.0, 4.0]
         assert matrix.reshape(flat, 2, 2) == M
 
+    def test_mat_mat(self):
+        A = [[1.0, 2.0], [3.0, 4.0]]
+        B = [[5.0, 6.0], [7.0, 8.0]]
+        result = matrix.mat_mat(A, B)
+        assert result == [[19.0, 22.0], [43.0, 50.0]]
+
+    def test_tensor3d_zeros(self):
+        t = matrix.tensor3d_zeros(2, 3, 4)
+        assert len(t) == 2
+        assert len(t[0]) == 3
+        assert len(t[0][0]) == 4
+        assert t[0][0][0] == 0.0
+
+    def test_tensor3d_flatten_and_reshape(self):
+        t = matrix.tensor3d_zeros(2, 3, 4)
+        t[0][1][2] = 5.0
+        t[1][2][3] = 7.0
+        flat = matrix.tensor3d_flatten(t)
+        assert len(flat) == 2 * 3 * 4
+        restored = matrix.tensor3d_reshape(flat, 2, 3, 4)
+        assert restored[0][1][2] == 5.0
+        assert restored[1][2][3] == 7.0
+
 
 class TestActivations:
     def test_sigmoid(self):
@@ -93,15 +116,27 @@ class TestActivations:
         assert activations.sigmoid(100.0) > 0.99
         assert activations.sigmoid(-100.0) < 0.01
 
+    def test_sigmoid_derivative(self):
+        assert abs(activations.sigmoid_derivative(0.0) - 0.25) < 1e-10
+
     def test_relu(self):
         assert activations.relu(5.0) == 5.0
         assert activations.relu(-5.0) == 0.0
         assert activations.relu(0.0) == 0.0
 
+    def test_relu_derivative(self):
+        assert activations.relu_derivative(5.0) == 1.0
+        assert activations.relu_derivative(-5.0) == 0.0
+
     def test_elu(self):
         assert activations.elu(5.0) == 5.0
         assert activations.elu(0.0) < 0.001
         assert activations.elu(-1.0) < 0.0
+
+    def test_elu_derivative(self):
+        assert activations.elu_derivative(5.0) == 1.0
+        import math
+        assert abs(activations.elu_derivative(-1.0, alpha=1.0) - math.exp(-1.0)) < 1e-10
 
     def test_softmax(self):
         probs = activations.softmax([1.0, 2.0, 3.0])
@@ -112,6 +147,43 @@ class TestActivations:
         assert abs(activations.tanh_(0.0)) < 1e-10
         assert activations.tanh_(100.0) > 0.99
         assert activations.tanh_(-100.0) < -0.99
+
+    def test_tanh_derivative(self):
+        assert abs(activations.tanh_derivative(0.0) - 1.0) < 1e-10
+
+    def test_silu(self):
+        assert abs(activations.silu(0.0)) < 1e-10
+
+    def test_silu_derivative(self):
+        assert abs(activations.silu_derivative(0.0) - 0.5) < 1e-10
+
+    def test_softplus(self):
+        import math
+        assert abs(activations.softplus(0.0) - math.log(2.0)) < 1e-10
+
+    def test_identity_and_derivative(self):
+        assert activations.identity(3.14) == 3.14
+        assert activations.identity_derivative(3.14) == 1.0
+
+    def test_layer_norm(self):
+        v = [1.0, 2.0, 3.0, 4.0, 5.0]
+        normed = activations.layer_norm(v)
+        mean = sum(normed) / len(normed)
+        variance = sum((x - mean) ** 2 for x in normed) / len(normed)
+        assert abs(mean) < 1e-5
+        assert abs(variance - 1.0) < 1e-3
+
+    def test_layer_norm_backward(self):
+        v = [1.0, 2.0, 3.0, 4.0, 5.0]
+        normed = activations.layer_norm(v)
+        grad_out = [1.0, 0.0, -1.0, 0.5, -0.5]
+        d_input = activations.layer_norm_backward(grad_out, normed, v)
+        assert len(d_input) == len(v)
+
+    def test_step(self):
+        assert activations.step(1.0) == 1.0
+        assert activations.step(-1.0) == 0.0
+        assert activations.step(0.0) == 1.0
 
 
 class TestLosses:
@@ -126,6 +198,22 @@ class TestLosses:
         # Large errors — should be linear
         h = losses.huber([1.0], [10.0], delta=1.0)
         assert h < losses.mse([1.0], [10.0])
+
+    def test_huber_derivative_small(self):
+        # Within delta: gradient = diff / n
+        grads = losses.huber_derivative([1.5], [1.0], delta=1.0)
+        assert abs(grads[0] - 0.5) < 1e-10  # (1.5 - 1.0) / 1
+
+    def test_huber_derivative_large(self):
+        # Beyond delta: gradient is clipped to delta * sign(diff) / n
+        grads = losses.huber_derivative([5.0], [1.0], delta=1.0)
+        assert abs(grads[0] - 1.0) < 1e-10  # delta * sign(4.0) / 1
+
+    def test_cross_entropy_derivative(self):
+        predicted = [0.7, 0.2, 0.1]
+        actual = [1.0, 0.0, 0.0]
+        grads = losses.cross_entropy_derivative(predicted, actual)
+        assert len(grads) == 3
 
     def test_symlog_symexp_inverse(self):
         for x in [-10.0, -1.0, 0.0, 1.0, 10.0]:
@@ -160,6 +248,20 @@ class TestRandom:
         rng = random.create_rng(42)
         val = random.choice(rng, 5)
         assert 0 <= val < 5
+
+    def test_normal_vector(self):
+        rng = random.create_rng(42)
+        v = random.normal_vector(rng, 10)
+        assert len(v) == 10
+
+
+class TestProgress:
+    def test_progress_bar(self):
+        buf = io.StringIO()
+        progress_bar(epoch=5, total=10, loss=0.1234, stream=buf)
+        output = buf.getvalue()
+        assert "5/10" in output
+        assert "0.1234" in output
 
 
 class TestSpinner:
