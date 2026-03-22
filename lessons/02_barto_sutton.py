@@ -12,7 +12,6 @@ Run: uv run python lessons/02_barto_sutton.py
 """
 
 import os
-import math
 from dataclasses import dataclass
 
 from policywerk.world.balance import Balance
@@ -20,7 +19,7 @@ from policywerk.actors.barto_sutton import train, create_ace_ase
 from policywerk.primitives.progress import Spinner
 from policywerk.viz.animate import (
     create_lesson_figure, FrameSnapshot, save_animation,
-    save_poster, save_figure, TEAL, ORANGE, DARK_GRAY, LIGHT_GRAY,
+    save_poster, save_figure, TEAL, ORANGE, DARK_GRAY,
 )
 from policywerk.viz.traces import update_trace_axes
 from policywerk.viz.trajectories import draw_pole
@@ -249,6 +248,13 @@ def main():
     from failures have pushed the actor weights in the right
     direction. By episode 10, it balances indefinitely.
 
+    Notice the sharp transition: the agent does not gradually
+    improve. Once it learns "push against the tilt" from a few
+    failures, it immediately succeeds. In a task this simple
+    with only 36 states, the key insight either clicks or it
+    does not. Later lessons will show tasks where learning is
+    more gradual.
+
     The original 1983 paper used full cart-pole (4 state variables,
     162 boxes) and needed roughly 100 episodes. Our simplified
     balance (2 variables, 36 boxes) converges faster because the
@@ -292,9 +298,13 @@ def main():
       a4,v3: weight {a4v3:+.2f} ({weight_direction(a4v3)}
              when tilted slightly right)
 
-    In the frequently visited center rows, the pattern is clear:
+    In the frequently visited center rows, the general pattern is:
     positive weights when tilted left (push right to correct),
     negative weights when tilted right (push left to correct).
+    Some velocity bins show exceptions -- the angular velocity
+    makes the correction more nuanced than pure angle-based
+    pushing. The agent learned a strategy that considers both
+    angle AND velocity, not just angle alone.
 
     The extreme rows (a0, a5) have large noisy weights because
     the agent rarely visits them. Those bins represent states
