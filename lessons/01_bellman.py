@@ -369,8 +369,6 @@ def main():
     with Spinner("Generating animation"):
         save_animation(fig, update, len(snapshots),
                        "output/01_bellman_artifact.gif", fps=2)
-    print("      artifact.gif  — animated value propagation, one frame per sweep")
-    print("      artifact.pdf  — PDF storyboard of every frame")
 
     # --- Artifact 2: Poster frame ---
 
@@ -411,7 +409,6 @@ def main():
     with Spinner("Generating poster"):
         save_poster(fig2, update_poster, 0, "output/01_bellman_poster.png")
     plt.close(fig2)
-    print("      poster.png    — final converged state with policy arrows")
 
     # --- Artifact 3: Convergence trace ---
 
@@ -430,10 +427,13 @@ def main():
 
     with Spinner("Generating trace"):
         save_figure(fig3, "output/01_bellman_trace.png")
-    print("      trace.png     — convergence curve (max value change per sweep)")
 
     print()
-    print(f"    All artifacts saved to output/")
+    print("    Artifacts saved to output/:")
+    print("      artifact.gif  animated value propagation, one frame per sweep")
+    print("      artifact.pdf  PDF storyboard of every frame")
+    print("      poster.png    final converged state with policy arrows")
+    print("      trace.png     convergence curve (max value change per sweep)")
 
     # -----------------------------------------------------------------------
     # Closing
