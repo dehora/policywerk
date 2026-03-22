@@ -248,6 +248,13 @@ def main():
     topples. Within a few episodes, the large negative TD errors
     from failures have pushed the actor weights in the right
     direction. By episode 10, it balances indefinitely.
+
+    The original 1983 paper used full cart-pole (4 state variables,
+    162 boxes) and needed roughly 100 episodes. Our simplified
+    balance (2 variables, 36 boxes) converges faster because the
+    strategy is simpler and there are fewer states to learn. But
+    the mechanism is the same -- TD error flowing through eligibility
+    traces -- and it scales to harder problems.
     """)
 
     # -----------------------------------------------------------------------
@@ -271,20 +278,22 @@ def main():
     a1v1_dir = "favor right" if a1v1 > 0 else "favor left"
     a4v3_dir = "favor right" if a4v3 > 0 else "favor left"
 
-    # Check the overall pattern: do left-tilted states favor right, and vice versa?
-    left_weights = [ase.weights[i] for i in range(6)]   # a0 row
-    right_weights = [ase.weights[i] for i in range(30, 36)]  # a5 row
-    left_nonzero = [w for w in left_weights if abs(w) > 0.01]
-    right_nonzero = [w for w in right_weights if abs(w) > 0.01]
-    left_avg = sum(left_nonzero) / len(left_nonzero) if left_nonzero else 0
-    right_avg = sum(right_nonzero) / len(right_nonzero) if right_nonzero else 0
+    # Check the overall pattern using inner bins (a1, a4) where the agent
+    # actually spends time. Extreme bins (a0, a5) have noisy weights because
+    # the agent rarely visits them — it learns to avoid getting there.
+    a1_weights = [ase.weights[i] for i in range(6, 12)]  # a1 row (slight left)
+    a4_weights = [ase.weights[i] for i in range(24, 30)]  # a4 row (slight right)
+    a1_nonzero = [w for w in a1_weights if abs(w) > 0.01]
+    a4_nonzero = [w for w in a4_weights if abs(w) > 0.01]
+    a1_avg = sum(a1_nonzero) / len(a1_nonzero) if a1_nonzero else 0
+    a4_avg = sum(a4_nonzero) / len(a4_nonzero) if a4_nonzero else 0
 
-    if left_avg > 0 and right_avg < 0:
+    if a1_avg > 0 and a4_avg < 0:
         pattern = "push against the direction of tilt"
-    elif left_avg < 0 and right_avg > 0:
+    elif a1_avg < 0 and a4_avg > 0:
         pattern = "push with the direction of tilt (unusual)"
     else:
-        pattern = "a mixed strategy"
+        pattern = "a mixed strategy near center"
 
     print(f"""    Reading the actor: look at a1,v1: weight {a1v1:+.2f} ({a1v1_dir}
     when tilted left). Look at a4,v3: weight {a4v3:+.2f} ({a4v3_dir}
