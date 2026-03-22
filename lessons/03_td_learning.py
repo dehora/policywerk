@@ -335,14 +335,21 @@ def main():
     for ep_idx in range(STEP_BY_STEP_EPISODES, num_episodes):
         if (ep_idx - STEP_BY_STEP_EPISODES) % record_interval == 0 or ep_idx == num_episodes - 1:
             h = hist_td[ep_idx]
+            ep_path = h.get("path", [])
+            ep_outcome = h.get("outcome")
+            # Show agent at last position before terminal
+            last_pos = ep_path[-1] if ep_path else None
+            result = f"-> {'won' if ep_outcome == 'right' else 'lost'}" if ep_outcome else ""
             snapshots.append(TDSnapshot(
                 episode=ep_idx,
                 total_reward=0.0,
                 estimated=h["values"],
                 rms=h["rms"],
                 episode_num=ep_idx,
-                path=h.get("path"),
-                outcome=h.get("outcome"),
+                path=ep_path,
+                outcome=ep_outcome,
+                agent_label=last_pos,
+                step_label=f"Episode {ep_idx} {result}",
             ))
 
     true_values = list(RandomWalk.TRUE_VALUES)
