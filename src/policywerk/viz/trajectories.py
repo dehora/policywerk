@@ -65,6 +65,7 @@ def draw_cliff_grid(
     path: list[tuple[int, int]] | None = None,
     policy: dict[str, int] | None = None,
     caption: str | None = None,
+    agent_pos: tuple[int, int] | None = None,
 ) -> None:
     """Draw a cliff walking grid with path, cliff cells, and optional policy arrows.
 
@@ -123,6 +124,12 @@ def draw_cliff_grid(
                          arrowprops=dict(arrowstyle="->", color=DARK_GRAY,
                                          lw=1, alpha=0.6),
                          zorder=4)
+
+    # Agent marker (orange triangle) at current position
+    if agent_pos is not None:
+        ar, ac = agent_pos
+        ax.scatter([ac], [ar], marker="v", s=120,
+                   color=ORANGE, edgecolors=DARK_GRAY, linewidths=0.5, zorder=8)
 
     ax.set_xlim(-0.5, cols - 0.5)
     ax.set_ylim(rows - 0.5, -0.5)  # invert y so row 0 is at top

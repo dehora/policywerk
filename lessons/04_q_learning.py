@@ -34,10 +34,12 @@ import matplotlib.pyplot as plt
 @dataclass
 class QLearningSnapshot(FrameSnapshot):
     path: list[tuple[int, int]]
-    policy: dict[str, int]
+    policy: dict[str, int] | None
     episode_num: int
     ep_reward: float
     method: str
+    agent_pos: tuple[int, int] | None = None
+    step_label: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -224,26 +226,59 @@ def main():
 
     os.makedirs("output", exist_ok=True)
 
-    # Build snapshots — sample Q-learning episodes
+    # Build snapshots: step-by-step for first 2 episodes, then summaries
     snapshots = []
-    sample_episodes = sorted(set(
-        list(range(0, min(10, num_episodes))) +
-        list(range(10, num_episodes, num_episodes // 20)) +
-        [num_episodes - 1]
-    ))
+    STEP_BY_STEP_EPISODES = 2
 
-    for ep_idx in sample_episodes:
-        if ep_idx < num_episodes:
-            h = hist_ql[ep_idx]
-            pol = extract_greedy_policy(Q_ql, env) if ep_idx == num_episodes - 1 else None
+    for ep_idx in range(min(STEP_BY_STEP_EPISODES, num_episodes)):
+        h = hist_ql[ep_idx]
+        ep_path = h["path"]
+        # Subsample long paths (show every Nth step to keep frame count reasonable)
+        step_stride = max(1, len(ep_path) // 20)
+        step_indices = list(range(0, len(ep_path), step_stride))
+        if step_indices[-1] != len(ep_path) - 1:
+            step_indices.append(len(ep_path) - 1)
+
+        for si in step_indices:
+            pos = ep_path[si]
             snapshots.append(QLearningSnapshot(
                 episode=ep_idx,
                 total_reward=h["total_reward"],
-                path=h["path"],
+                path=ep_path[:si + 1],
+                policy=None,
+                episode_num=ep_idx,
+                ep_reward=h["total_reward"],
+                method="Q-learning",
+                agent_pos=pos,
+                step_label=f"Episode {ep_idx}, step {si}",
+            ))
+        # Duplicate last step frame for pause
+        snapshots.append(snapshots[-1])
+
+    # Summary frames for remaining episodes
+    summary_episodes = sorted(set(
+        list(range(STEP_BY_STEP_EPISODES, min(15, num_episodes))) +
+        list(range(15, num_episodes, num_episodes // 15)) +
+        [num_episodes - 1]
+    ))
+
+    for ep_idx in summary_episodes:
+        if ep_idx < num_episodes:
+            h = hist_ql[ep_idx]
+            ep_path = h["path"]
+            pol = extract_greedy_policy(Q_ql, env) if ep_idx == num_episodes - 1 else None
+            last_pos = ep_path[-1] if ep_path else None
+            reward_str = f"{h['total_reward']:.0f}" if h['total_reward'] > -1000 else "< -1000"
+            snapshots.append(QLearningSnapshot(
+                episode=ep_idx,
+                total_reward=h["total_reward"],
+                path=ep_path,
                 policy=pol,
                 episode_num=ep_idx,
                 ep_reward=h["total_reward"],
                 method="Q-learning",
+                agent_pos=last_pos,
+                step_label=f"Episode {ep_idx} (reward: {reward_str})",
             ))
 
     cliff_cells = list(CliffWorld.CLIFF)
@@ -260,17 +295,19 @@ def main():
     def update(frame_idx):
         snap = snapshots[frame_idx]
 
-        # Top-left: cliff grid with path
+        # Top-left: cliff grid with path and agent marker
         draw_cliff_grid(axes["env"], CliffWorld.ROWS, CliffWorld.COLS,
                         cliff_cells, CliffWorld.START, CliffWorld.GOAL,
                         path=snap.path, policy=snap.policy,
-                        caption="Cliff world: reach G from S, avoid C (-100)")
-        reward_str = f"{snap.ep_reward:.0f}" if snap.ep_reward > -1000 else "< -1000"
-        axes["env"].set_title(f"Episode {snap.episode_num} (reward: {reward_str})", fontsize=10)
+                        caption="Cliff world: reach G from S, avoid C (-100)",
+                        agent_pos=snap.agent_pos)
+        title = snap.step_label if snap.step_label else f"Episode {snap.episode_num}"
+        axes["env"].set_title(title, fontsize=10)
 
         # Top-right: info
         axes["algo"].clear()
         axes["algo"].axis("off")
+        reward_str = f"{snap.ep_reward:.0f}" if snap.ep_reward > -1000 else "< -1000"
         info_lines = [
             f"Episode: {snap.episode_num}",
             f"Reward:  {reward_str}",
