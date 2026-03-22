@@ -73,13 +73,13 @@ def main():
     highest score.
 
     The second idea is off-policy learning. The agent needs to
-    explore -- try random actions to discover what works. But it
-    also needs to learn the best possible behavior, not just the
-    behavior it happens to be trying. Q-learning does both at
-    once: it explores randomly during training, but the update
-    rule always assumes the best action will be taken next. This
-    means the agent can learn the optimal strategy while still
-    trying new things.
+    try random actions to discover what works. But it also needs
+    to learn the best possible behavior, not just the behavior
+    it happens to be trying. Q-learning does both at once. It
+    tries random actions during training, but the update rule
+    always assumes the best action will be taken next. This
+    means the agent can learn the best strategy while still
+    exploring.
     """)
 
     # -----------------------------------------------------------------------
