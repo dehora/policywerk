@@ -2,11 +2,14 @@
 
 from policywerk.world.gridworld import GridWorld
 from policywerk.world.balance import Balance
+from policywerk.world.random_walk import RandomWalk
 from policywerk.actors.bellman import value_iteration, policy_iteration, extract_policy
 from policywerk.actors.barto_sutton import (
     create_ace_ase, state_to_input, state_to_box, select_action,
     compute_td_error, update_ace, update_ase, train, NUM_BOXES,
 )
+from policywerk.actors.td_learner import td_zero, td_lambda, monte_carlo, rms_error
+from policywerk.building_blocks.value_functions import TabularV
 from policywerk.primitives.random import create_rng
 from policywerk.primitives import vector
 
@@ -175,3 +178,46 @@ class TestBartoSutton:
         state = State(features=[0.0, 0.0], label="3,3")
         with pytest.raises(ValueError, match="36-box"):
             state_to_box(state, 100)
+
+
+class TestTDLearner:
+    def test_rms_error(self):
+        V = TabularV(default=0.5)
+        for label in RandomWalk.LABELS:
+            V.set(label, 0.5)
+        # All estimates = 0.5, true values = [1/6, 2/6, 3/6, 4/6, 5/6]
+        err = rms_error(V, RandomWalk.TRUE_VALUES, RandomWalk.LABELS)
+        assert err > 0.0
+        # Perfect values should give 0
+        for i, label in enumerate(RandomWalk.LABELS):
+            V.set(label, RandomWalk.TRUE_VALUES[i])
+        assert rms_error(V, RandomWalk.TRUE_VALUES, RandomWalk.LABELS) < 1e-10
+
+    def test_td_zero_converges(self):
+        env = RandomWalk()
+        V, history = td_zero(env, num_episodes=100, alpha=0.1, seed=42)
+        # RMS error should decrease
+        early_rms = sum(h["rms"] for h in history[:10]) / 10
+        late_rms = sum(h["rms"] for h in history[-10:]) / 10
+        assert late_rms < early_rms
+
+    def test_td_zero_values_near_true(self):
+        env = RandomWalk()
+        V, _ = td_zero(env, num_episodes=200, alpha=0.1, seed=42)
+        for i, label in enumerate(RandomWalk.LABELS):
+            diff = abs(V.get(label) - RandomWalk.TRUE_VALUES[i])
+            assert diff < 0.15, f"V({label})={V.get(label):.3f}, true={RandomWalk.TRUE_VALUES[i]:.3f}"
+
+    def test_td_lambda_converges(self):
+        env = RandomWalk()
+        V, history = td_lambda(env, num_episodes=100, alpha=0.1, lam=0.5, seed=42)
+        early_rms = sum(h["rms"] for h in history[:10]) / 10
+        late_rms = sum(h["rms"] for h in history[-10:]) / 10
+        assert late_rms < early_rms
+
+    def test_monte_carlo_converges(self):
+        env = RandomWalk()
+        V, history = monte_carlo(env, num_episodes=100, alpha=0.1, seed=42)
+        early_rms = sum(h["rms"] for h in history[:10]) / 10
+        late_rms = sum(h["rms"] for h in history[-10:]) / 10
+        assert late_rms < early_rms
