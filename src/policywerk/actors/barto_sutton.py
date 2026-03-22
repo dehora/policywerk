@@ -138,7 +138,7 @@ def select_action(ase: ASE, x: Vector, rng: _random.Random,
     return 1 if noisy >= 0.0 else 0
 
 
-def compute_td_error(ace: ACE, x: Vector, x_prev: Vector,
+def compute_td_error(ace: ACE, x: Vector,
                      reward: float, gamma: float, done: bool) -> float:
     """Compute the TD error — the critic's surprise signal.
 
@@ -218,7 +218,7 @@ def train_episode(env, ace: ACE, ase: ASE, rng: _random.Random,
                   num_boxes: int, gamma: float = 0.95,
                   alpha: float = 10.0, beta: float = 0.1,
                   trace_decay: float = 0.5,
-                  noise_std: float = 0.1) -> tuple[Episode, list[float]]:
+                  noise_std: float = 0.1) -> tuple[Episode, list[float], list[int]]:
     """Run one training episode.
 
     The agent interacts with the environment step by step:
@@ -228,10 +228,12 @@ def train_episode(env, ace: ACE, ase: ASE, rng: _random.Random,
       4. ACE computes TD error
       5. Both ACE and ASE update weights via traces
 
-    Returns the episode and a list of angles (for animation).
+    Returns the episode, a list of angles, and a list of actions (for animation).
     """
     episode = Episode()
     angles = []
+    actions = []
+    max_steps = getattr(env, '_max_steps', 500)
 
     state = env.reset()
     x = state_to_input(state, num_boxes)
@@ -242,10 +244,11 @@ def train_episode(env, ace: ACE, ase: ASE, rng: _random.Random,
         ace.traces[i] = 0.0
         ase.traces[i] = 0.0
 
-    for step in range(env._max_steps):
-        angles.append(state.features[0])  # record angle
+    for step in range(max_steps):
+        angles.append(state.features[0])  # record angle for visualization
 
         action = select_action(ase, x, rng, noise_std)
+        actions.append(action)
         next_state, env_reward, done = env.step(action)
         x_next = state_to_input(next_state, num_boxes)
 
@@ -258,7 +261,6 @@ def train_episode(env, ace: ACE, ase: ASE, rng: _random.Random,
         # keep the bootstrap term (done=False for learning) because
         # the episode didn't truly end — the agent was still balancing.
         failed = done and env_reward == 0.0
-        truncated = done and env_reward != 0.0
         reward = -1.0 if failed else 0.0
         # For learning: only use terminal (no-bootstrap) path on actual failure
         learn_done = failed
@@ -269,7 +271,7 @@ def train_episode(env, ace: ACE, ase: ASE, rng: _random.Random,
         ))
 
         # Compute TD error from the critic
-        td_error = compute_td_error(ace, x_next, x, reward, gamma, learn_done)
+        td_error = compute_td_error(ace, x_next, reward, gamma, learn_done)
 
         # Update both components using the TD error
         update_ace(ace, td_error, x, beta, trace_decay)
@@ -281,20 +283,21 @@ def train_episode(env, ace: ACE, ase: ASE, rng: _random.Random,
         state = next_state
         x = x_next
 
-    return episode, angles
+    return episode, angles, actions
 
 
 def train(env, num_episodes: int = 200, seed: int = 42,
           gamma: float = 0.95, alpha: float = 10.0,
           beta: float = 0.1, trace_decay: float = 0.5,
-          noise_std: float = 0.1) -> tuple[ACE, ASE, list[int], list[list[float]]]:
+          noise_std: float = 0.1) -> tuple[ACE, ASE, list[int], list[list[float]], list[list[int]]]:
     """Train ACE/ASE on the balance environment.
 
     Returns:
         ace: trained critic
         ase: trained actor
         episode_lengths: list of episode lengths (for plotting)
-        all_angles: list of angle trajectories per episode (for animation)
+        all_angles: angle trajectories per episode (for animation)
+        all_actions: action sequences per episode (for animation)
     """
     num_boxes = 36  # 6 angle bins x 6 velocity bins
     rng = create_rng(seed)
@@ -302,14 +305,16 @@ def train(env, num_episodes: int = 200, seed: int = 42,
 
     episode_lengths: list[int] = []
     all_angles: list[list[float]] = []
+    all_actions: list[list[int]] = []
 
     for ep in range(num_episodes):
-        episode, angles = train_episode(
+        episode, angles, actions = train_episode(
             env, ace, ase, rng, num_boxes,
             gamma=gamma, alpha=alpha, beta=beta,
             trace_decay=trace_decay, noise_std=noise_std,
         )
         episode_lengths.append(len(episode))
         all_angles.append(angles)
+        all_actions.append(actions)
 
-    return ace, ase, episode_lengths, all_angles
+    return ace, ase, episode_lengths, all_angles, all_actions

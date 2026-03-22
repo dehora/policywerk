@@ -12,6 +12,7 @@ Run: uv run python lessons/02_barto_sutton.py
 """
 
 import os
+import math
 from dataclasses import dataclass
 
 from policywerk.world.balance import Balance
@@ -19,9 +20,10 @@ from policywerk.actors.barto_sutton import train, create_ace_ase
 from policywerk.primitives.progress import Spinner
 from policywerk.viz.animate import (
     create_lesson_figure, FrameSnapshot, save_animation,
-    save_poster, save_figure, TEAL, ORANGE, DARK_GRAY,
+    save_poster, save_figure, TEAL, ORANGE, DARK_GRAY, LIGHT_GRAY,
 )
 from policywerk.viz.traces import update_trace_axes
+from policywerk.viz.trajectories import draw_pole
 
 import matplotlib
 matplotlib.use("Agg")
@@ -35,6 +37,7 @@ import matplotlib.pyplot as plt
 @dataclass
 class BartoSuttonSnapshot(FrameSnapshot):
     angles: list[float]      # angle at each step of the episode
+    actions: list[int]       # action at each step (for pole viz)
     episode_length: int
     episode_num: int
 
@@ -105,19 +108,27 @@ def main():
     torque to keep it upright. Think of balancing a broomstick on
     your fingertip.
 
-    State:   (angle, angular velocity) -- two continuous numbers
+    State:   (angle, angular velocity)
     Actions: 0 = push left, 1 = push right
     Reward:  +1 per step of survival, 0 when the pole falls
     Done:    when |angle| > 0.3 radians (about 17 degrees)
     Goal:    survive 500 steps
 
     The continuous state is discretized into bins:
-      6 angle bins x 6 velocity bins = 36 "boxes"
 
-    Each box represents a region of the state space. The agent
-    learns a separate weight for each box, like having 36 slots
-    in a lookup table. The question is: how does it fill them in
-    without knowing the physics?
+      Angle bins:    a0 (< -0.2)  a1  a2  a3  a4  a5 (> +0.2)
+                     far left  <-- centered -->  far right
+
+      Velocity bins: v0 (< -1.0)  v1  v2  v3  v4  v5 (> +1.0)
+                     fast left <-- still -->  fast right
+
+      Total: 6 angle bins x 6 velocity bins = 36 "boxes"
+
+    Each box gets one weight in the actor and one in the critic.
+    The input is a "one-hot" vector: 36 numbers, all zeros except
+    a 1.0 at the current box. For example, if angle is in bin 3
+    and velocity in bin 2, the box index is 3*6 + 2 = 20, so only
+    weight 20 is active.
     """)
 
     env = Balance()
@@ -130,46 +141,61 @@ def main():
     print("-" * 64)
     print("""
     The 1983 paper introduced two "neuronlike elements" that work
-    together:
+    together. Each is a single neuron with 36 weights:
 
       ASE (Adaptive Search Element) -- the ACTOR
-        Decides what to do. For each box, it has a weight: positive
-        favors pushing right, negative favors pushing left. The
-        action is: compute the weighted sum, add some random noise
-        (for exploration), and threshold: >= 0 means push right,
-        < 0 means push left.
+        Decides what to do. It computes: weighted_sum + noise.
+        If the result >= 0, push right. Otherwise, push left.
+        The noise is deliberate -- without it, the agent would
+        always do the same thing from the same state and could
+        never discover alternatives.
 
       ACE (Adaptive Critic Element) -- the CRITIC
-        Predicts how good the current state is. For each box, it
-        stores an estimated value (like V(s) from Lesson 01, but
-        learned from experience, not computed from a model).
+        Predicts how good the current state is, like V(s) from
+        Lesson 01 but learned from experience, not computed from
+        a model. Its prediction for a box is simply the weight
+        for that box (since the input is one-hot).
 
-    The critic drives the actor's learning through the TD error:
+    The critic drives learning through the TD error:
 
       td_error = reward + gamma * prediction(now) - prediction(before)
 
     This is the critic's "surprise signal":
       Positive: "things turned out better than I predicted"
       Negative: "things turned out worse than I predicted"
+      Zero:     "things went exactly as expected, nothing to learn"
 
-    When the pole falls, the reward is -1 and the prediction drops
-    to zero, producing a large negative TD error. That negative
-    signal flows backward through the eligibility traces, reducing
-    the weights of actions that contributed to the failure.
+    The environment gives reward +1 per step and 0 on failure. For
+    learning, we transform this to the paper's convention: 0 during
+    balancing, -1 on failure. This way the TD error is near zero
+    while the pole is up, and sharply negative when it falls.
+    """)
 
-    Eligibility traces remember which boxes were recently active.
-    When the TD error arrives, boxes with high traces get updated
-    more than boxes visited long ago. This solves the credit
-    assignment problem: which of the last 50 actions caused the
-    pole to fall?
+    print("""    WHAT HAPPENS WHEN THE POLE FALLS
 
-    Here is a concrete example. Suppose the agent is in box (3,3)
-    (centered angle, low velocity). It pushes right (action 1).
-    The ASE trace for box 15 (= 3*6 + 3) increases. One step later,
-    the pole tilts right and the agent enters box (3,4). If the
-    critic's prediction was too optimistic, the TD error is negative,
-    and the ASE weight for box 15 decreases, making "push right from
-    centered" less likely next time.
+    Suppose the agent has been balancing for 50 steps, then the
+    pole falls at step 51.
+
+      Step 50: state is box 22. Critic predicts V = 0.3.
+      Step 51: pole falls. Reward = -1. No future state.
+               TD error = -1 - 0.3 = -1.3
+
+    This large negative TD error updates every box that has a
+    non-zero eligibility trace:
+
+      Box 22 (visited 1 step ago):  trace = 0.5^1 = 0.50
+        Actor weight update: w[22] += 10.0 * (-1.3) * 0.50 = -6.5
+        Critic weight update: v[22] += 0.1 * (-1.3) * 0.50 = -0.065
+
+      Box 21 (visited 2 steps ago): trace = 0.5^2 = 0.25
+        Actor weight update: w[21] += 10.0 * (-1.3) * 0.25 = -3.25
+
+      Box 18 (visited 5 steps ago): trace = 0.5^5 = 0.03
+        Actor weight update: w[18] += 10.0 * (-1.3) * 0.03 = -0.39
+
+    Recent boxes get large updates (they were probably responsible),
+    distant boxes get small ones. This is how eligibility traces
+    solve credit assignment.
     """)
 
     # -----------------------------------------------------------------------
@@ -184,15 +210,19 @@ def main():
     pass (success).
 
     Parameters:
-      gamma      = 0.95  (discount factor)
-      alpha      = 10.0  (actor learning rate)
-      beta       = 0.1   (critic learning rate)
-      trace_decay = 0.5  (eligibility trace decay)
-      noise_std  = 0.1   (exploration noise)
+      gamma       = 0.95  discount factor (how much to value future)
+      alpha       = 10.0  actor learning rate (large because one-hot
+                          input means only one weight changes per step)
+      beta        = 0.1   critic learning rate (learns conservatively)
+      trace_decay = 0.5   traces halve each step -- a state visited 3
+                          steps ago has trace 0.5^3 = 0.125 (12.5% of
+                          the update of the current state)
+      noise_std   = 0.1   exploration noise -- small perturbation so
+                          the agent occasionally tries the other action
     """)
 
     num_episodes = 100
-    ace, ase, lengths, all_angles = train(
+    ace, ase, lengths, all_angles, all_actions = train(
         env, num_episodes=num_episodes, seed=42,
         gamma=0.95, alpha=10.0, beta=0.1,
         trace_decay=0.5, noise_std=0.1,
@@ -214,10 +244,10 @@ def main():
     print(f"    Final 10 episodes average: {sum(lengths[-10:])/10:.0f} steps")
     print()
 
-    print("""    The agent learns quickly. Early episodes end in seconds as the
-    pole topples. Within a few episodes, the agent discovers that
-    pushing against the direction of tilt keeps the pole up. By
-    episode 10, it can balance indefinitely.
+    print("""    The agent learns quickly. Early episodes end as the pole
+    topples. Within a few episodes, the large negative TD errors
+    from failures have pushed the actor weights in the right
+    direction. By episode 10, it balances indefinitely.
     """)
 
     # -----------------------------------------------------------------------
@@ -227,49 +257,50 @@ def main():
     print("LEARNED WEIGHTS")
     print("-" * 64)
     print("""
-    The ACE and ASE each have 36 weights (one per box). Here is
-    what they learned. Rows are angle bins (0=far left, 5=far right).
-    Columns are velocity bins (0=fast left, 5=fast right).
+    The ACE and ASE each have 36 weights (one per box).
+    Rows = angle bins (a0=far left, a5=far right).
+    Columns = velocity bins (v0=fast left, v5=fast right).
     """)
 
-    print_weight_grid(ase.weights, "ASE (actor) weights -- positive = favor right")
-    print_weight_grid(ace.weights, "ACE (critic) weights -- higher = better state")
+    print_weight_grid(ase.weights, "ASE (actor) -- positive = favor push right")
+    print_weight_grid(ace.weights, "ACE (critic) -- higher = better state")
 
-    print("""    Reading the actor weights: when the pole tilts left (low angle
-    bins), the weights are positive (push right to correct). When it
-    tilts right (high angle bins), the weights are negative (push
-    left). The agent learned the obvious strategy: push against the
-    lean.
+    print("""    Reading the actor: look at a1,v1: weight +0.77 (favor right
+    when tilted left). Look at a4,v3: weight -0.76 (favor left
+    when tilted right). The pattern: positive weights in the top-
+    left, negative in the bottom-right. The agent learned to push
+    against the direction of tilt.
 
-    Reading the critic weights: the center boxes (balanced pole)
-    have the highest values. The edge boxes (pole about to fall)
-    have the lowest. The critic learned that being centered is
-    good and being tilted is bad.
+    Reading the critic: center boxes (a2-a3) have values near zero
+    (balanced is "normal"). Edge boxes (a0, a5) have negative
+    values (tilted far = danger). The critic learned that being
+    centered is safe and being tilted is risky.
+
+    Many boxes have weight 0.00 because the agent never visited
+    them -- once it learns to balance, it stays near center.
     """)
 
     # -----------------------------------------------------------------------
-    # 6. Comparison to Lesson 01
+    # 6. Comparison
     # -----------------------------------------------------------------------
 
     print("COMPARISON TO LESSON 01")
     print("-" * 64)
     print("""
-    Lesson 01 (Bellman):
-      - Knew the environment's rules completely
-      - Computed optimal values by reasoning, no interaction needed
-      - Guaranteed to find the optimal solution
-      - Only works when you have the model
-
-    Lesson 02 (Barto/Sutton):
-      - Knew nothing about the physics
-      - Learned by trial and error over 100 episodes
-      - Found a good (not provably optimal) policy
-      - Works with any environment you can interact with
+    Lesson 01 (Bellman):            Lesson 02 (Barto/Sutton):
+      Knew the rules completely       Knew nothing about physics
+      Computed values by reasoning    Learned by trial and error
+      Guaranteed optimal solution     Found a good policy
+      Only works with a model         Works with any environment
 
     The price of not having a model: the agent must explore, fail,
-    and learn from failures. But the payoff is generality. The same
-    actor-critic framework works whether the environment is a grid,
-    a pole, a game, or a robot.
+    and learn from failures. But the payoff is generality.
+
+    The TD error -- the critic's surprise signal -- is the concept
+    to carry forward from here. In Lesson 03, we study it in
+    isolation as temporal-difference learning. In Lesson 04, we
+    use it for Q-learning. The actor-critic split returns in Lesson
+    06 with neural networks instead of single neurons.
     """)
 
     # -----------------------------------------------------------------------
@@ -283,60 +314,56 @@ def main():
 
     # Build snapshots: sample episodes at intervals
     snapshots = []
-    record_interval = max(1, num_episodes // 30)  # ~30 frames
-    for ep_idx in range(num_episodes):
-        if ep_idx % record_interval == 0 or ep_idx == num_episodes - 1:
+    # More frames early (where the action is), fewer later
+    early_episodes = list(range(0, min(15, num_episodes)))
+    later_episodes = list(range(15, num_episodes, 5))
+    sample_episodes = sorted(set(early_episodes + later_episodes + [num_episodes - 1]))
+
+    for ep_idx in sample_episodes:
+        if ep_idx < num_episodes:
             snapshots.append(BartoSuttonSnapshot(
                 episode=ep_idx,
                 total_reward=float(lengths[ep_idx]),
                 angles=all_angles[ep_idx],
+                actions=all_actions[ep_idx],
                 episode_length=lengths[ep_idx],
                 episode_num=ep_idx,
             ))
 
-    # --- Artifact 1: Animation ---
+    # --- Artifact 1: Animation with pole visualization ---
 
     fig, axes = create_lesson_figure(
         "Lesson 02: Actor-Critic Balance",
         subtitle="Barto/Sutton/Anderson (1983) -- chaotic motion becomes control",
     )
 
-    # Real episode lengths for the trace (no fake points)
     real_lengths = list(lengths)
 
     def update(frame_idx):
         snap = snapshots[frame_idx]
 
-        # Top-left: angle trajectory for this episode
+        # Top-left: draw the pole at a representative moment
         axes["env"].clear()
-        steps = list(range(len(snap.angles)))
-        axes["env"].plot(steps, snap.angles, color=TEAL, linewidth=1.0, alpha=0.8)
-        axes["env"].axhline(0.3, color="red", linestyle="--", linewidth=0.8, alpha=0.5)
-        axes["env"].axhline(-0.3, color="red", linestyle="--", linewidth=0.8, alpha=0.5)
-        axes["env"].axhline(0.0, color=DARK_GRAY, linestyle="-", linewidth=0.5, alpha=0.3)
-        axes["env"].set_xlim(0, 500)
-        axes["env"].set_ylim(-0.35, 0.35)
-        axes["env"].set_xlabel("Step", fontsize=9)
-        axes["env"].set_ylabel("Angle (rad)", fontsize=9)
-        axes["env"].set_title(f"Episode {snap.episode_num} -- {snap.episode_length} steps", fontsize=10)
+        # Show the pole at the midpoint of the episode (or last step if short)
+        mid = min(len(snap.angles) - 1, len(snap.angles) // 2)
+        angle = snap.angles[mid]
+        action = snap.actions[mid] if mid < len(snap.actions) else None
+        draw_pole(axes["env"], angle, action=action)
+        status = "balanced!" if snap.episode_length >= 500 else f"fell at step {snap.episode_length}"
+        axes["env"].set_title(f"Episode {snap.episode_num} -- {status}", fontsize=10)
 
-        # Top-right: episode info
+        # Top-right: angle trajectory over time
         axes["algo"].clear()
-        axes["algo"].axis("off")
-        info_lines = [
-            f"Episode: {snap.episode_num}",
-            f"Length:  {snap.episode_length} steps",
-            f"Status:  {'balanced!' if snap.episode_length >= 500 else 'fell'}",
-            "",
-            f"gamma:       0.95",
-            f"alpha (ASE): 10.0",
-            f"beta (ACE):  0.1",
-        ]
-        text = "\n".join(info_lines)
-        axes["algo"].text(0.1, 0.9, text, transform=axes["algo"].transAxes,
-                          fontsize=10, verticalalignment="top",
-                          fontfamily="monospace", color=DARK_GRAY)
-        axes["algo"].set_title("Training State", fontsize=10)
+        steps = list(range(len(snap.angles)))
+        axes["algo"].plot(steps, snap.angles, color=TEAL, linewidth=0.8, alpha=0.8)
+        axes["algo"].axhline(0.3, color="red", linestyle="--", linewidth=0.8, alpha=0.4)
+        axes["algo"].axhline(-0.3, color="red", linestyle="--", linewidth=0.8, alpha=0.4)
+        axes["algo"].axhline(0.0, color=DARK_GRAY, linestyle="-", linewidth=0.5, alpha=0.3)
+        axes["algo"].set_xlim(0, 500)
+        axes["algo"].set_ylim(-0.35, 0.35)
+        axes["algo"].set_xlabel("Step", fontsize=8)
+        axes["algo"].set_ylabel("Angle", fontsize=8)
+        axes["algo"].set_title("Angle Trajectory", fontsize=10)
 
         # Bottom: episode length over training
         n = min(snap.episode_num + 1, len(real_lengths))
@@ -360,17 +387,9 @@ def main():
 
     def update_poster(frame_idx):
         snap = snapshots[-1]
-        # Show final episode angle trace
-        steps = list(range(len(snap.angles)))
-        axes2["env"].plot(steps, snap.angles, color=TEAL, linewidth=1.0, alpha=0.8)
-        axes2["env"].axhline(0.3, color="red", linestyle="--", linewidth=0.8, alpha=0.5)
-        axes2["env"].axhline(-0.3, color="red", linestyle="--", linewidth=0.8, alpha=0.5)
-        axes2["env"].axhline(0.0, color=DARK_GRAY, linestyle="-", linewidth=0.5, alpha=0.3)
-        axes2["env"].set_xlim(0, 500)
-        axes2["env"].set_ylim(-0.35, 0.35)
-        axes2["env"].set_xlabel("Step", fontsize=9)
-        axes2["env"].set_ylabel("Angle (rad)", fontsize=9)
-        axes2["env"].set_title("Final Episode (500 steps)", fontsize=10)
+        # Show balanced pole
+        draw_pole(axes2["env"], 0.0)  # balanced = angle 0
+        axes2["env"].set_title("Balanced (500 steps)", fontsize=10)
 
         axes2["algo"].clear()
         axes2["algo"].axis("off")
@@ -414,9 +433,9 @@ def main():
 
     print()
     print("    Artifacts saved to output/:")
-    print("      artifact.gif  angle trajectories across training episodes")
+    print("      artifact.gif  pole balance across training episodes")
     print("      artifact.pdf  PDF storyboard of every frame")
-    print("      poster.png    final balanced episode with learning curve")
+    print("      poster.png    final balanced state with learning curve")
     print("      trace.png     episode length over training")
 
     # -----------------------------------------------------------------------

@@ -55,6 +55,64 @@ def draw_target(
                marker="*", zorder=10, edgecolors=DARK_GRAY, linewidths=0.5)
 
 
+def draw_pole(
+    ax: plt.Axes,
+    angle: float,
+    action: int | None = None,
+    pole_length: float = 0.8,
+) -> None:
+    """Draw a simple inverted pendulum (pole on a pivot).
+
+    The pole is a line from a fixed pivot point, tilted by the
+    current angle. The pivot is drawn as a small triangle base.
+    Optionally shows the applied force direction.
+    """
+    # Pivot at bottom center
+    pivot_x, pivot_y = 0.0, 0.0
+
+    # Pole tip: angle=0 is straight up, positive = right tilt
+    tip_x = pivot_x + pole_length * math.sin(angle)
+    tip_y = pivot_y + pole_length * math.cos(angle)
+
+    # Draw the pole
+    ax.plot([pivot_x, tip_x], [pivot_y, tip_y],
+            color=TEAL, linewidth=4, solid_capstyle="round", zorder=5)
+
+    # Draw the pivot base (small triangle)
+    base_w = 0.15
+    ax.fill([pivot_x - base_w, pivot_x + base_w, pivot_x],
+            [pivot_y - 0.05, pivot_y - 0.05, pivot_y + 0.02],
+            color=DARK_GRAY, zorder=6)
+
+    # Draw the tip as a circle
+    ax.scatter([tip_x], [tip_y], c=TEAL, s=60, zorder=7,
+               edgecolors=DARK_GRAY, linewidths=0.5)
+
+    # Show force direction arrow if action is given
+    if action is not None:
+        arrow_y = -0.08
+        arrow_dx = 0.2 if action == 1 else -0.2
+        ax.annotate("", xy=(pivot_x + arrow_dx, arrow_y),
+                     xytext=(pivot_x, arrow_y),
+                     arrowprops=dict(arrowstyle="->", color=ORANGE, lw=2))
+
+    # Ground line
+    ax.plot([-0.5, 0.5], [-0.05, -0.05], color=LIGHT_GRAY, linewidth=1, zorder=1)
+
+    # Danger zones (where the pole would fall)
+    danger_angle = 0.3
+    for sign in [1, -1]:
+        dx = pole_length * math.sin(sign * danger_angle)
+        dy = pole_length * math.cos(sign * danger_angle)
+        ax.plot([pivot_x, pivot_x + dx], [pivot_y, pivot_y + dy],
+                color="red", linewidth=1, linestyle="--", alpha=0.3, zorder=2)
+
+    ax.set_xlim(-0.6, 0.6)
+    ax.set_ylim(-0.15, pole_length + 0.1)
+    ax.set_aspect("equal")
+    ax.axis("off")
+
+
 def draw_pixel_env(
     ax: plt.Axes,
     frame: Matrix,

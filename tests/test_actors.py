@@ -128,7 +128,7 @@ class TestBartoSutton:
         x_prev[0] = 1.0
 
         # TD error = reward + gamma * p(t) - p(t-1) = 0 + 0.95 * 3.0 - 5.0 = -2.15
-        td = compute_td_error(ace, x_current, x_prev, reward=0.0, gamma=0.95, done=False)
+        td = compute_td_error(ace, x_current, reward=0.0, gamma=0.95, done=False)
         assert abs(td - (-2.15)) < 1e-10
 
     def test_compute_td_error_terminal(self):
@@ -137,13 +137,13 @@ class TestBartoSutton:
         ace.prev_prediction = 2.0
         x = vector.zeros(36)
         # TD error = -1 - 2.0 = -3.0
-        td = compute_td_error(ace, x, x, reward=-1.0, gamma=0.95, done=True)
+        td = compute_td_error(ace, x, reward=-1.0, gamma=0.95, done=True)
         assert abs(td - (-3.0)) < 1e-10
 
     def test_train_improves(self):
         """After training, later episodes should be longer than early ones."""
         env = Balance()
-        ace, ase, lengths, _ = train(env, num_episodes=150, seed=42)
+        ace, ase, lengths, _, _ = train(env, num_episodes=150, seed=42)
         # Average of first 20 episodes should be shorter than last 20
         early_avg = sum(lengths[:20]) / 20
         late_avg = sum(lengths[-20:]) / 20
@@ -163,7 +163,7 @@ class TestBartoSutton:
         # so compute_td_error should bootstrap, not use terminal path.
         # With reward=0 (paper convention) and done=False:
         # td_error = 0 + gamma * prediction - prev_prediction
-        td = compute_td_error(ace, x, x, reward=0.0, gamma=0.95, done=False)
+        td = compute_td_error(ace, x, reward=0.0, gamma=0.95, done=False)
         # prediction = 1.0, prev = 1.0: td = 0 + 0.95*1.0 - 1.0 = -0.05
         assert abs(td - (-0.05)) < 1e-10
         # This is a small adjustment, NOT the large negative from terminal path
