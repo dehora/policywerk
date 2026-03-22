@@ -284,6 +284,15 @@ def main():
     and the number of episodes. On larger problems, intermediate
     lambda values (0.3-0.7) often outperform the extremes because
     they combine TD's stability with MC's directness.
+
+    Note: Sutton's 1988 paper found that lambda around 0.3 was
+    optimal on this same random walk, but using "offline" batch
+    updates (accumulate changes, apply at episode end, repeat
+    over training sets). Our implementation uses online updates
+    (apply after each step), which is the standard practical
+    variant and what Lesson 02's critic already did. The online
+    version favors lower lambda on small problems because each
+    step immediately improves one value.
     """)
 
     # -----------------------------------------------------------------------
