@@ -207,9 +207,10 @@ def main():
 
     MC is unbiased (it uses the real outcome) but high-variance.
     To see the variance: the next episode from C might go
-    C -> B -> A -> [0], giving G=0. MC would update V(C) toward
-    0 this time, having just updated it toward 1. V(C) bounces
-    between 0 and 1 across episodes. TD(0) avoids this bouncing
+    C -> B -> A -> [0], giving G=0. MC would pull V(C) toward
+    0 this time, having just pulled it toward 1. The update
+    target alternates between 0 and 1 across episodes, so V(C)
+    oscillates instead of settling smoothly. TD(0) avoids this
     because it only uses one step of experience at a time -- the
     randomness of the entire episode does not affect V(C), only
     the next state does.
@@ -260,8 +261,9 @@ def main():
 
     print("""    Both methods converge toward the true values, though all
     estimates are still above the true values after 100 episodes.
-    With more training or a smaller learning rate, they would
-    converge closer.
+    With a decaying learning rate (smaller alpha over time), they
+    would settle closer. With a fixed alpha=0.1, the estimates
+    continue to fluctuate slightly around the true values.
 
     TD(0) typically reaches low error faster because it updates
     after each step rather than waiting for the episode to end.
