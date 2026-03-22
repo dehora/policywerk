@@ -197,6 +197,29 @@ def extract_greedy_policy(Q: TabularQ, env, skip_labels: set[str] | None = None)
     return policy
 
 
+def eval_greedy(policy: dict[str, int], env, max_steps: int = 200
+                ) -> tuple[list[tuple[int, int]], float, bool]:
+    """Run a greedy evaluation episode using an extracted policy.
+
+    Follows the policy with no exploration. Falls back to action 0
+    for states not in the policy (shouldn't happen if training
+    covered the relevant states).
+
+    Returns (path, total_reward, reached_goal).
+    """
+    state = env.reset()
+    path = [_label_to_pos(state.label)]
+    total_r = 0.0
+    for _ in range(max_steps):
+        action = policy.get(state.label, 0)
+        state, reward, done = env.step(action)
+        total_r += reward
+        path.append(_label_to_pos(state.label))
+        if done:
+            return path, total_r, True
+    return path, total_r, False
+
+
 def _label_to_pos(label: str) -> tuple[int, int]:
     """Convert "r,c" grid label to (row, col) tuple.
 

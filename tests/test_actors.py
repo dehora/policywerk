@@ -258,18 +258,33 @@ class TestQLearner:
         late_reward = sum(h["total_reward"] for h in history[-50:]) / 50
         assert late_reward > early_reward
 
-    def test_q_vs_sarsa_path_difference(self):
-        """Q-learning's final path should be closer to the cliff than SARSA's."""
+    def test_greedy_eval_reaches_goal(self):
+        """Greedy evaluation of both Q-learning and SARSA should reach the goal."""
+        from policywerk.actors.q_learner import eval_greedy
         env = CliffWorld()
-        Q_ql, hist_ql = q_learning(env, num_episodes=500, seed=42)
-        Q_sa, hist_sa = sarsa(env, num_episodes=500, seed=42)
-        # Q-learning's last episode path should use row 3 (cliff edge) more
-        ql_path = hist_ql[-1]["path"]
-        sa_path = hist_sa[-1]["path"]
-        ql_bottom_row = sum(1 for r, c in ql_path if r == 3)
-        sa_bottom_row = sum(1 for r, c in sa_path if r == 3)
-        # Q-learning should spend more time on the bottom row (cliff edge)
-        assert ql_bottom_row >= sa_bottom_row
+        Q_ql, _ = q_learning(env, num_episodes=500, seed=42)
+        Q_sa, _ = sarsa(env, num_episodes=500, seed=42)
+        policy_ql = extract_greedy_policy(Q_ql, env)
+        policy_sa = extract_greedy_policy(Q_sa, env)
+        _, ql_reward, ql_done = eval_greedy(policy_ql, CliffWorld())
+        _, sa_reward, sa_done = eval_greedy(policy_sa, CliffWorld())
+        assert ql_done, "Q-learning greedy eval should reach the goal"
+        assert sa_done, "SARSA greedy eval should reach the goal"
+        # Q-learning should find optimal or near-optimal path
+        assert ql_reward >= -15, f"Q-learning reward {ql_reward} too low"
+
+    def test_q_vs_sarsa_greedy_paths(self):
+        """Q-learning's greedy path should be shorter than SARSA's."""
+        from policywerk.actors.q_learner import eval_greedy
+        env = CliffWorld()
+        Q_ql, _ = q_learning(env, num_episodes=500, seed=42)
+        Q_sa, _ = sarsa(env, num_episodes=500, seed=42)
+        policy_ql = extract_greedy_policy(Q_ql, env)
+        policy_sa = extract_greedy_policy(Q_sa, env)
+        ql_path, _, _ = eval_greedy(policy_ql, CliffWorld())
+        sa_path, _, _ = eval_greedy(policy_sa, CliffWorld())
+        # Q-learning finds the optimal (shorter) path
+        assert len(ql_path) <= len(sa_path)
 
     def test_extract_greedy_policy(self):
         """Policy keys should match Q table's visited states."""

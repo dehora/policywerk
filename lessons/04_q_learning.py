@@ -201,25 +201,11 @@ def main():
     policy_ql = extract_greedy_policy(Q_ql, env)
     policy_sa = extract_greedy_policy(Q_sa, env)
 
-    # Run greedy evaluation episodes (no exploration) to show the
-    # learned policies' true behavior, not training-episode noise.
-    from policywerk.actors.q_learner import _label_to_pos
-    def eval_greedy(Q_table, eval_env, max_steps=100):
-        state = eval_env.reset()
-        path = [_label_to_pos(state.label)]
-        total_r = 0.0
-        for _ in range(max_steps):
-            q_vals = [Q_table.get(state.label, a) for a in range(eval_env.num_actions())]
-            action = max(range(len(q_vals)), key=lambda a: q_vals[a])
-            state, reward, done = eval_env.step(action)
-            total_r += reward
-            path.append(_label_to_pos(state.label))
-            if done:
-                break
-        return path, total_r
-
-    ql_eval_path, ql_eval_reward = eval_greedy(Q_ql, CliffWorld())
-    sa_eval_path, sa_eval_reward = eval_greedy(Q_sa, CliffWorld())
+    # Run greedy evaluation episodes (no exploration) using the
+    # extracted policies to show the learned behavior cleanly.
+    from policywerk.actors.q_learner import _label_to_pos, eval_greedy
+    ql_eval_path, ql_eval_reward, ql_eval_done = eval_greedy(policy_ql, CliffWorld())
+    sa_eval_path, sa_eval_reward, sa_eval_done = eval_greedy(policy_sa, CliffWorld())
 
     ql_avg_row = sum(r for r, c in ql_eval_path) / len(ql_eval_path)
     sa_avg_row = sum(r for r, c in sa_eval_path) / len(sa_eval_path)
