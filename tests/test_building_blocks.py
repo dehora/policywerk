@@ -433,19 +433,62 @@ class TestRecurrent:
             assert abs(a - b) < 1e-12
 
     def test_gru_backward(self):
+        """Verify GRU gradients against finite differences."""
         rng = create_rng(42)
         layer = create_gru(rng, input_size=4, hidden_size=3)
         h_prev = [0.1, 0.2, 0.3]
         x = [1.0, 2.0, 3.0, 4.0]
+        eps = 1e-5
+
         h_new, cache = gru_forward(layer, h_prev, x)
         grad_h_new = [1.0, 1.0, 1.0]
         grad_h_prev, grad_x, grad_layer = gru_backward(layer, cache, grad_h_new)
-        assert len(grad_h_prev) == 3
-        assert len(grad_x) == 4
-        combined = 3 + 4
-        assert len(grad_layer.W_z) == 3
-        assert len(grad_layer.W_z[0]) == combined
-        assert len(grad_layer.b_z) == 3
+
+        # Helper: sum of h_new weighted by grad_h_new
+        def loss_from_h(h):
+            return sum(a * b for a, b in zip(h, grad_h_new))
+
+        # Check grad_x via finite differences
+        for i in range(len(x)):
+            x_plus = list(x)
+            x_plus[i] += eps
+            h_plus, _ = gru_forward(layer, h_prev, x_plus)
+            x_minus = list(x)
+            x_minus[i] -= eps
+            h_minus, _ = gru_forward(layer, h_prev, x_minus)
+            numerical = (loss_from_h(h_plus) - loss_from_h(h_minus)) / (2 * eps)
+            assert abs(numerical - grad_x[i]) < 1e-4, f"grad_x[{i}]: {numerical} vs {grad_x[i]}"
+
+        # Check grad_h_prev via finite differences
+        for i in range(len(h_prev)):
+            hp_plus = list(h_prev)
+            hp_plus[i] += eps
+            h_plus, _ = gru_forward(layer, hp_plus, x)
+            hp_minus = list(h_prev)
+            hp_minus[i] -= eps
+            h_minus, _ = gru_forward(layer, hp_minus, x)
+            numerical = (loss_from_h(h_plus) - loss_from_h(h_minus)) / (2 * eps)
+            assert abs(numerical - grad_h_prev[i]) < 1e-4, f"grad_h_prev[{i}]: {numerical} vs {grad_h_prev[i]}"
+
+        # Check a representative weight gradient (W_z[0][0])
+        orig = layer.W_z[0][0]
+        layer.W_z[0][0] = orig + eps
+        h_plus, _ = gru_forward(layer, h_prev, x)
+        layer.W_z[0][0] = orig - eps
+        h_minus, _ = gru_forward(layer, h_prev, x)
+        layer.W_z[0][0] = orig
+        numerical = (loss_from_h(h_plus) - loss_from_h(h_minus)) / (2 * eps)
+        assert abs(numerical - grad_layer.W_z[0][0]) < 1e-4, f"grad W_z[0][0]: {numerical} vs {grad_layer.W_z[0][0]}"
+
+        # Check a representative bias gradient (b_h[0])
+        orig = layer.b_h[0]
+        layer.b_h[0] = orig + eps
+        h_plus, _ = gru_forward(layer, h_prev, x)
+        layer.b_h[0] = orig - eps
+        h_minus, _ = gru_forward(layer, h_prev, x)
+        layer.b_h[0] = orig
+        numerical = (loss_from_h(h_plus) - loss_from_h(h_minus)) / (2 * eps)
+        assert abs(numerical - grad_layer.b_h[0]) < 1e-4, f"grad b_h[0]: {numerical} vs {grad_layer.b_h[0]}"
 
 
 class TestSGDMomentum:
@@ -488,26 +531,29 @@ class TestGaussianEntropy:
 
 class TestLambdaReturn:
     def test_lambda_return_lambda_zero(self):
-        """lambda=0 should approximate TD(0): r_0 + gamma * V(s_1)."""
+        """lambda=0: pure 1-step TD. At each step, use r + gamma * V(s)."""
         rewards = [1.0, 2.0, 3.0]
         values = [10.0, 20.0, 30.0]
         g = lambda_return(rewards, values, gamma=0.9, lam=0.0)
-        # With lambda=0, each step uses only the 1-step return
-        # The forward-view recursion with lam=0 gives: g = r_0 + gamma * V(s_0)
-        # which is the TD(0) return from the first step
-        td0_first = 1.0 + 0.9 * values[0]
-        assert abs(g - td0_first) < 1e-10
+        # With lam=0, the recursion uses only g_1 (1-step return) at each step.
+        # Working backward:
+        #   k=2: g_1 = 3 + 0.9*30 = 30.0 -> g_lambda = 30.0
+        #   k=1: g_1 = 2 + 0.9*20 = 20.0 -> g_lambda = 20.0
+        #   k=0: g_1 = 1 + 0.9*10 = 10.0 -> g_lambda = 10.0
+        assert abs(g - 10.0) < 1e-10
 
     def test_lambda_return_lambda_one(self):
-        """lambda=1 should approximate Monte Carlo return."""
+        """lambda=1: full Monte Carlo-like, bootstrapping from final value."""
         rewards = [1.0, 2.0, 3.0]
         values = [10.0, 20.0, 30.0]
         g = lambda_return(rewards, values, gamma=0.9, lam=1.0)
-        mc = discount_return(rewards, gamma=0.9)
-        # With lambda=1, contributions are weighted toward longer n-step returns
-        # which converge to MC. The last step bootstraps from values, so not exact MC,
-        # but they should be in the same ballpark.
-        assert isinstance(g, float)
+        # With lam=1, g_1 terms vanish ((1-1)*g_1=0) and only g_n terms remain.
+        # Working backward:
+        #   k=2: g_n = 3 + 0.9*30 = 30.0 -> g_lambda = 30.0
+        #   k=1: g_n = 2 + 0.9*30 = 29.0 -> g_lambda = 29.0
+        #   k=0: g_n = 1 + 0.9*29 = 27.1 -> g_lambda = 27.1
+        # Note: not pure MC because it bootstraps from values[t-1] at the end.
+        assert abs(g - 27.1) < 1e-10
 
 
 class TestGaussianPolicy:

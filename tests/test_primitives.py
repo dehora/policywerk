@@ -174,11 +174,27 @@ class TestActivations:
         assert abs(variance - 1.0) < 1e-3
 
     def test_layer_norm_backward(self):
+        """Verify layer_norm gradients via finite differences."""
         v = [1.0, 2.0, 3.0, 4.0, 5.0]
         normed = activations.layer_norm(v)
         grad_out = [1.0, 0.0, -1.0, 0.5, -0.5]
         d_input = activations.layer_norm_backward(grad_out, normed, v)
         assert len(d_input) == len(v)
+
+        # Finite-difference check for each input dimension
+        eps = 1e-5
+        for i in range(len(v)):
+            v_plus = list(v)
+            v_plus[i] += eps
+            v_minus = list(v)
+            v_minus[i] -= eps
+            normed_plus = activations.layer_norm(v_plus)
+            normed_minus = activations.layer_norm(v_minus)
+            # Loss = sum(grad_out * normed)
+            loss_plus = sum(g * n for g, n in zip(grad_out, normed_plus))
+            loss_minus = sum(g * n for g, n in zip(grad_out, normed_minus))
+            numerical = (loss_plus - loss_minus) / (2 * eps)
+            assert abs(numerical - d_input[i]) < 1e-4, f"d_input[{i}]: {numerical} vs {d_input[i]}"
 
     def test_step(self):
         assert activations.step(1.0) == 1.0
@@ -210,10 +226,16 @@ class TestLosses:
         assert abs(grads[0] - 1.0) < 1e-10  # delta * sign(4.0) / 1
 
     def test_cross_entropy_derivative(self):
+        """Verify cross-entropy gradient: d/dp[-a*log(p)] = -a/p."""
         predicted = [0.7, 0.2, 0.1]
         actual = [1.0, 0.0, 0.0]
         grads = losses.cross_entropy_derivative(predicted, actual)
         assert len(grads) == 3
+        # For actual[0]=1.0, predicted[0]=0.7: gradient = -1.0/0.7
+        assert abs(grads[0] - (-1.0 / 0.7)) < 1e-10
+        # For actual[1]=0.0: gradient = 0 (no contribution)
+        assert abs(grads[1] - 0.0) < 1e-10
+        assert abs(grads[2] - 0.0) < 1e-10
 
     def test_symlog_symexp_inverse(self):
         for x in [-10.0, -1.0, 0.0, 1.0, 10.0]:
