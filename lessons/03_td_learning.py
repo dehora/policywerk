@@ -102,6 +102,11 @@ def main():
       D: 4/6 = 0.667
       E: 5/6 = 0.833    (close to +1, likely to win)
 
+    Why these values? From C, you go left or right with equal
+    probability, so the chance of eventually reaching +1 is
+    exactly 0.5. Each step closer to +1 adds 1/6 to the
+    probability.
+
     This is the test: can the agent learn these values from
     experience alone, without knowing they follow this pattern?
     """)
@@ -120,15 +125,16 @@ def main():
       V(s) += alpha * [reward + gamma * V(s') - V(s)]
 
     The term in brackets is the TD error -- the same surprise signal
-    from Lesson 02. "reward + gamma * V(s')" is what actually
-    happened (reward) plus what the agent now expects (V of the next
-    state). "V(s)" is what the agent predicted before the step. The
-    difference is the surprise.
+    from Lesson 02. "reward + gamma * V(s')" is the immediate reward
+    plus the agent's prediction for the next state -- a revised
+    estimate of how much total reward is coming. "V(s)" is what
+    the agent predicted before the step. The difference is the
+    surprise.
 
     Here is a concrete walkthrough. Suppose all values start at 0.5
     (we know nothing, so we guess 50/50). The agent walks:
 
-      C -> D -> E -> [+1]  (won!)
+      EPISODE 1: C -> D -> E -> [+1]  (won!)
 
     With alpha=0.1 and gamma=1.0:
 
@@ -145,11 +151,28 @@ def main():
         V(E) += 0.1 * 0.5 = 0.05 -> V(E) = 0.55
 
     Only E updated! The +1 reward is one step away from E, so E
-    learns first. On the NEXT episode, if the agent passes through
-    D and reaches E, then D will see V(E)=0.55 and update toward
-    it. Information propagates backward one step per episode --
-    the same "ripple" as Lesson 01, but learned from experience
-    instead of computed from a model.
+    learns first. Now watch the ripple on the next episode:
+
+      EPISODE 2: C -> D -> E -> [+1]  (won again!)
+
+      Step 1: C -> D, reward=0
+        TD error = 0 + 1.0 * 0.5 - 0.5 = 0. V(C) unchanged.
+
+      Step 2: D -> E, reward=0
+        TD error = 0 + 1.0 * 0.55 - 0.5 = 0.05  <-- SURPRISE!
+        V(E) is 0.55 now, not 0.5. D notices the difference.
+        V(D) += 0.1 * 0.05 = 0.005 -> V(D) = 0.505
+
+      Step 3: E -> [+1], reward=1
+        TD error = 1 - 0.55 = 0.45
+        V(E) += 0.1 * 0.45 = 0.045 -> V(E) = 0.595
+
+    The +1 reward rippled one step further back: E learned in
+    episode 1, D learned from E in episode 2. On episode 3, C
+    will see D's updated value and learn from it. Information
+    propagates backward one step per episode -- the same "ripple"
+    as Lesson 01, but learned from experience instead of computed
+    from a model.
 
     The key insight: TD(0) does not wait for the episode to end.
     It updates V(C) based on V(D), even though V(D) might be
@@ -167,9 +190,9 @@ def main():
     print("""
     Monte Carlo (MC) takes the opposite approach: wait for the
     episode to end, then update each state toward the actual
-    discounted return from its first visit.
+    return G from its first visit.
 
-      V(s) += alpha * [G_t - V(s)]
+      V(s) += alpha * [G - V(s)]
 
     For the walk C -> D -> E -> [+1] (gamma=1.0):
       G from C = 0 + 0 + 1 = 1
@@ -180,12 +203,16 @@ def main():
       V(E) += 0.1 * (1 - 0.5) = 0.05 -> V(E) = 0.55
 
     MC waits for the outcome, then updates the first visit of each
-    state. TD(0) updates after every step without waiting. MC is
-    unbiased (it uses the real outcome) but high-variance (the
-    next episode from C might go C -> B -> A -> [0], giving G=0
-    instead of G=1). TD(0) is biased (it trusts V(s'), which
-    might be wrong) but lower variance (one step of randomness
-    instead of a whole episode).
+    state at once. TD(0) updates after each step without waiting.
+
+    MC is unbiased (it uses the real outcome) but high-variance.
+    To see the variance: the next episode from C might go
+    C -> B -> A -> [0], giving G=0. MC would update V(C) toward
+    0 this time, having just updated it toward 1. V(C) bounces
+    between 0 and 1 across episodes. TD(0) avoids this bouncing
+    because it only uses one step of experience at a time -- the
+    randomness of the entire episode does not affect V(C), only
+    the next state does.
     """)
 
     # -----------------------------------------------------------------------
@@ -231,12 +258,17 @@ def main():
     print(f"    Final RMS:  TD(0) = {hist_td[-1]['rms']:.4f}   MC = {hist_mc[-1]['rms']:.4f}")
     print()
 
-    print("""    Both methods converge toward the true values. TD(0) typically
-    reaches low error faster because it reuses information: each
-    step updates one state, and that updated state helps its
-    neighbors on the next episode. MC must wait for complete
-    episodes and is noisier because different episodes from the
-    same state can have very different outcomes.
+    print("""    Both methods converge toward the true values, though all
+    estimates are still above the true values after 100 episodes.
+    With more training or a smaller learning rate, they would
+    converge closer.
+
+    TD(0) typically reaches low error faster because it updates
+    after each step rather than waiting for the episode to end.
+    Each updated value immediately helps the next state that
+    references it. MC must wait for complete episodes and is
+    noisier because different episodes from the same state can
+    give very different returns.
     """)
 
     # -----------------------------------------------------------------------
@@ -247,19 +279,35 @@ def main():
     print("-" * 64)
     print("""
     TD(lambda) blends TD(0) and Monte Carlo using eligibility traces.
-    The lambda parameter controls the blend:
+    The lambda parameter controls how far back credit spreads:
 
-      lambda = 0.0 : pure TD(0), update only the last state
+      lambda = 0.0 : traces decay instantly, so only the current
+                     transition's state gets credit (same as TD(0))
       lambda = 0.3 : mostly TD, with some backward credit
-      lambda = 0.7 : mostly MC, but with bootstrapping
-      lambda = 1.0 : most MC-like (update all visited states via traces,
-                     though not exactly identical to MC due to online
-                     accumulating traces)
+      lambda = 0.7 : mostly MC, traces spread credit further back
+      lambda = 1.0 : most MC-like (all visited states get credit,
+                     though not exactly identical to MC due to
+                     online accumulating traces)
 
-    Eligibility traces remember which states were recently visited.
-    When the TD error arrives, all traced states get updated -- not
-    just the most recent one. This is the same mechanism the ACE
-    used in Lesson 02.
+    Here is the same C -> D -> E -> [+1] episode with lambda=0.5:
+
+      When E -> [+1] produces TD error 0.5, the traces are:
+        E: 1.0  (just visited)
+        D: 0.5  (one step back, decayed by gamma*lambda = 0.5)
+        C: 0.25 (two steps back, decayed twice)
+
+      All three update at once:
+        V(E) += 0.1 * 0.5 * 1.0  = 0.050 -> V(E) = 0.55
+        V(D) += 0.1 * 0.5 * 0.5  = 0.025 -> V(D) = 0.525
+        V(C) += 0.1 * 0.5 * 0.25 = 0.0125 -> V(C) = 0.5125
+
+    Compare: TD(0) would only update E. MC would update all three
+    equally. TD(lambda=0.5) updates all three, but gives more
+    credit to recent states. The reward spreads backward in one
+    episode instead of taking three.
+
+    Lambda > 0 helps most when episodes are long or the environment
+    is large enough that step-by-step propagation is too slow.
     """)
 
     lambdas = [0.0, 0.3, 0.7, 1.0]

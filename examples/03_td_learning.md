@@ -23,6 +23,8 @@ A: 1/6 = 0.167    B: 2/6 = 0.333    C: 3/6 = 0.500
 D: 4/6 = 0.667    E: 5/6 = 0.833
 ```
 
+Why these values? From C, you go left or right with equal probability, so the chance of eventually reaching +1 is exactly 0.5. Each step closer to +1 adds 1/6.
+
 ## TD(0): Bootstrapping
 
 TD(0) updates V(s) after every single step:
@@ -41,11 +43,19 @@ Step 2: D -> E, reward=0.  TD error = 0 + 0.5 - 0.5 = 0.   V(D) unchanged.
 Step 3: E -> [+1], reward=1.  TD error = 1 - 0.5 = 0.5.  V(E) = 0.55.
 ```
 
-Only E updated. Information propagates backward one step per episode — the same "ripple" as Lesson 01, but learned from experience.
+Only E updated. Now watch the ripple on episode 2 (same walk C→D→E→[+1]):
+
+```
+Step 2: D -> E, reward=0
+  TD error = 0 + 0.55 - 0.5 = 0.05  <-- SURPRISE! V(E) changed.
+  V(D) += 0.1 * 0.05 = 0.005 -> V(D) = 0.505
+```
+
+The +1 reward rippled one step further back. Information propagates backward one step per episode — the same "ripple" as Lesson 01, but learned from experience.
 
 ## Monte Carlo: Waiting for the Truth
 
-MC waits for the episode to end, then updates each state toward the actual discounted return from its first visit:
+MC waits for the episode to end, then updates each state toward the actual return G from its first visit:
 
 ```
 Walk: C -> D -> E -> [+1] (gamma=1.0)
@@ -58,7 +68,7 @@ V(D) += 0.1 * (1 - 0.5) = 0.05 -> 0.55
 V(E) += 0.1 * (1 - 0.5) = 0.05 -> 0.55
 ```
 
-MC waits for the outcome, then updates the first visit of each state. Unbiased but high-variance.
+MC waits for the outcome, then updates the first visit of each state at once. Unbiased but high-variance — the next episode from C might give G=0 instead of G=1, making V(C) bounce between targets.
 
 ## Training Results
 
@@ -82,11 +92,21 @@ Both converge toward true values. TD(0) typically reaches low error faster becau
 Lambda blends TD(0) and Monte Carlo via eligibility traces:
 
 ```
-lambda = 0.0 : pure TD(0)
+lambda = 0.0 : traces decay instantly, only current state gets credit
 lambda = 0.3 : mostly TD, some backward credit
-lambda = 0.7 : mostly MC, with bootstrapping
+lambda = 0.7 : mostly MC, traces spread credit further back
 lambda = 1.0 : most MC-like (not exactly identical due to online traces)
 ```
+
+With lambda=0.5 on the walk C→D→E→[+1], when E→[+1] produces TD error 0.5:
+
+```
+E: trace=1.0   V(E) += 0.1 * 0.5 * 1.0  = 0.050
+D: trace=0.5   V(D) += 0.1 * 0.5 * 0.5  = 0.025
+C: trace=0.25  V(C) += 0.1 * 0.5 * 0.25 = 0.0125
+```
+
+The reward spreads backward in one episode instead of taking three. Lambda > 0 helps most when episodes are long or the environment is large.
 
 ## Artifacts
 
