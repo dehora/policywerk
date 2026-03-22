@@ -18,10 +18,11 @@ from policywerk.viz.animate import (
     save_poster, save_figure, TEAL, ORANGE, DARK_GRAY,
 )
 from policywerk.viz.values import draw_value_heatmap, draw_policy_arrows, draw_grid_overlay
-from policywerk.viz.traces import update_trace_axes, plot_training_traces
+from policywerk.viz.traces import plot_training_traces
 
 import matplotlib
 matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 
 # ---------------------------------------------------------------------------
@@ -39,9 +40,6 @@ class BellmanSnapshot(FrameSnapshot):
 # ---------------------------------------------------------------------------
 # Display helpers
 # ---------------------------------------------------------------------------
-
-ACTION_NAMES = {0: "N", 1: "E", 2: "S", 3: "W"}
-
 
 def print_grid_values(env: GridWorld, values: list[list[float]]) -> None:
     """Print the value function as a formatted grid."""
@@ -68,6 +66,21 @@ def print_policy(policy: dict[str, int], rows: int, cols: int) -> None:
             else:
                 cells.append("  ·   ")
         print("    " + " ".join(cells))
+
+
+def update_sweep_trace(ax, values, label="", color=TEAL):
+    """Update the convergence trace pane — like update_trace_axes but with
+    'Sweep' on the x-axis and integer ticks."""
+    ax.clear()
+    # x values are sweep numbers starting at 0
+    xs = list(range(len(values)))
+    ax.plot(xs, values, color=color, linewidth=1.5, label=label, alpha=0.8,
+            marker="o", markersize=4)
+    ax.set_xlabel("Sweep", fontsize=9)
+    ax.set_xticks(xs)
+    if label:
+        ax.legend(loc="upper right", fontsize=8)
+    ax.grid(True, alpha=0.3)
 
 
 # ---------------------------------------------------------------------------
@@ -130,13 +143,22 @@ def main():
     print(f"    Converged in {len(history)} sweeps.")
     print()
 
-    # Show convergence progress
+    # Show convergence progress with proportional bars
     print("    Sweep-by-sweep convergence (max value change):")
+    max_initial = history[0]["max_change"] if history else 1.0
     for record in history:
-        bar_len = min(50, int(record["max_change"] * 200))
-        bar = "█" * bar_len
-        print(f"      Sweep {record['sweep']:3d}:  {record['max_change']:.6f}  {bar}")
+        # Scale bars proportionally so the descent is visible
+        fraction = record["max_change"] / max_initial if max_initial > 0 else 0
+        bar_len = int(fraction * 40)
+        bar = "█" * bar_len + "░" * (40 - bar_len)
+        print(f"      Sweep {record['sweep']:2d}:  {record['max_change']:.6f}  [{bar}]")
     print()
+
+    print(f"""    The grid is 5 columns wide, and information travels one column
+    per sweep. After {len(history)} sweeps, the reward signal from the goal
+    has reached every corner of the grid. The max change drops to
+    zero when all values have fully stabilized.
+    """)
 
     # Show final values
     print("    Final state values:")
@@ -152,8 +174,8 @@ def main():
 
     print("""    The arrows show the greedy policy: at each state, go in the
     direction that leads to the highest expected value. Notice how
-    the arrows all eventually point toward the goal and away from
-    the pit.
+    the arrows point toward the goal and away from the pit — the
+    values encode the consequences of each path.
     """)
 
     # -----------------------------------------------------------------------
@@ -172,14 +194,19 @@ def main():
       2. Policy improvement: "can I do better?"
          For each state, switch to the best action under the new values.
 
-    Repeat until the policy stops changing. This typically converges
-    in very few iterations — often faster than value iteration.
+    Repeat until the policy stops changing.
     """)
 
     V_pi, policy_pi, iterations = policy_iteration(env, gamma=gamma, theta=theta)
 
-    print(f"    Converged in {iterations} policy improvement iterations.")
+    print(f"    Converged in {iterations} evaluate/improve cycles.")
     print()
+    print(f"""    Each cycle includes a full policy evaluation (many inner sweeps
+    until values stabilize under the current policy), so {iterations} cycles
+    is more total work than it appears. On larger problems, policy
+    iteration often needs fewer cycles than value iteration needs
+    sweeps — but on this small grid, both are nearly instant.
+    """)
 
     # Show final values
     print("    Final state values:")
@@ -210,13 +237,18 @@ def main():
 
     print(f"    Values match:   {'yes' if values_match else 'NO'}")
     print(f"    Policies match: {'yes' if policies_match else 'NO'}")
-    print(f"""
-    Both methods find the same optimal policy. Value iteration took
-    {len(history)} sweeps. Policy iteration took {iterations} evaluate/improve
-    cycles. They arrive at the same answer because there's only one
-    optimal value function for a given MDP and discount factor — the
-    algorithms just search for it differently.
-    """)
+    print()
+    print(f"    Both methods find the same optimal policy. Value iteration")
+    print(f"    took {len(history)} sweeps. Policy iteration took {iterations} evaluate/improve")
+    print(f"    cycles. They arrive at the same answer because there's only")
+    print(f"    one optimal value function for a given MDP and discount")
+    print(f"    factor — the algorithms just search for it differently.")
+    print()
+    print(f"    This is the key insight: planning is repeated local backup")
+    print(f"    until distant consequences become visible. Both methods do")
+    print(f"    this — value iteration by sweeping values, policy iteration")
+    print(f"    by alternating evaluation and improvement.")
+    print()
 
     # -----------------------------------------------------------------------
     # 5. Animation
@@ -228,7 +260,14 @@ def main():
     os.makedirs("output", exist_ok=True)
 
     # Build snapshots from value iteration history
-    snapshots = []
+    # Start with an initial frame showing all zeros (before any sweeps)
+    initial_grid = [[0.0] * 5 for _ in range(5)]
+    snapshots = [BellmanSnapshot(
+        episode=0, total_reward=0.0,
+        values=initial_grid, max_change=0.0,
+        policy=None, sweep=0,
+    )]
+
     for record in history:
         # Reconstruct the grid values from the stored value dict
         grid = [[0.0] * 5 for _ in range(5)]
@@ -247,7 +286,7 @@ def main():
             sweep=record["sweep"],
         ))
 
-    # Add a few extra frames at the end showing the final state with arrows
+    # Add extra frames at the end showing the converged state with arrows
     for _ in range(5):
         snapshots.append(BellmanSnapshot(
             episode=history[-1]["sweep"],
@@ -281,22 +320,34 @@ def main():
                           walls=env.walls, pits=env.pits, goals=env.goals)
         if snap.policy:
             draw_policy_arrows(axes["env"], snap.policy, 5, 5)
-        axes["env"].set_title(f"State Values — Sweep {snap.sweep}", fontsize=10)
+        sweep_label = "Initial" if snap.sweep == 0 else f"Sweep {snap.sweep}"
+        axes["env"].set_title(f"State Values — {sweep_label}", fontsize=10)
 
         # Top-right: convergence info
         axes["algo"].clear()
         axes["algo"].axis("off")
-        info_lines = [
-            f"Sweep: {snap.sweep}",
-            f"Max change: {snap.max_change:.6f}",
-            f"Converged: {'yes' if snap.max_change < theta else 'no'}",
-            "",
-            f"Discount (γ): {gamma}",
-            f"Threshold (θ): {theta}",
-        ]
-        if snap.policy:
-            info_lines.append("")
-            info_lines.append("Policy arrows shown")
+        if snap.sweep == 0:
+            info_lines = [
+                "All values start at 0",
+                "",
+                "The agent knows nothing yet.",
+                "Sweeping will propagate",
+                "reward information from",
+                "the goal backward through",
+                "the grid.",
+            ]
+        else:
+            info_lines = [
+                f"Sweep: {snap.sweep}",
+                f"Max change: {snap.max_change:.6f}",
+                f"Converged: {'yes' if snap.max_change < theta else 'no'}",
+                "",
+                f"Discount (γ): {gamma}",
+                f"Threshold (θ): {theta}",
+            ]
+            if snap.policy:
+                info_lines.append("")
+                info_lines.append("→ Policy arrows shown")
         text = "\n".join(info_lines)
         axes["algo"].text(0.1, 0.9, text, transform=axes["algo"].transAxes,
                           fontsize=10, verticalalignment="top",
@@ -305,7 +356,8 @@ def main():
 
         # Bottom: convergence trace
         trace_data = max_changes[:frame_idx + 1]
-        update_trace_axes(axes["trace"], trace_data, label="Max value change", color=TEAL)
+        update_sweep_trace(axes["trace"], trace_data,
+                           label="Max value change", color=TEAL)
         axes["trace"].set_ylabel("Max Δ", fontsize=9)
         axes["trace"].set_title("Convergence", fontsize=10)
 
@@ -329,28 +381,42 @@ def main():
 
         axes2["algo"].clear()
         axes2["algo"].axis("off")
-        info = f"Converged in {len(history)} sweeps\nγ = {gamma}  θ = {theta}"
+        info = (
+            f"Converged in {len(history)} sweeps\n"
+            f"γ = {gamma}  θ = {theta}\n\n"
+            f"Value iteration and policy\n"
+            f"iteration both find the same\n"
+            f"optimal policy."
+        )
         axes2["algo"].text(0.1, 0.9, info, transform=axes2["algo"].transAxes,
                            fontsize=10, verticalalignment="top",
                            fontfamily="monospace", color=DARK_GRAY)
         axes2["algo"].set_title("Summary", fontsize=10)
 
-        update_trace_axes(axes2["trace"], max_changes[:len(history)],
-                          label="Max value change", color=TEAL)
+        sweep_changes = [h["max_change"] for h in history]
+        update_sweep_trace(axes2["trace"], sweep_changes,
+                           label="Max value change", color=TEAL)
         axes2["trace"].set_ylabel("Max Δ", fontsize=9)
         axes2["trace"].set_title("Convergence", fontsize=10)
 
     save_poster(fig2, update_poster, 0, "output/01_bellman_poster.png")
-    import matplotlib.pyplot as plt
     plt.close(fig2)
     print("    Saved: output/01_bellman_poster.png")
 
     # Standalone convergence trace
-    trace_fig = plot_training_traces(
-        {"Max value change": [h["max_change"] for h in history]},
-        title="Value Iteration Convergence",
-    )
-    save_figure(trace_fig, "output/01_bellman_trace.png")
+    fig3, ax3 = plt.subplots(figsize=(10, 3), dpi=150)
+    sweep_nums = list(range(1, len(history) + 1))
+    ax3.plot(sweep_nums, [h["max_change"] for h in history],
+             color=TEAL, linewidth=1.5, marker="o", markersize=5, alpha=0.8,
+             label="Max value change")
+    ax3.set_xlabel("Sweep")
+    ax3.set_ylabel("Max Δ")
+    ax3.set_title("Value Iteration Convergence")
+    ax3.set_xticks(sweep_nums)
+    ax3.legend(loc="upper right", fontsize=9)
+    ax3.grid(True, alpha=0.3)
+    fig3.tight_layout()
+    save_figure(fig3, "output/01_bellman_trace.png")
     print("    Saved: output/01_bellman_trace.png")
 
     print()
