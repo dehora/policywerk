@@ -8,12 +8,17 @@ to keep it upright. Simpler than full cart-pole: no cart position,
 just angle and angular velocity.
 
 State: (angle, angular_velocity)
-Actions: 0 = left torque, 1 = right torque
+Actions (discrete): 0 = left torque, 1 = right torque
+Actions (continuous): torque value in [-1, 1] via step_continuous()
 Reward: +1 per step of survival
 Terminal: |angle| > max_angle
 
+Used by two lessons to show 34 years of progress on the same task:
+  L02 (Barto/Sutton 1983): discrete actions, discretized state, ACE/ASE
+  L06 (PPO 2017): continuous torque, raw state, neural policy gradients
+
 The continuous angle and velocity are grouped into coarse ranges so
-the agent can use a simple lookup table. 6 angle bins x 6 velocity
+tabular methods can use a simple lookup table. 6 angle bins × 6 velocity
 bins = 36 possible discrete states.
 """
 
@@ -72,9 +77,12 @@ class Balance(Environment):
         return self._make_state()
 
     def step(self, action: int) -> tuple[State, float, bool]:
-        # Apply torque: 0 = left, 1 = right
+        """Discrete action: 0 = full left torque, 1 = full right torque."""
         torque = -self._torque_mag if action == 0 else self._torque_mag
+        return self._apply_torque(torque)
 
+    def _apply_torque(self, torque: float) -> tuple[State, float, bool]:
+        """Shared physics for both discrete and continuous actions."""
         # Gravity pulls the pole down — the further it tilts, the harder
         # gravity pulls. The agent's torque pushes against gravity.
         angular_accel = (self._gravity / self._length) * math.sin(self._angle) + torque
@@ -89,6 +97,17 @@ class Balance(Environment):
         reward = 0.0 if done and abs(self._angle) > self._max_angle else 1.0
 
         return self._make_state(), reward, done
+
+    def step_continuous(self, torque: float) -> tuple[State, float, bool]:
+        """Apply a continuous torque in [-1, 1], scaled by torque_magnitude.
+
+        Discrete step() snaps to full left/right. step_continuous()
+        allows any torque — used by PPO (L06) for smooth control.
+        """
+        from policywerk.primitives import scalar
+        clamped = scalar.clamp(torque, -1.0, 1.0)
+        scaled_torque = clamped * self._torque_mag
+        return self._apply_torque(scaled_torque)
 
     def num_actions(self) -> int:
         return 2

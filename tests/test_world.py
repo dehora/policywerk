@@ -207,6 +207,13 @@ class TestBalance:
     def test_num_actions(self):
         assert Balance().num_actions() == 2
 
+    def test_step_continuous(self):
+        env = Balance()
+        env.reset()
+        s, r, done = env.step_continuous(0.5)
+        assert len(s.features) == 2
+        assert r == 1.0  # survived one step
+
 
 class TestCatcher:
     def test_reset(self):
