@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+.venv/
+
+# Generated output
+output/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Secrets
+.env*
+*.pem
+*.key
+*.secret
+
+# OS
+.DS_Store
+
+# Scratchpads
+plan.md
