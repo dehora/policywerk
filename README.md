@@ -8,7 +8,7 @@ The project follows seven landmark papers chronologically, each one building on 
 
 | Lesson | Paper | Year | Algorithm | Environment | Status |
 |--------|-------|------|-----------|-------------|--------|
-| 01 | Bellman, "A Markovian Decision Process" | 1957 | Value iteration | Gridworld | — |
+| 01 | Bellman, "A Markovian Decision Process" | 1957 | Value iteration | Gridworld | Done |
 | 02 | Barto, Sutton & Anderson, "Neuronlike Adaptive Elements" | 1983 | ACE/ASE actor-critic | Balance | — |
 | 03 | Sutton, "Learning to Predict by the Methods of Temporal Differences" | 1988 | TD(0) and TD(λ) | Random walk | — |
 | 04 | Watkins, "Learning from Delayed Rewards" | 1989 | Q-learning | Cliff walking | — |
