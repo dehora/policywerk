@@ -214,15 +214,14 @@ def main():
 
     print("""    Reading the grid: the highest values are near the goal
     (top-right). The lowest are at the start (bottom-left), furthest
-    away. Values decrease smoothly with distance — each step away
-    from the goal costs roughly a factor of gamma (0.9).
+    away. Values decrease smoothly with distance.
 
-    The start cell has value +0.270. That is the goal's +1 reward,
-    discounted over the 8 steps it takes to get there, minus the
-    step costs paid along the way. Each step of distance reduces
-    the reward by a factor of gamma (0.9) and adds a -0.04 cost.
-    The green-to-red gradient in the animation is literally the
-    discount factor at work.
+    The start cell has value +0.270. The optimal path is 8 steps
+    long — the +1 goal reward arrives at step 8 and is discounted
+    by gamma^7 (0.9^7 = 0.478), but seven step costs of -0.04
+    along the way reduce the total further. The green-to-red
+    gradient in the animation reflects this: distance from the
+    goal means more discounting and more step costs.
     """)
 
     # Derive and show the greedy policy

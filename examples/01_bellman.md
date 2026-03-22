@@ -61,7 +61,7 @@ Sweep-by-sweep convergence (max value change):
   Sweep  9:  0.000000  [........................................]
 ```
 
-With synchronous updates, information travels exactly one cell per sweep — each state reads the previous sweep's values. The start cell (bottom-left) is 8 steps from the goal, so it takes 8 sweeps for goal information to reach it. Sweep 9 confirms nothing changed — convergence.
+With synchronous updates, information travels exactly one cell per sweep — each state reads the previous sweep's values. The max change decays by gamma (0.9) each sweep because each new wavefront cell's change is gamma times the previous one's (the goal reward, discounted one step further). The start cell is 8 steps from the goal, so it takes 8 sweeps for goal information to reach it. Sweep 9 confirms nothing changed — convergence.
 
 ### Final State Values
 
@@ -75,7 +75,7 @@ With synchronous updates, information travels exactly one cell per sweep — eac
 
 The highest values are near the goal (top-right). The lowest are at the start (bottom-left), furthest away. Values decrease smoothly with distance — each step away from the goal costs roughly a factor of gamma (0.9).
 
-The start cell has value +0.270. That is the goal's +1 reward, discounted over the 8 steps it takes to get there, minus the step costs paid along the way.
+The start cell has value +0.270. The optimal path is 8 steps long — the +1 goal reward arrives at step 8 and is discounted by gamma^7 (0.9^7 = 0.478), but seven step costs of -0.04 along the way reduce the total further.
 
 ### Optimal Policy
 
@@ -152,7 +152,7 @@ Reward information ripples backward from the goal through the grid, one sweep at
 
 ![Convergence trace](img/01_bellman_trace.png)
 
-Max value change per sweep. The decay by a factor of 0.9 per sweep reflects gamma — each sweep, the wavefront moves one cell further from the goal, and the new values are gamma times smaller.
+Max value change per sweep. The change decays by a factor of gamma (0.9) each sweep — each new wavefront cell's update is the goal reward discounted one step further. The values themselves also include step costs, but the *change* between sweeps follows a clean geometric decay.
 
 ## Next
 
