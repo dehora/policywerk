@@ -194,13 +194,22 @@ class TestTrajectories:
 
     def test_draw_cliff_grid_with_agent(self):
         import matplotlib.pyplot as plt
-        fig, ax = plt.subplots()
+        # Without agent_pos: count collections from path only
+        fig1, ax1 = plt.subplots()
         cliff = [(3, c) for c in range(1, 11)]
-        draw_cliff_grid(ax, 4, 12, cliff, (3, 0), (3, 11),
+        draw_cliff_grid(ax1, 4, 12, cliff, (3, 0), (3, 11),
+                        path=[(3, 0), (2, 0), (2, 1)])
+        collections_without = len(ax1.collections)
+        plt.close(fig1)
+
+        # With agent_pos: should have one more collection (the triangle marker)
+        fig2, ax2 = plt.subplots()
+        draw_cliff_grid(ax2, 4, 12, cliff, (3, 0), (3, 11),
                         path=[(3, 0), (2, 0), (2, 1)],
                         agent_pos=(2, 1),
                         caption="test caption")
-        # Verify the agent marker was drawn (scatter collection exists)
-        collections = ax.collections
-        assert len(collections) > 0, "Agent marker should create a scatter collection"
-        plt.close(fig)
+        collections_with = len(ax2.collections)
+        plt.close(fig2)
+
+        assert collections_with > collections_without, \
+            "agent_pos should add a scatter collection for the triangle marker"

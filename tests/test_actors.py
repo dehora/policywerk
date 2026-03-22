@@ -297,6 +297,32 @@ class TestQLearner:
         # Start state should have a policy
         assert "3,0" in policy
 
+    def test_best_action_ignores_unseen(self):
+        """best_action should not prefer unseen actions over learned negative ones."""
+        from policywerk.building_blocks.value_functions import TabularQ
+        Q = TabularQ(default=0.0)
+        # Only set action 1 for state "s", with a negative value
+        Q.set("s", 1, -5.0)
+        # best_action should return 1 (the only seen action), not 0 or 2 or 3
+        # which would have default 0.0 > -5.0
+        best = Q.best_action("s", 4)
+        assert best == 1, f"Should pick seen action 1 (-5.0), not unseen default (0.0), got {best}"
+
+    def test_partial_q_greedy_policy(self):
+        """Greedy policy from a sparse Q table should not drift onto unseen actions."""
+        from policywerk.building_blocks.value_functions import TabularQ
+        from policywerk.actors.q_learner import eval_greedy, extract_greedy_policy
+        Q = TabularQ(default=0.0)
+        # Simulate a partial Q table: only East (1) is learned for a few states
+        Q.set("3,0", 1, -10.0)  # East from start
+        Q.set("2,0", 1, -8.0)   # East from above start
+        Q.set("2,1", 1, -6.0)
+        env = CliffWorld()
+        policy = extract_greedy_policy(Q, env)
+        # All policy entries should be action 1 (East), not some unseen action
+        for label, action in policy.items():
+            assert action == 1, f"State {label}: expected action 1, got {action}"
+
     def test_extract_greedy_policy_skip_labels(self):
         """skip_labels should exclude those states from the policy."""
         env = CliffWorld()

@@ -264,8 +264,20 @@ def main():
                 step_label=f"Episode {ep_idx}, step {si}",
                 completed=False,  # mid-episode: don't advance trace
             ))
-        # Duplicate last step frame for pause
-        snapshots.append(snapshots[-1])
+        # Final frame for this episode: mark completed so trace advances
+        final_snap = QLearningSnapshot(
+            episode=ep_idx,
+            total_reward=h["total_reward"],
+            path=ep_path,
+            policy=None,
+            episode_num=ep_idx,
+            ep_reward=h["total_reward"],
+            method="Q-learning",
+            agent_pos=ep_path[-1] if ep_path else None,
+            step_label=f"Episode {ep_idx} done",
+            completed=True,
+        )
+        snapshots.append(final_snap)
 
     # Summary frames for remaining episodes
     summary_episodes = sorted(set(

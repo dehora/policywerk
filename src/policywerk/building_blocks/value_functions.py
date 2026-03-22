@@ -97,21 +97,29 @@ class TabularQ:
         self._values[key] = self._values.get(key, self._default) + delta
 
     def best_action(self, state_label: str, num_actions: int) -> int:
-        """Return the action with highest Q-value for this state."""
-        best_a = 0
-        best_val = self.get(state_label, 0)
-        for a in range(1, num_actions):
-            val = self.get(state_label, a)
-            if val > best_val:
-                best_val = val
-                best_a = a
-        return best_a
+        """Return the action with highest Q-value for this state.
+
+        Only considers actions that have been explicitly set or updated.
+        If no actions have been initialized for this state, returns 0.
+        This prevents unseen actions (at the default value) from beating
+        learned negative values.
+        """
+        seen_actions = [(a, self._values[(state_label, a)])
+                        for a in range(num_actions)
+                        if (state_label, a) in self._values]
+        if not seen_actions:
+            return 0
+        return max(seen_actions, key=lambda pair: pair[1])[0]
 
     def max_value(self, state_label: str, num_actions: int) -> float:
-        """Return max_a Q(s, a)."""
-        best = self.get(state_label, 0)
-        for a in range(1, num_actions):
-            val = self.get(state_label, a)
-            if val > best:
-                best = val
-        return best
+        """Return max_a Q(s, a).
+
+        Only considers actions that have been initialized. Returns
+        the default if no actions have been set for this state.
+        """
+        seen_values = [self._values[(state_label, a)]
+                       for a in range(num_actions)
+                       if (state_label, a) in self._values]
+        if not seen_values:
+            return self._default
+        return max(seen_values)
