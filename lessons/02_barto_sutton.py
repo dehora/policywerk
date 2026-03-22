@@ -265,15 +265,30 @@ def main():
     print_weight_grid(ase.weights, "ASE (actor) -- positive = favor push right")
     print_weight_grid(ace.weights, "ACE (critic) -- higher = better state")
 
-    # Read specific weights from the actual grid for the narrative
-    # a1,v1 = index 1*6+1 = 7, a4,v3 = index 4*6+3 = 27
-    a1v1 = ase.weights[7]
-    a4v3 = ase.weights[27]
-    print(f"""    Reading the actor: look at a1,v1: weight {a1v1:+.2f} (favor right
-    when tilted left). Look at a4,v3: weight {a4v3:+.2f} (favor left
-    when tilted right). The pattern: positive weights in the top-
-    left, negative in the bottom-right. The agent learned to push
-    against the direction of tilt.
+    # Read specific weights and derive directional wording from their signs
+    a1v1 = ase.weights[7]   # a1,v1: tilted left, moving left
+    a4v3 = ase.weights[27]  # a4,v3: tilted right, moving right
+    a1v1_dir = "favor right" if a1v1 > 0 else "favor left"
+    a4v3_dir = "favor right" if a4v3 > 0 else "favor left"
+
+    # Check the overall pattern: do left-tilted states favor right, and vice versa?
+    left_weights = [ase.weights[i] for i in range(6)]   # a0 row
+    right_weights = [ase.weights[i] for i in range(30, 36)]  # a5 row
+    left_nonzero = [w for w in left_weights if abs(w) > 0.01]
+    right_nonzero = [w for w in right_weights if abs(w) > 0.01]
+    left_avg = sum(left_nonzero) / len(left_nonzero) if left_nonzero else 0
+    right_avg = sum(right_nonzero) / len(right_nonzero) if right_nonzero else 0
+
+    if left_avg > 0 and right_avg < 0:
+        pattern = "push against the direction of tilt"
+    elif left_avg < 0 and right_avg > 0:
+        pattern = "push with the direction of tilt (unusual)"
+    else:
+        pattern = "a mixed strategy"
+
+    print(f"""    Reading the actor: look at a1,v1: weight {a1v1:+.2f} ({a1v1_dir}
+    when tilted left). Look at a4,v3: weight {a4v3:+.2f} ({a4v3_dir}
+    when tilted right). The agent learned to {pattern}.
 
     Reading the critic: center boxes (a2-a3) have values near zero
     (balanced is "normal"). Edge boxes (a0, a5) have negative
