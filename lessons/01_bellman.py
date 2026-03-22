@@ -297,6 +297,9 @@ def main():
             sweep=history[-1]["sweep"],
         ))
 
+    # Cells where value text should be suppressed (overlay markers go here instead)
+    special_cells = set(env.walls + env.pits + env.goals)
+
     # Determine value range for consistent heatmap coloring
     all_vals = [v for row in snapshots[-1].values for v in row]
     vmin = min(all_vals) - 0.1
@@ -315,7 +318,8 @@ def main():
         snap = snapshots[frame_idx]
 
         # Top-left: value heatmap + grid overlay
-        draw_value_heatmap(axes["env"], snap.values, vmin=vmin, vmax=vmax)
+        draw_value_heatmap(axes["env"], snap.values, vmin=vmin, vmax=vmax,
+                           skip_cells=special_cells)
         draw_grid_overlay(axes["env"], 5, 5,
                           walls=env.walls, pits=env.pits, goals=env.goals)
         if snap.policy:
@@ -373,7 +377,8 @@ def main():
 
     def update_poster(frame_idx):
         snap = snapshots[-1]
-        draw_value_heatmap(axes2["env"], snap.values, vmin=vmin, vmax=vmax)
+        draw_value_heatmap(axes2["env"], snap.values, vmin=vmin, vmax=vmax,
+                           skip_cells=special_cells)
         draw_grid_overlay(axes2["env"], 5, 5,
                           walls=env.walls, pits=env.pits, goals=env.goals)
         draw_policy_arrows(axes2["env"], policy_vi, 5, 5)

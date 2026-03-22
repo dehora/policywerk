@@ -25,6 +25,7 @@ def draw_value_heatmap(
     values: Matrix,
     vmin: float = -1.0,
     vmax: float = 1.0,
+    skip_cells: set[tuple[int, int]] | None = None,
 ) -> None:
     """Draw colored cells representing state values on a grid.
 
@@ -32,10 +33,14 @@ def draw_value_heatmap(
     Each cell shows its numeric value as text.
 
     values: rows × cols matrix of floats.
+    skip_cells: set of (row, col) tuples where value text should be
+        suppressed — used for cells that will get an overlay marker
+        (walls, pits, goals) to prevent text collision.
     """
     ax.clear()
     rows = len(values)
     cols = len(values[0]) if values else 0
+    skip = skip_cells or set()
 
     # imshow displays a matrix as a colored image
     # cmap="RdYlGn" = Red-Yellow-Green gradient
@@ -46,9 +51,11 @@ def draw_value_heatmap(
         origin="upper", aspect="equal",
     )
 
-    # Annotate cells with numeric values
+    # Annotate cells with numeric values (skip cells that get overlay markers)
     for r in range(rows):
         for c in range(cols):
+            if (r, c) in skip:
+                continue
             val = values[r][c]
             # White text on dark cells, black text on light cells
             color = "white" if abs(val) > (vmax - vmin) * 0.4 else "black"
