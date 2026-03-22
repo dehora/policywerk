@@ -86,13 +86,18 @@ def td_zero(
     history: list[dict] = []
 
     for ep in range(num_episodes):
-        # Snapshot values BEFORE this episode's updates (for step-by-step viz)
+        # Snapshot values BEFORE this episode's updates
         pre_values = [V.get(label) for label in RandomWalk.LABELS]
         pre_rms = rms_error(V, RandomWalk.TRUE_VALUES, RandomWalk.LABELS)
 
         state = env.reset()
         path: list[str] = [state.label]  # track visited states for viz
         outcome = None
+        # Per-step snapshots: values and rms AFTER each TD update
+        step_snapshots: list[dict] = [{
+            "values": list(pre_values),
+            "rms": pre_rms,
+        }]
 
         while True:
             # Random policy: equal probability left/right
@@ -101,7 +106,6 @@ def td_zero(
 
             if done:
                 # Terminal state has value 0 (no future reward)
-                # td_error = reward + gamma * 0 - V(s) = reward - V(s)
                 td_error = scalar.subtract(reward, V.get(state.label))
                 outcome = "right" if reward > 0 else "left"
             else:
@@ -114,6 +118,13 @@ def td_zero(
             # Update: V(s) += alpha * td_error
             V.update(state.label, scalar.multiply(alpha, td_error))
 
+            # Record per-step snapshot after this update
+            step_vals = [V.get(label) for label in RandomWalk.LABELS]
+            step_snapshots.append({
+                "values": step_vals,
+                "rms": rms_error(V, RandomWalk.TRUE_VALUES, RandomWalk.LABELS),
+            })
+
             if done:
                 break
             state = next_state
@@ -125,10 +136,11 @@ def td_zero(
             "episode": ep,
             "values": list(values),
             "rms": rms_error(V, RandomWalk.TRUE_VALUES, RandomWalk.LABELS),
-            "pre_values": pre_values,  # values before this episode's updates
+            "pre_values": pre_values,
             "pre_rms": pre_rms,
             "path": path,
             "outcome": outcome,
+            "steps": step_snapshots,  # per-step values/rms for animation
         })
 
     return V, history

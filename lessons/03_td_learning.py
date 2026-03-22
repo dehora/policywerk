@@ -303,42 +303,48 @@ def main():
         h = hist_td[ep_idx]
         ep_path = h.get("path", [])
         ep_outcome = h.get("outcome")
-        # Use pre-episode values for intermediate steps (learning hasn't happened yet)
-        pre_vals = h.get("pre_values", h["values"])
-        pre_rms_val = h.get("pre_rms", h["rms"])
+        ep_steps = h.get("steps", [])
 
-        # First frame: agent at starting position
+        # Step-by-step: each frame shows values/rms AFTER the corresponding
+        # TD update. step_snapshots[0] = pre-episode, [1] = after first
+        # transition, [2] = after second, etc.
+
+        # First frame: agent at starting position (pre-episode values)
+        step_data = ep_steps[0] if ep_steps else {"values": h["pre_values"], "rms": h["pre_rms"]}
         snapshots.append(TDSnapshot(
             episode=ep_idx,
             total_reward=0.0,
-            estimated=pre_vals,
-            rms=pre_rms_val,
+            estimated=step_data["values"],
+            rms=step_data["rms"],
             episode_num=ep_idx,
             path=[ep_path[0]] if ep_path else [],
             outcome=None,
             agent_label=ep_path[0] if ep_path else None,
             step_label=f"Episode {ep_idx}, start at {ep_path[0] if ep_path else '?'}",
         ))
-        # Subsequent steps: agent moves
+        # Subsequent steps: agent moves, values update after each transition
         for step_idx in range(1, len(ep_path)):
             pos = ep_path[step_idx]
+            # Use per-step snapshot (after the transition that moved to this state)
+            step_data = ep_steps[step_idx] if step_idx < len(ep_steps) else ep_steps[-1]
             snapshots.append(TDSnapshot(
                 episode=ep_idx,
                 total_reward=0.0,
-                estimated=pre_vals,  # pre-episode values (no updates yet)
-                rms=pre_rms_val,
+                estimated=step_data["values"],
+                rms=step_data["rms"],
                 episode_num=ep_idx,
                 path=ep_path[:step_idx + 1],
                 outcome=None,
                 agent_label=pos,
                 step_label=f"Episode {ep_idx}, step {step_idx}",
             ))
-        # Final frame showing the outcome with post-episode values
+        # Final frame: outcome with post-episode values
+        step_data = ep_steps[-1] if ep_steps else {"values": h["values"], "rms": h["rms"]}
         snapshots.append(TDSnapshot(
             episode=ep_idx,
             total_reward=0.0,
-            estimated=h["values"],  # post-episode values (learning happened)
-            rms=h["rms"],
+            estimated=step_data["values"],
+            rms=step_data["rms"],
             episode_num=ep_idx,
             path=ep_path,
             outcome=ep_outcome,
@@ -396,8 +402,12 @@ def main():
         axes["algo"].set_ylim(0, 1.0)
         axes["algo"].set_title(f"Estimates vs True (RMS={snap.rms:.3f})", fontsize=10)
 
-        # Bottom: RMS error trace
-        n = min(snap.episode_num + 1, len(real_rms))
+        # Bottom: RMS error trace — only show completed episodes
+        # (don't advance the trace during mid-episode step frames)
+        n = min(snap.episode_num, len(real_rms))
+        if snap.outcome is not None:
+            # This is an outcome frame — include this episode's RMS
+            n = min(snap.episode_num + 1, len(real_rms))
         update_trace_axes(axes["trace"], real_rms[:n],
                           label="RMS error", color=TEAL)
         axes["trace"].set_ylabel("RMS Error", fontsize=9)
