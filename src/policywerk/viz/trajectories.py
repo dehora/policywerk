@@ -55,6 +55,86 @@ def draw_target(
                marker="*", zorder=10, edgecolors=DARK_GRAY, linewidths=0.5)
 
 
+def draw_cliff_grid(
+    ax: plt.Axes,
+    rows: int,
+    cols: int,
+    cliff: list[tuple[int, int]],
+    start: tuple[int, int],
+    goal: tuple[int, int],
+    path: list[tuple[int, int]] | None = None,
+    policy: dict[str, int] | None = None,
+    caption: str | None = None,
+) -> None:
+    """Draw a cliff walking grid with path, cliff cells, and optional policy arrows.
+
+    Shows the grid with cliff cells in red, start in blue, goal in green,
+    and the agent's path as a teal line.
+    """
+    ax.clear()
+
+    # Draw grid cells
+    for r in range(rows):
+        for c in range(cols):
+            if (r, c) in cliff:
+                color = "#ffcccc"  # light red for cliff
+            elif (r, c) == start:
+                color = "#cce5ff"  # light blue for start
+            elif (r, c) == goal:
+                color = "#ccffcc"  # light green for goal
+            else:
+                color = "#f5f5f5"  # light gray for normal
+            import matplotlib.patches as patches
+            rect = patches.Rectangle((c - 0.5, r - 0.5), 1, 1,
+                                      facecolor=color, edgecolor="#cccccc",
+                                      linewidth=0.5, zorder=1)
+            ax.add_patch(rect)
+
+    # Label special cells
+    ax.text(start[1], start[0], "S", ha="center", va="center",
+            fontsize=8, fontweight="bold", color=DARK_GRAY, zorder=5)
+    ax.text(goal[1], goal[0], "G", ha="center", va="center",
+            fontsize=8, fontweight="bold", color="green", zorder=5)
+    for r, c in cliff:
+        ax.text(c, r, "C", ha="center", va="center",
+                fontsize=6, color="red", alpha=0.5, zorder=5)
+
+    # Draw path
+    if path and len(path) > 1:
+        xs = [c for r, c in path]
+        ys = [r for r, c in path]
+        ax.plot(xs, ys, color=TEAL, linewidth=2, alpha=0.7, zorder=3)
+        # Agent marker at last position
+        ax.scatter([xs[-1]], [ys[-1]], c=TEAL, s=60, zorder=6,
+                   edgecolors=DARK_GRAY, linewidths=0.5)
+
+    # Draw policy arrows
+    if policy:
+        arrow_dx = {0: 0, 1: 0.3, 2: 0, 3: -0.3}
+        arrow_dy = {0: -0.3, 1: 0, 2: 0.3, 3: 0}
+        for label, action in policy.items():
+            parts = label.split(",")
+            r, c = int(parts[0]), int(parts[1])
+            if (r, c) in cliff or (r, c) == goal:
+                continue
+            dx = arrow_dx.get(action, 0)
+            dy = arrow_dy.get(action, 0)
+            ax.annotate("", xy=(c + dx, r + dy), xytext=(c, r),
+                         arrowprops=dict(arrowstyle="->", color=DARK_GRAY,
+                                         lw=1, alpha=0.6),
+                         zorder=4)
+
+    ax.set_xlim(-0.5, cols - 0.5)
+    ax.set_ylim(rows - 0.5, -0.5)  # invert y so row 0 is at top
+    ax.set_aspect("equal")
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+    if caption:
+        ax.text(cols / 2 - 0.5, rows + 0.1, caption,
+                ha="center", va="top", fontsize=7, color=DARK_GRAY, style="italic")
+
+
 def draw_chain(
     ax: plt.Axes,
     labels: list[str],
