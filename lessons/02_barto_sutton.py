@@ -382,7 +382,20 @@ def main():
         save_animation(fig, update, len(snapshots),
                        "output/02_barto_sutton_artifact.gif", fps=3)
 
-    # --- Artifact 2: Poster ---
+    # --- Artifact 2: Poster (evaluation episode, no exploration noise) ---
+
+    # Run a clean evaluation episode with noise disabled to show the
+    # trained policy's true behavior, not a noisy training rollout.
+    from policywerk.actors.barto_sutton import train_episode
+    from policywerk.primitives.random import create_rng as _create_rng
+    eval_rng = _create_rng(0)
+    eval_env = Balance()
+    eval_ep, eval_angles, eval_actions = train_episode(
+        eval_env, ace, ase, eval_rng, 36,
+        gamma=0.95, alpha=0.0, beta=0.0,  # no learning during eval
+        trace_decay=0.5, noise_std=0.0,    # no exploration noise
+    )
+    eval_length = len(eval_ep)
 
     fig2, axes2 = create_lesson_figure(
         "Lesson 02: Actor-Critic Balance (Trained)",
@@ -390,10 +403,11 @@ def main():
     )
 
     def update_poster(frame_idx):
-        snap = snapshots[-1]
-        # Show balanced pole
-        draw_pole(axes2["env"], 0.0)  # balanced = angle 0
-        axes2["env"].set_title("Balanced (500 steps)", fontsize=10)
+        # Show the pole at its midpoint angle from the eval episode
+        mid = min(len(eval_angles) - 1, len(eval_angles) // 2)
+        draw_pole(axes2["env"], eval_angles[mid])
+        eval_status = f"{eval_length} steps" if eval_length >= 500 else f"fell at step {eval_length}"
+        axes2["env"].set_title(f"Evaluation ({eval_status})", fontsize=10)
 
         axes2["algo"].clear()
         axes2["algo"].axis("off")
@@ -401,6 +415,8 @@ def main():
             f"Learned in ~{first_success or '?'} episodes\n"
             f"36 boxes (6x6 discretization)\n"
             f"2 neurons: actor + critic\n\n"
+            f"Evaluation: {eval_status}\n"
+            f"(no exploration noise)\n\n"
             f"The same balance task appears\n"
             f"in Lesson 06 with PPO --\n"
             f"34 years of progress."
@@ -437,10 +453,10 @@ def main():
 
     print()
     print("    Artifacts saved to output/:")
-    print("      artifact.gif  pole balance across training episodes")
-    print("      artifact.pdf  PDF storyboard of every frame")
-    print("      poster.png    final balanced state with learning curve")
-    print("      trace.png     episode length over training")
+    print("      02_barto_sutton_artifact.gif  pole balance across training")
+    print("      02_barto_sutton_artifact.pdf  PDF storyboard of every frame")
+    print("      02_barto_sutton_poster.png    evaluation episode (no noise)")
+    print("      02_barto_sutton_trace.png     episode length over training")
 
     # -----------------------------------------------------------------------
     # Closing

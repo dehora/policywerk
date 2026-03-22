@@ -508,10 +508,10 @@ def main():
 
     print()
     print("    Artifacts saved to output/:")
-    print("      artifact.gif  animated value propagation, one frame per sweep")
-    print("      artifact.pdf  PDF storyboard of every frame")
-    print("      poster.png    final converged state with policy arrows")
-    print("      trace.png     convergence curve (max value change per sweep)")
+    print("      01_bellman_artifact.gif  animated value propagation")
+    print("      01_bellman_artifact.pdf  PDF storyboard of every frame")
+    print("      01_bellman_poster.png    converged state with policy arrows")
+    print("      01_bellman_trace.png     convergence curve")
 
     # -----------------------------------------------------------------------
     # Closing
