@@ -433,7 +433,11 @@ class TestRecurrent:
             assert abs(a - b) < 1e-12
 
     def test_gru_backward(self):
-        """Verify GRU gradients against finite differences."""
+        """Verify GRU gradients against finite differences.
+
+        Uses a non-uniform upstream gradient to catch per-output
+        indexing/mixing bugs that uniform [1,1,1] would miss.
+        """
         rng = create_rng(42)
         layer = create_gru(rng, input_size=4, hidden_size=3)
         h_prev = [0.1, 0.2, 0.3]
@@ -441,7 +445,8 @@ class TestRecurrent:
         eps = 1e-5
 
         h_new, cache = gru_forward(layer, h_prev, x)
-        grad_h_new = [1.0, 1.0, 1.0]
+        # Non-uniform gradient exercises per-output bookkeeping
+        grad_h_new = [1.0, -0.5, 0.3]
         grad_h_prev, grad_x, grad_layer = gru_backward(layer, cache, grad_h_new)
 
         # Helper: sum of h_new weighted by grad_h_new
@@ -530,30 +535,46 @@ class TestGaussianEntropy:
 
 
 class TestLambdaReturn:
+    """Tests for lambda_return.
+
+    Convention: values[k] = V(s_k), next_value = V(s_T).
+    rewards[k] is the reward at step k.
+    The 1-step return from step k is: r_k + gamma * V(s_{k+1}).
+    """
+
     def test_lambda_return_lambda_zero(self):
-        """lambda=0: pure 1-step TD. At each step, use r + gamma * V(s)."""
+        """lambda=0: pure 1-step TD. Bootstrap from V(s_{k+1}) at each step."""
+        # 3 steps: s_0 -> s_1 -> s_2 -> s_3
         rewards = [1.0, 2.0, 3.0]
-        values = [10.0, 20.0, 30.0]
-        g = lambda_return(rewards, values, gamma=0.9, lam=0.0)
-        # With lam=0, the recursion uses only g_1 (1-step return) at each step.
-        # Working backward:
-        #   k=2: g_1 = 3 + 0.9*30 = 30.0 -> g_lambda = 30.0
-        #   k=1: g_1 = 2 + 0.9*20 = 20.0 -> g_lambda = 20.0
-        #   k=0: g_1 = 1 + 0.9*10 = 10.0 -> g_lambda = 10.0
-        assert abs(g - 10.0) < 1e-10
+        values = [10.0, 20.0, 30.0]  # V(s_0), V(s_1), V(s_2)
+        next_value = 40.0             # V(s_3)
+        g = lambda_return(rewards, values, next_value, gamma=0.9, lam=0.0)
+        # With lam=0, only the 1-step return matters at each step:
+        #   k=2: g_1 = r_2 + gamma*V(s_3) = 3 + 0.9*40 = 39.0
+        #   k=1: g_1 = r_1 + gamma*V(s_2) = 2 + 0.9*30 = 29.0
+        #   k=0: g_1 = r_0 + gamma*V(s_1) = 1 + 0.9*20 = 19.0
+        assert abs(g - 19.0) < 1e-10
 
     def test_lambda_return_lambda_one(self):
-        """lambda=1: full Monte Carlo-like, bootstrapping from final value."""
+        """lambda=1: Monte Carlo with terminal bootstrap from next_value."""
         rewards = [1.0, 2.0, 3.0]
-        values = [10.0, 20.0, 30.0]
-        g = lambda_return(rewards, values, gamma=0.9, lam=1.0)
-        # With lam=1, g_1 terms vanish ((1-1)*g_1=0) and only g_n terms remain.
-        # Working backward:
-        #   k=2: g_n = 3 + 0.9*30 = 30.0 -> g_lambda = 30.0
-        #   k=1: g_n = 2 + 0.9*30 = 29.0 -> g_lambda = 29.0
-        #   k=0: g_n = 1 + 0.9*29 = 27.1 -> g_lambda = 27.1
-        # Note: not pure MC because it bootstraps from values[t-1] at the end.
-        assert abs(g - 27.1) < 1e-10
+        values = [10.0, 20.0, 30.0]  # V(s_0), V(s_1), V(s_2)
+        next_value = 0.0              # terminal state, no future reward
+        g = lambda_return(rewards, values, next_value, gamma=0.9, lam=1.0)
+        # With lam=1 and next_value=0, this should equal the MC return:
+        #   G = r_0 + gamma*r_1 + gamma^2*r_2 = 1 + 1.8 + 2.43 = 5.23
+        mc = discount_return(rewards, gamma=0.9)
+        assert abs(g - mc) < 1e-10
+        assert abs(g - 5.23) < 1e-10
+
+    def test_lambda_return_matches_n_step(self):
+        """With lam=0 and a single step, should match n_step_return."""
+        rewards = [5.0]
+        values = [100.0]  # V(s_0), irrelevant for 1-step
+        next_value = 10.0  # V(s_1)
+        g = lambda_return(rewards, values, next_value, gamma=0.9, lam=0.0)
+        expected = 5.0 + 0.9 * 10.0  # r + gamma * V(s_1) = 14.0
+        assert abs(g - expected) < 1e-10
 
 
 class TestGaussianPolicy:

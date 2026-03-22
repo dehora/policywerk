@@ -77,22 +77,35 @@ def n_step_return(rewards: Vector, bootstrap_value: float, gamma: float) -> floa
     return g
 
 
-def lambda_return(rewards: Vector, values: Vector, gamma: float, lam: float) -> float:
-    """TD(λ) return: weighted average of all n-step returns.
+def lambda_return(rewards: Vector, values: Vector, next_value: float,
+                  gamma: float, lam: float) -> float:
+    """TD(λ) return from the first timestep.
 
-    lambda=0: use only the next-step estimate (fast but biased).
-    lambda=1: use all actual rewards (slow but accurate).
-    Computed efficiently with the forward view.
+    Convention (same as gae):
+      rewards[k] = reward received at step k
+      values[k]  = V(s_k), the estimated value of state k
+      next_value = V(s_T), the bootstrap value after the last step
+
+    The 1-step return from step k is: r_k + gamma * V(s_{k+1}).
+
+    lambda=0: pure 1-step TD — bootstrap from the next state immediately.
+    lambda=1: full Monte Carlo-like — use all actual rewards, bootstrap
+              only from next_value at the end.
+    Values in between blend short and long n-step returns.
     """
     t = len(rewards)
     if t == 0:
         return 0.0
     g_lambda = 0.0
-    g_n = values[t - 1] if t <= len(values) else 0.0
+    g_n = next_value
     for k in range(t - 1, -1, -1):
-        v_next = values[k] if k < len(values) else 0.0
+        # V(s_{k+1}): the value of the next state
+        v_next = next_value if k == t - 1 else values[k + 1]
+        # 1-step return: r_k + gamma * V(s_{k+1})
         g_1 = scalar.add(rewards[k], scalar.multiply(gamma, v_next))
+        # n-step return (accumulates from the end)
         g_n = scalar.add(rewards[k], scalar.multiply(gamma, g_n))
+        # Lambda-weighted blend of 1-step and n-step
         g_lambda = scalar.add(
             scalar.multiply(scalar.subtract(1.0, lam), g_1),
             scalar.multiply(lam, g_n),
