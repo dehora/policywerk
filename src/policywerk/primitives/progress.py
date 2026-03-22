@@ -13,6 +13,23 @@ from policywerk.primitives import scalar
 # Braille spinner characters — smooth rotation effect in the terminal
 _BRAILLE = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 
+# ASCII fallback when the stream can't encode braille
+_ASCII_SPINNER = "|/-\\"
+
+
+def _spinner_chars(stream) -> str:
+    """Return the best spinner character set the stream can handle."""
+    try:
+        _BRAILLE[0].encode(getattr(stream, "encoding", "utf-8") or "utf-8")
+        return _BRAILLE
+    except (UnicodeEncodeError, LookupError):
+        return _ASCII_SPINNER
+
+
+def _is_tty(stream) -> bool:
+    """Return True if *stream* is connected to a terminal."""
+    return hasattr(stream, "isatty") and stream.isatty()
+
 
 def progress_bar(
     epoch: int,
@@ -51,6 +68,7 @@ class Spinner:
         self._stream = stream
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+        self._chars = _spinner_chars(stream)
 
     def __enter__(self):
         self._stop.clear()
@@ -58,21 +76,27 @@ class Spinner:
         self._thread.start()
         return self
 
-    def __exit__(self, *exc):
+    def __exit__(self, exc_type, exc_val, exc_tb):
         self._stop.set()
         if self._thread:
             self._thread.join()
-        # Overwrite the spinner line completely — pad with spaces to
-        # clear any residual characters from the spinning text
-        done_text = f"    {self._message}... done."
-        padding = " " * 10  # extra spaces to overwrite spinner char
-        self._stream.write(f"\r{done_text}{padding}\n")
+        # Choose status word based on whether an exception occurred
+        status = "failed." if exc_type is not None else "done."
+        done_text = f"    {self._message}... {status}"
+        if _is_tty(self._stream):
+            # Overwrite the spinner line completely — pad with spaces to
+            # clear any residual characters from the spinning text
+            padding = " " * 10
+            self._stream.write(f"\r{done_text}{padding}\n")
+        else:
+            # Non-TTY (pipe, file): write a clean line without padding
+            self._stream.write(f"{done_text}\n")
         self._stream.flush()
 
     def _spin(self):
         idx = 0
         while not self._stop.is_set():
-            char = _BRAILLE[idx % len(_BRAILLE)]
+            char = self._chars[idx % len(self._chars)]
             self._stream.write(f"\r    {char} {self._message}...")
             self._stream.flush()
             idx += 1

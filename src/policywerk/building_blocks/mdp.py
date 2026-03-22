@@ -116,6 +116,11 @@ class StochasticMDP(Environment):
     """
 
     @abstractmethod
+    def is_terminal(self, state: State) -> bool:
+        """True if this state is terminal (episode ends here)."""
+        ...
+
+    @abstractmethod
     def states(self) -> list[State]:
         """Return all states in the MDP."""
         ...

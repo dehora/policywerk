@@ -518,20 +518,20 @@ wheels = [
 name = "policywerk"
 version = "0.1.0"
 source = { editable = "." }
+dependencies = [
+    { name = "matplotlib" },
+]
 
 [package.dev-dependencies]
 dev = [
-    { name = "matplotlib" },
     { name = "pytest" },
 ]
 
 [package.metadata]
+requires-dist = [{ name = "matplotlib" }]
 
 [package.metadata.requires-dev]
-dev = [
-    { name = "matplotlib" },
-    { name = "pytest" },
-]
+dev = [{ name = "pytest" }]
 
 [[package]]
 name = "pygments"

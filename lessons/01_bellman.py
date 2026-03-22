@@ -80,10 +80,13 @@ def print_policy(policy: dict[str, int], env: GridWorld, rows: int, cols: int) -
         print("    " + " ".join(cells))
 
 
-def update_sweep_trace(ax, values, label="", color=TEAL):
+def update_sweep_trace(ax, values, label="", color=TEAL, x_values=None):
     """Update the convergence trace pane with integer sweep ticks."""
     ax.clear()
-    xs = list(range(len(values)))
+    if x_values is not None:
+        xs = x_values
+    else:
+        xs = list(range(len(values)))
     ax.plot(xs, values, color=color, linewidth=1.5, label=label, alpha=0.8,
             marker="o", markersize=4)
     ax.set_xlabel("Sweep", fontsize=9)
@@ -188,15 +191,19 @@ def main():
         print(f"      Sweep {record['sweep']:2d}:  {record['max_change']:.6f}  [{bar}]")
     print()
 
-    print(f"""    The grid is 5 columns wide, and information travels roughly
-    one column per sweep:
+    print(f"""    With synchronous updates, information travels exactly one cell
+    per sweep — each state reads the previous sweep's values:
 
       Sweep 1: cells next to the goal or pit update — they can see
                the reward directly.
       Sweep 2: their neighbors update, using sweep 1's values.
-      Sweep 3: the wave reaches the middle of the grid.
-      Sweep 4: the far left column finally receives information.
-      Sweep 5: nothing changes — all values have stabilized.
+      Sweep 3-7: the wave continues one step per sweep, reaching
+               the far corners of the grid.
+      Sweep 8: the last cell updates, values nearly stable.
+      Sweep 9: nothing changes — convergence.
+
+    The start cell (bottom-left) is 8 steps from the goal, so
+    it takes 8 sweeps for goal information to reach it.
     """)
 
     # Show final values
@@ -210,10 +217,12 @@ def main():
     away. Values decrease smoothly with distance — each step away
     from the goal costs roughly a factor of gamma (0.9).
 
-    The start cell has value +0.270. The goal is about 8 steps away,
-    and 0.9^8 = 0.43, but step costs of -0.04 along the way reduce
-    it further. The green-to-red gradient in the animation is
-    literally the discount factor at work.
+    The start cell has value +0.270. That is the goal's +1 reward,
+    discounted over the 8 steps it takes to get there, minus the
+    step costs paid along the way. Each step of distance reduces
+    the reward by a factor of gamma (0.9) and adds a -0.04 cost.
+    The green-to-red gradient in the animation is literally the
+    discount factor at work.
     """)
 
     # Derive and show the greedy policy
@@ -379,7 +388,9 @@ def main():
         "Lesson 01: Value Iteration",
         subtitle="Bellman (1957) — reward ripples backward through the grid",
     )
-    max_changes = [s.max_change for s in snapshots]
+    # Build real convergence data from history only (no fake initial/hold frames)
+    real_changes = [h["max_change"] for h in history]
+    real_sweeps = [h["sweep"] for h in history]
 
     def update(frame_idx):
         snap = snapshots[frame_idx]
@@ -423,9 +434,13 @@ def main():
                           fontfamily="monospace", color=DARK_GRAY)
         axes["algo"].set_title("Algorithm State", fontsize=10)
 
-        trace_data = max_changes[:frame_idx + 1]
+        # Clamp trace to real sweep data only (no fake initial/hold points)
+        n = min(frame_idx, len(real_changes))
+        trace_data = real_changes[:n]
+        trace_xs = real_sweeps[:n]
         update_sweep_trace(axes["trace"], trace_data,
-                           label="Max value change", color=TEAL)
+                           label="Max value change", color=TEAL,
+                           x_values=trace_xs)
         axes["trace"].set_ylabel("Max change", fontsize=9)
         axes["trace"].set_title("Convergence", fontsize=10)
 
@@ -465,7 +480,8 @@ def main():
 
         sweep_changes = [h["max_change"] for h in history]
         update_sweep_trace(axes2["trace"], sweep_changes,
-                           label="Max value change", color=TEAL)
+                           label="Max value change", color=TEAL,
+                           x_values=list(range(1, len(history) + 1)))
         axes2["trace"].set_ylabel("Max change", fontsize=9)
         axes2["trace"].set_title("Convergence", fontsize=10)
 

@@ -104,6 +104,26 @@ class TestValues:
         draw_value_heatmap(ax, [[0.0, 0.5], [1.0, -0.5]])
         plt.close(fig)
 
+    def test_draw_value_heatmap_skip_cells(self):
+        import matplotlib.pyplot as plt
+        values = [[0.0, 0.5], [1.0, -0.5]]
+
+        # Without skip_cells
+        fig1, ax1 = plt.subplots()
+        draw_value_heatmap(ax1, values)
+        texts_all = [c for c in ax1.get_children()
+                     if isinstance(c, plt.Text) and c.get_text().strip()]
+        plt.close(fig1)
+
+        # With skip_cells={(0, 0)}
+        fig2, ax2 = plt.subplots()
+        draw_value_heatmap(ax2, values, skip_cells={(0, 0)})
+        texts_skip = [c for c in ax2.get_children()
+                      if isinstance(c, plt.Text) and c.get_text().strip()]
+        plt.close(fig2)
+
+        assert len(texts_skip) < len(texts_all)
+
     def test_draw_policy_arrows(self):
         import matplotlib.pyplot as plt
         fig, ax = plt.subplots()

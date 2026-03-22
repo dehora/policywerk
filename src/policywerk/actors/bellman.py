@@ -61,30 +61,34 @@ def value_iteration(
         sweep += 1
         max_change = 0.0
 
+        # Synchronous update: snapshot current values so every state
+        # in this sweep reads from the previous sweep's values.
+        old_V = TabularV(default=0.0)
+        for k, v in V.all_values().items():
+            old_V.set(k, v)
+
         for state in all_states:
             if env.is_terminal(state):
                 continue
-
-            old_value = V.get(state.label)
 
             # Bellman optimality backup: try all actions, keep the best
             best_value = float("-inf")
             for action in range(num_actions):
                 action_value = 0.0
                 for next_state, prob, reward in env.transition_probs(state, action):
-                    # action_value += prob * (reward + gamma * V[next_state])
+                    # action_value += prob * (reward + gamma * old_V[next_state])
                     action_value = scalar.add(
                         action_value,
                         scalar.multiply(prob,
                                         scalar.add(reward,
-                                                   scalar.multiply(gamma, V.get(next_state.label)))),
+                                                   scalar.multiply(gamma, old_V.get(next_state.label)))),
                     )
                 if action_value > best_value:
                     best_value = action_value
 
             V.set(state.label, best_value)
 
-            change = scalar.abs_val(scalar.subtract(best_value, old_value))
+            change = scalar.abs_val(scalar.subtract(V.get(state.label), old_V.get(state.label)))
             if change > max_change:
                 max_change = change
 

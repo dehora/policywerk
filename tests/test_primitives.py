@@ -1,6 +1,9 @@
 """Tests for primitive operations."""
 
+import io
+
 from policywerk.primitives import scalar, vector, matrix, activations, losses, random
+from policywerk.primitives.progress import Spinner
 
 
 class TestScalar:
@@ -157,3 +160,28 @@ class TestRandom:
         rng = random.create_rng(42)
         val = random.choice(rng, 5)
         assert 0 <= val < 5
+
+
+class TestSpinner:
+    def test_spinner_done_message(self):
+        buf = io.StringIO()
+        with Spinner("Working", stream=buf):
+            pass
+        output = buf.getvalue()
+        # Final line should contain "done." without TTY padding
+        last_line = output.strip().split("\n")[-1]
+        assert "done." in last_line
+        # StringIO is not a TTY, so no trailing padding spaces
+        assert last_line == last_line.rstrip()
+
+    def test_spinner_error_message(self):
+        buf = io.StringIO()
+        try:
+            with Spinner("Working", stream=buf):
+                raise RuntimeError("boom")
+        except RuntimeError:
+            pass
+        output = buf.getvalue()
+        last_line = output.strip().split("\n")[-1]
+        assert "failed" in last_line
+        assert "done." not in last_line

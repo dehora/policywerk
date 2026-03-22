@@ -131,13 +131,18 @@ def save_animation(
     Args:
         fig: the matplotlib Figure to animate.
         update_fn: callable(frame_index: int) that redraws the
-            figure for one frame. Called once per frame.
+            figure for one frame. Called once per frame for the GIF,
+            and again for each frame of the PDF storyboard. Must be
+            idempotent (pure redraw, no side effects).
         frame_count: total number of frames.
         path: output file path (.gif or .mp4).
         fps: frames per second.
         pdf: if True, also export a multi-page PDF (one page per frame)
             alongside the animation. The PDF path is derived from the
-            animation path by replacing the extension.
+            animation path by replacing the extension. Note: when pdf
+            is True, update_fn is called again for each frame of the
+            PDF storyboard, so it must be idempotent (pure redraw, no
+            side effects).
     """
     # FuncAnimation calls update_fn(0), update_fn(1), ..., update_fn(frame_count-1),
     # and the writer captures each resulting figure as one frame.
