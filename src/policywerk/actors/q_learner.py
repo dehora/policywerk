@@ -179,21 +179,31 @@ def sarsa(
     return Q, history
 
 
-def extract_greedy_policy(Q: TabularQ, rows: int, cols: int,
-                          num_actions: int) -> dict[str, int]:
-    """Derive greedy policy from Q-values for a grid environment.
+def extract_greedy_policy(Q: TabularQ, env, skip_labels: set[str] | None = None) -> dict[str, int]:
+    """Derive greedy policy from Q-values.
 
-    Returns a dict mapping "r,c" labels to the best action.
+    Iterates over states the Q table has seen (keys in the internal dict),
+    skipping any labels in skip_labels (e.g. terminal states, cliff cells).
+    Returns a dict mapping state labels to the best action.
     """
+    num_actions = env.num_actions()
+    skip = skip_labels or set()
+    # Collect all state labels that have at least one Q entry
+    seen_labels: set[str] = set()
+    for (label, _action) in Q._values.keys():
+        seen_labels.add(label)
     policy: dict[str, int] = {}
-    for r in range(rows):
-        for c in range(cols):
-            label = f"{r},{c}"
+    for label in seen_labels:
+        if label not in skip:
             policy[label] = Q.best_action(label, num_actions)
     return policy
 
 
 def _label_to_pos(label: str) -> tuple[int, int]:
-    """Convert "r,c" label to (row, col) tuple."""
+    """Convert "r,c" grid label to (row, col) tuple.
+
+    This is specific to grid environments (CliffWorld, GridWorld)
+    where state labels are "row,col" strings.
+    """
     parts = label.split(",")
     return int(parts[0]), int(parts[1])

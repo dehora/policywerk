@@ -238,7 +238,7 @@ class TestQLearner:
         """The greedy policy should reach the goal."""
         env = CliffWorld()
         Q, _ = q_learning(env, num_episodes=500, seed=42)
-        policy = extract_greedy_policy(Q, CliffWorld.ROWS, CliffWorld.COLS, env.num_actions())
+        policy = extract_greedy_policy(Q, env)
         # Follow the greedy policy from start
         state = env.reset()
         for _ in range(100):
@@ -272,8 +272,11 @@ class TestQLearner:
         assert ql_bottom_row >= sa_bottom_row
 
     def test_extract_greedy_policy(self):
-        """Policy should cover the grid."""
+        """Policy should cover visited states."""
         env = CliffWorld()
         Q, _ = q_learning(env, num_episodes=100, seed=42)
-        policy = extract_greedy_policy(Q, CliffWorld.ROWS, CliffWorld.COLS, env.num_actions())
-        assert len(policy) == CliffWorld.ROWS * CliffWorld.COLS
+        policy = extract_greedy_policy(Q, env)
+        # Should have entries for states the agent visited
+        assert len(policy) > 0
+        # Start state should have a policy
+        assert "3,0" in policy

@@ -194,8 +194,8 @@ def main():
     print()
 
     # Extract and show policies
-    policy_ql = extract_greedy_policy(Q_ql, CliffWorld.ROWS, CliffWorld.COLS, env.num_actions())
-    policy_sa = extract_greedy_policy(Q_sa, CliffWorld.ROWS, CliffWorld.COLS, env.num_actions())
+    policy_ql = extract_greedy_policy(Q_ql, env)
+    policy_sa = extract_greedy_policy(Q_sa, env)
 
     # Show the key difference: which row does each policy use?
     ql_last_path = hist_ql[-1]["path"]
@@ -235,8 +235,7 @@ def main():
     for ep_idx in sample_episodes:
         if ep_idx < num_episodes:
             h = hist_ql[ep_idx]
-            pol = extract_greedy_policy(Q_ql, CliffWorld.ROWS, CliffWorld.COLS,
-                                        env.num_actions()) if ep_idx == num_episodes - 1 else None
+            pol = extract_greedy_policy(Q_ql, env) if ep_idx == num_episodes - 1 else None
             snapshots.append(QLearningSnapshot(
                 episode=ep_idx,
                 total_reward=h["total_reward"],
