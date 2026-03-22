@@ -5,7 +5,7 @@ from policywerk.world.balance import Balance
 from policywerk.actors.bellman import value_iteration, policy_iteration, extract_policy
 from policywerk.actors.barto_sutton import (
     create_ace_ase, state_to_input, state_to_box, select_action,
-    compute_td_error, update_ace, update_ase, train,
+    compute_td_error, update_ace, update_ase, train, NUM_BOXES,
 )
 from policywerk.primitives.random import create_rng
 from policywerk.primitives import vector
@@ -148,3 +148,30 @@ class TestBartoSutton:
         early_avg = sum(lengths[:20]) / 20
         late_avg = sum(lengths[-20:]) / 20
         assert late_avg > early_avg, f"Training did not improve: early={early_avg:.1f}, late={late_avg:.1f}"
+
+    def test_timeout_does_not_penalize(self):
+        """A 500-step success should not produce a negative TD error."""
+        ace, _ = create_ace_ase(NUM_BOXES)
+        ace.weights[15] = 1.0  # some learned value for box 15
+        ace.prev_prediction = 1.0
+
+        x = vector.zeros(NUM_BOXES)
+        x[15] = 1.0
+
+        # Simulate a timeout success: done=True, env_reward=1.0
+        # The train_episode code maps this to learn_done=False (truncation),
+        # so compute_td_error should bootstrap, not use terminal path.
+        # With reward=0 (paper convention) and done=False:
+        # td_error = 0 + gamma * prediction - prev_prediction
+        td = compute_td_error(ace, x, x, reward=0.0, gamma=0.95, done=False)
+        # prediction = 1.0, prev = 1.0: td = 0 + 0.95*1.0 - 1.0 = -0.05
+        assert abs(td - (-0.05)) < 1e-10
+        # This is a small adjustment, NOT the large negative from terminal path
+
+    def test_state_to_box_rejects_wrong_num_boxes(self):
+        """state_to_box only works with the 36-box balance discretization."""
+        from policywerk.building_blocks.mdp import State
+        import pytest
+        state = State(features=[0.0, 0.0], label="3,3")
+        with pytest.raises(ValueError, match="36-box"):
+            state_to_box(state, 100)

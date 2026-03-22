@@ -80,19 +80,29 @@ def create_ace_ase(num_boxes: int) -> tuple[ACE, ASE]:
     return ace, ase
 
 
+NUM_ANGLE_BINS = 6   # matches balance.py: len(_ANGLE_BINS) + 1
+NUM_VEL_BINS = 6     # matches balance.py: len(_VEL_BINS) + 1
+NUM_BOXES = NUM_ANGLE_BINS * NUM_VEL_BINS  # 36
+
+
 def state_to_box(state: State, num_boxes: int) -> int:
     """Convert a discretized state label "a_bin,v_bin" to a box index.
 
     The balance environment labels states as "a_bin,v_bin" where each
-    bin is 0-5. This maps to a flat index: a_bin * num_vel_bins + v_bin.
+    bin is 0-5. This maps to a flat index: a_bin * NUM_VEL_BINS + v_bin.
+
+    This function is specific to the 36-box balance discretization.
     """
+    if num_boxes != NUM_BOXES:
+        raise ValueError(
+            f"state_to_box only supports the 36-box balance discretization "
+            f"({NUM_ANGLE_BINS} angle bins x {NUM_VEL_BINS} velocity bins), "
+            f"got num_boxes={num_boxes}"
+        )
     parts = state.label.split(",")
     a_bin = int(parts[0])
     v_bin = int(parts[1])
-    # Infer number of velocity bins from total boxes and max angle bin
-    # For 36 boxes with 6 angle bins: num_vel_bins = 6
-    num_vel_bins = 6  # matches balance.py's _VEL_BINS (5 boundaries -> 6 bins)
-    return a_bin * num_vel_bins + v_bin
+    return a_bin * NUM_VEL_BINS + v_bin
 
 
 def state_to_input(state: State, num_boxes: int) -> Vector:
@@ -239,10 +249,19 @@ def train_episode(env, ace: ACE, ase: ASE, rng: _random.Random,
         next_state, env_reward, done = env.step(action)
         x_next = state_to_input(next_state, num_boxes)
 
-        # Paper's reward convention: 0 during balancing, -1 on failure.
-        # The balance env gives +1 per step and 0 on failure, so we
-        # transform: failure (env_reward=0, done=True) -> -1, else -> 0
-        reward = -1.0 if (done and env_reward == 0.0) else 0.0
+        # Distinguish failure from success timeout.
+        # The balance env gives reward=0 on failure (pole fell) and
+        # reward=1 on success (including max_steps timeout).
+        #
+        # Paper's convention: r=0 during balance, r=-1 on failure.
+        # On max-step timeout (success), we treat it as truncation:
+        # keep the bootstrap term (done=False for learning) because
+        # the episode didn't truly end — the agent was still balancing.
+        failed = done and env_reward == 0.0
+        truncated = done and env_reward != 0.0
+        reward = -1.0 if failed else 0.0
+        # For learning: only use terminal (no-bootstrap) path on actual failure
+        learn_done = failed
 
         episode.add(Transition(
             state=state, action=action, reward=env_reward,
@@ -250,7 +269,7 @@ def train_episode(env, ace: ACE, ase: ASE, rng: _random.Random,
         ))
 
         # Compute TD error from the critic
-        td_error = compute_td_error(ace, x_next, x, reward, gamma, done)
+        td_error = compute_td_error(ace, x_next, x, reward, gamma, learn_done)
 
         # Update both components using the TD error
         update_ace(ace, td_error, x, beta, trace_decay)
