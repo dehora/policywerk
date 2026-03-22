@@ -61,6 +61,7 @@ def draw_chain(
     values: list[float] | None = None,
     path: list[str] | None = None,
     outcome: str | None = None,
+    agent_label: str | None = None,
 ) -> None:
     """Draw a chain of states (e.g. the random walk A-B-C-D-E).
 
@@ -68,6 +69,7 @@ def draw_chain(
     values: optional value estimates for each state (shown as color fill).
     path: optional list of state labels visited this episode (drawn as line).
     outcome: "left" or "right" — which terminal was reached.
+    agent_label: if set, draw an agent marker above this state node.
     """
     n = len(labels)
     node_y = 0.5
@@ -143,6 +145,22 @@ def draw_chain(
         if values is not None:
             ax.text(x, node_y - 0.28, f"{values[i]:.2f}", ha="center",
                     va="top", fontsize=7, color=DARK_GRAY)
+
+    # Draw agent marker above current position
+    if agent_label is not None:
+        if agent_label in labels:
+            idx = labels.index(agent_label)
+            agent_x = idx * spacing
+        elif agent_label == "LEFT_TERMINAL":
+            agent_x = -1.0
+        elif agent_label == "RIGHT_TERMINAL":
+            agent_x = n * spacing
+        else:
+            agent_x = None
+        if agent_x is not None:
+            # Orange triangle marker above the node
+            ax.scatter([agent_x], [node_y + 0.32], marker="v", s=120,
+                       color=ORANGE, edgecolors=DARK_GRAY, linewidths=0.5, zorder=8)
 
 
 def draw_pole(

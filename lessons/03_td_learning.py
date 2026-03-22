@@ -39,6 +39,8 @@ class TDSnapshot(FrameSnapshot):
     episode_num: int
     path: list[str] | None = None
     outcome: str | None = None
+    agent_label: str | None = None  # current position for step-by-step frames
+    step_label: str | None = None   # title override for step frames
 
 
 # ---------------------------------------------------------------------------
@@ -293,11 +295,45 @@ def main():
 
     os.makedirs("output", exist_ok=True)
 
-    # Build snapshots from TD(0) history
+    # Build snapshots: step-by-step for first 3 episodes, then summaries
     snapshots = []
-    record_interval = max(1, num_episodes // 25)
-    for ep_idx in range(num_episodes):
-        if ep_idx % record_interval == 0 or ep_idx == num_episodes - 1:
+    STEP_BY_STEP_EPISODES = 3
+
+    for ep_idx in range(min(STEP_BY_STEP_EPISODES, num_episodes)):
+        h = hist_td[ep_idx]
+        ep_path = h.get("path", [])
+        ep_outcome = h.get("outcome")
+
+        # Show each step of the walk as a separate frame
+        for step_idx, pos in enumerate(ep_path):
+            snapshots.append(TDSnapshot(
+                episode=ep_idx,
+                total_reward=0.0,
+                estimated=h["values"],  # values at end of episode
+                rms=h["rms"],
+                episode_num=ep_idx,
+                path=ep_path[:step_idx + 1],  # path so far
+                outcome=None,  # not finished yet
+                agent_label=pos,
+                step_label=f"Episode {ep_idx}, step {step_idx + 1}",
+            ))
+        # Final frame showing the outcome
+        snapshots.append(TDSnapshot(
+            episode=ep_idx,
+            total_reward=0.0,
+            estimated=h["values"],
+            rms=h["rms"],
+            episode_num=ep_idx,
+            path=ep_path,
+            outcome=ep_outcome,
+            agent_label=None,  # agent has left the chain
+            step_label=f"Episode {ep_idx} -> {'won' if ep_outcome == 'right' else 'lost'}",
+        ))
+
+    # Remaining episodes: one summary frame per sampled episode
+    record_interval = max(1, (num_episodes - STEP_BY_STEP_EPISODES) // 20)
+    for ep_idx in range(STEP_BY_STEP_EPISODES, num_episodes):
+        if (ep_idx - STEP_BY_STEP_EPISODES) % record_interval == 0 or ep_idx == num_episodes - 1:
             h = hist_td[ep_idx]
             snapshots.append(TDSnapshot(
                 episode=ep_idx,
@@ -324,12 +360,12 @@ def main():
     def update(frame_idx):
         snap = snapshots[frame_idx]
 
-        # Top-left: chain diagram showing the walk path and current values
-        outcome_label = snap.outcome if snap.outcome else None
+        # Top-left: chain diagram with agent position
         draw_chain(axes["env"], labels, values=snap.estimated,
-                   path=snap.path, outcome=outcome_label)
-        result = f"-> {'won' if snap.outcome == 'right' else 'lost'}" if snap.outcome else ""
-        axes["env"].set_title(f"Episode {snap.episode_num} {result}", fontsize=10)
+                   path=snap.path, outcome=snap.outcome,
+                   agent_label=snap.agent_label)
+        title = snap.step_label if snap.step_label else f"Episode {snap.episode_num}"
+        axes["env"].set_title(title, fontsize=10)
 
         # Top-right: bar chart of estimated vs true values
         draw_value_bars(axes["algo"], snap.estimated, true_values, labels)
