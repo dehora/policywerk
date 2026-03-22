@@ -96,11 +96,16 @@ class GridWorld(StochasticMDP):
         return 4
 
     def states(self) -> list[State]:
-        """All non-wall, non-terminal states."""
+        """All non-wall states, including terminal (goal/pit) states.
+
+        Terminal states are included because dynamic programming algorithms
+        need to know about them — their value is defined (goal=+1, pit=-1)
+        and they must appear in the state space for value iteration to work.
+        """
         result = []
         for r in range(self._rows):
             for c in range(self._cols):
-                if self._grid[r][c] == EMPTY:
+                if self._grid[r][c] != WALL:
                     result.append(self._make_state((r, c)))
         return result
 
@@ -112,8 +117,16 @@ class GridWorld(StochasticMDP):
         step() moves the agent. transition_probs() answers the same question
         hypothetically — used by planning algorithms that reason about all
         possibilities.
+
+        Terminal states (goal/pit) are absorbing: any action from a terminal
+        state loops back to itself with zero reward.
         """
         r, c = self._parse_label(state.label)
+
+        # Terminal states are absorbing — no escape, no further reward
+        if self._grid[r][c] in (GOAL, PIT):
+            return [(self._make_state((r, c)), 1.0, 0.0)]
+
         nr = r + _ROW_DELTA[action]
         nc = c + _COL_DELTA[action]
 

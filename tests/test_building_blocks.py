@@ -74,6 +74,12 @@ class TestPolicies:
         actions = [softmax_policy(rng, [1.0, 100.0, 1.0], temperature=0.01) for _ in range(20)]
         assert sum(1 for a in actions if a == 1) > 15
 
+    def test_softmax_policy_preferences_keyword(self):
+        """Backward compatibility: preferences= keyword still works."""
+        rng = create_rng(42)
+        action = softmax_policy(rng, preferences=[1.0, 100.0, 1.0], temperature=0.01)
+        assert action == 1
+
 
 class TestEligibilityTrace:
     def test_visit_and_decay(self):
@@ -170,6 +176,14 @@ class TestNeuralNetwork:
         output, cache = network_forward(net, [1.0, 2.0, 3.0, 4.0])
         assert len(output) == 2
         assert len(cache.layer_caches) == 2
+
+    def test_network_activation_fn_mismatch(self):
+        """Creating a network with wrong number of activation functions raises."""
+        rng = create_rng(42)
+        import pytest
+        # 2 layers need 2 activation functions, not 1
+        with pytest.raises(ValueError, match="activation functions"):
+            create_network(rng, [4, 8, 2], [activations.relu])
 
     def test_gradient_check(self):
         rng = create_rng(42)

@@ -77,8 +77,8 @@ class TestGridWorld:
     def test_states_complete(self):
         env = GridWorld()
         states = env.states()
-        # 25 cells - 1 wall - 1 goal - 1 pit = 22 empty cells
-        assert len(states) == 22
+        # 25 cells - 1 wall = 24 non-wall states (including goal and pit)
+        assert len(states) == 24
 
     def test_transition_probs_sum_to_one(self):
         env = GridWorld()
@@ -107,6 +107,27 @@ class TestGridWorld:
         assert env.is_terminal(State(features=[0.0, 4.0], label="0,4"))  # goal
         assert env.is_terminal(State(features=[1.0, 3.0], label="1,3"))  # pit
         assert not env.is_terminal(State(features=[0.0, 0.0], label="0,0"))
+
+    def test_terminal_states_are_absorbing(self):
+        env = GridWorld()
+        from policywerk.building_blocks.mdp import State
+        goal = State(features=[0.0, 4.0], label="0,4")
+        pit = State(features=[1.0, 3.0], label="1,3")
+        # Terminal states should self-loop with zero reward
+        for terminal in [goal, pit]:
+            for action in range(4):
+                probs = env.transition_probs(terminal, action)
+                assert len(probs) == 1
+                next_s, prob, reward = probs[0]
+                assert next_s.label == terminal.label
+                assert prob == 1.0
+                assert reward == 0.0
+
+    def test_terminal_states_in_states(self):
+        env = GridWorld()
+        state_labels = {s.label for s in env.states()}
+        assert "0,4" in state_labels  # goal
+        assert "1,3" in state_labels  # pit
 
 
 class TestCliffWorld:
@@ -205,17 +226,23 @@ class TestCatcher:
 
     def test_collect_reward(self):
         env = Catcher(seed=42, num_rewards=1, num_hazards=0, max_steps=500)
-        state = env.reset()
-        # Walk toward the reward item — try all directions
+        env.reset()
+        # With seed=42, agent starts at (8,8) and reward is at (3,0).
+        # Navigate: 8 steps west (action 3), then 5 steps north (action 0).
         collected = False
-        for _ in range(100):
-            for action in range(4):
-                s, r, done = env.step(action)
+        for _ in range(8):   # west to column 0
+            s, r, done = env.step(3)
+            if r == 1.0:
+                collected = True
+                break
+        if not collected:
+            for _ in range(5):  # north to row 3
+                s, r, done = env.step(0)
                 if r == 1.0:
                     collected = True
                     break
-            if collected:
-                break
+        assert collected, "Agent should have collected the reward at (3,0)"
+        assert done, "Collecting the only reward should end the episode"
 
     def test_num_actions(self):
         assert Catcher().num_actions() == 4

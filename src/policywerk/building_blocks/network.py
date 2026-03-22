@@ -28,9 +28,18 @@ def create_network(rng, layer_sizes: list[int], activation_fns: list) -> Network
 
     layer_sizes: [input_dim, hidden1, hidden2, ..., output_dim]
     activation_fns: one per layer (len = len(layer_sizes) - 1)
+
+    Raises ValueError if the number of activation functions doesn't
+    match the number of layers.
     """
+    num_layers = len(layer_sizes) - 1
+    if len(activation_fns) != num_layers:
+        raise ValueError(
+            f"Need exactly {num_layers} activation functions for {num_layers} layers "
+            f"(got {len(activation_fns)}). Provide one activation per layer."
+        )
     layers = []
-    for layer_idx in range(len(layer_sizes) - 1):
+    for layer_idx in range(num_layers):
         layer = create_dense(rng, layer_sizes[layer_idx], layer_sizes[layer_idx + 1])
         layers.append(layer)
     return Network(layers=layers, activation_fns=activation_fns)

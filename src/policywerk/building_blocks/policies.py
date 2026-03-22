@@ -62,14 +62,20 @@ def epsilon_greedy(rng: _random.Random, q_values: Vector, epsilon: float) -> int
     return vector.argmax(q_values)
 
 
-def softmax_policy(rng: _random.Random, q_values: Vector, temperature: float = 1.0) -> int:
+def softmax_policy(rng: _random.Random, q_values: Vector = None, temperature: float = 1.0,
+                   *, preferences: Vector = None) -> int:
     """Convert action scores into probabilities — higher-scored actions are more
     likely to be chosen, but not guaranteed.
 
     Higher temperature → more uniform (exploratory).
     Lower temperature → more greedy (exploitative).
+
+    Accepts either q_values (positional) or preferences (keyword, deprecated).
     """
-    scaled = vector.scale(scalar.inverse(temperature), q_values)
+    scores = q_values if q_values is not None else preferences
+    if scores is None:
+        raise TypeError("softmax_policy requires q_values (or preferences) argument")
+    scaled = vector.scale(scalar.inverse(temperature), scores)
     probs = activations.softmax(scaled)
     return sample_categorical(rng, probs)
 
