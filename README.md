@@ -16,6 +16,10 @@ The project follows seven landmark papers chronologically, each one building on 
 | 06 | Schulman et al., "Proximal Policy Optimization Algorithms" | 2017 | PPO | Point-mass control | — |
 | 07 | Hafner et al., "Mastering Diverse Domains through World Models" | 2023 | DreamerV3 | Pixel point-mass | — |
 
+## Concepts
+
+Six ideas underpin everything in this project — the MDP framework, value functions, exploration vs exploitation, discounted returns, credit assignment, and backpropagation. If any are unfamiliar, read [CONCEPTS.md](CONCEPTS.md) before diving into the code.
+
 ## Why
 
 Most RL tutorials start with `import gymnasium`. This project starts with `1.0 + 1.0`.
