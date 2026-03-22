@@ -308,6 +308,16 @@ class TestQLearner:
         best = Q.best_action("s", 4)
         assert best == 1, f"Should pick seen action 1 (-5.0), not unseen default (0.0), got {best}"
 
+    def test_max_value_includes_unseen(self):
+        """max_value should include unseen actions at default for training targets."""
+        from policywerk.building_blocks.value_functions import TabularQ
+        Q = TabularQ(default=0.0)
+        Q.set("s", 1, -5.0)
+        # max_value should return 0.0 (unseen actions at default), not -5.0
+        # This is correct for training: the Bellman target uses all actions
+        mv = Q.max_value("s", 4)
+        assert mv == 0.0, f"max_value should include unseen default (0.0), got {mv}"
+
     def test_partial_q_greedy_policy(self):
         """Greedy policy from a sparse Q table should not drift onto unseen actions."""
         from policywerk.building_blocks.value_functions import TabularQ

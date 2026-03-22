@@ -112,14 +112,17 @@ class TabularQ:
         return max(seen_actions, key=lambda pair: pair[1])[0]
 
     def max_value(self, state_label: str, num_actions: int) -> float:
-        """Return max_a Q(s, a).
+        """Return max_a Q(s, a), including unseen actions at the default.
 
-        Only considers actions that have been initialized. Returns
-        the default if no actions have been set for this state.
+        Unlike best_action() (which filters unseen actions for policy
+        extraction), max_value() includes all actions via get() so that
+        unseen actions contribute their default value during training.
+        This matches standard zero-initialized Q-learning where the
+        Bellman target uses max over all actions, seen or not.
         """
-        seen_values = [self._values[(state_label, a)]
-                       for a in range(num_actions)
-                       if (state_label, a) in self._values]
-        if not seen_values:
-            return self._default
-        return max(seen_values)
+        best = self.get(state_label, 0)
+        for a in range(1, num_actions):
+            val = self.get(state_label, a)
+            if val > best:
+                best = val
+        return best
