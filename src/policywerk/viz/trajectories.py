@@ -66,48 +66,49 @@ def draw_cliff_grid(
     policy: dict[str, int] | None = None,
     caption: str | None = None,
     agent_pos: tuple[int, int] | None = None,
+    trail_length: int | None = None,
 ) -> None:
     """Draw a cliff walking grid with path, cliff cells, and optional policy arrows.
 
-    Shows the grid with cliff cells in red, start in blue, goal in green,
-    and the agent's path as a teal line.
+    trail_length: if set, only show the last N positions of the path
+        (avoids spaghetti on wandering episodes). None shows the full path.
     """
     ax.clear()
+    import matplotlib.patches as patches
+
+    cliff_set = set(cliff)
 
     # Draw grid cells
     for r in range(rows):
         for c in range(cols):
-            if (r, c) in cliff:
-                color = "#ffcccc"  # light red for cliff
+            if (r, c) in cliff_set:
+                color = "#cc3333"  # bold red for cliff (danger)
             elif (r, c) == start:
-                color = "#cce5ff"  # light blue for start
+                color = "#b3d9ff"  # blue for start
             elif (r, c) == goal:
-                color = "#ccffcc"  # light green for goal
+                color = "#85e085"  # green for goal
             else:
-                color = "#f5f5f5"  # light gray for normal
-            import matplotlib.patches as patches
+                color = "#f0f0f0"  # light gray for normal
             rect = patches.Rectangle((c - 0.5, r - 0.5), 1, 1,
-                                      facecolor=color, edgecolor="#cccccc",
+                                      facecolor=color, edgecolor="#dddddd",
                                       linewidth=0.5, zorder=1)
             ax.add_patch(rect)
 
-    # Label special cells
+    # Label start and goal only (cliff color speaks for itself)
     ax.text(start[1], start[0], "S", ha="center", va="center",
-            fontsize=8, fontweight="bold", color=DARK_GRAY, zorder=5)
+            fontsize=9, fontweight="bold", color="white", zorder=5)
     ax.text(goal[1], goal[0], "G", ha="center", va="center",
-            fontsize=8, fontweight="bold", color="green", zorder=5)
-    for r, c in cliff:
-        ax.text(c, r, "C", ha="center", va="center",
-                fontsize=6, color="red", alpha=0.5, zorder=5)
+            fontsize=9, fontweight="bold", color="white", zorder=5)
 
-    # Draw path
+    # Draw path (optionally trimmed to recent trail)
     if path and len(path) > 1:
-        xs = [c for r, c in path]
-        ys = [r for r, c in path]
-        ax.plot(xs, ys, color=TEAL, linewidth=2, alpha=0.7, zorder=3)
-        # Agent marker at last position
-        ax.scatter([xs[-1]], [ys[-1]], c=TEAL, s=60, zorder=6,
-                   edgecolors=DARK_GRAY, linewidths=0.5)
+        display_path = path
+        if trail_length is not None and len(path) > trail_length:
+            display_path = path[-trail_length:]
+        xs = [c for r, c in display_path]
+        ys = [r for r, c in display_path]
+        ax.plot(xs, ys, color=TEAL, linewidth=2.5, alpha=0.6,
+                solid_capstyle="round", zorder=3)
 
     # Draw policy arrows
     if policy:
@@ -116,20 +117,20 @@ def draw_cliff_grid(
         for label, action in policy.items():
             parts = label.split(",")
             r, c = int(parts[0]), int(parts[1])
-            if (r, c) in cliff or (r, c) == goal:
+            if (r, c) in cliff_set or (r, c) == goal:
                 continue
             dx = arrow_dx.get(action, 0)
             dy = arrow_dy.get(action, 0)
             ax.annotate("", xy=(c + dx, r + dy), xytext=(c, r),
                          arrowprops=dict(arrowstyle="->", color=DARK_GRAY,
-                                         lw=1, alpha=0.6),
+                                         lw=1.2, alpha=0.7),
                          zorder=4)
 
     # Agent marker (orange triangle) at current position
     if agent_pos is not None:
         ar, ac = agent_pos
-        ax.scatter([ac], [ar], marker="v", s=120,
-                   color=ORANGE, edgecolors=DARK_GRAY, linewidths=0.5, zorder=8)
+        ax.scatter([ac], [ar], marker="v", s=150,
+                   color=ORANGE, edgecolors=DARK_GRAY, linewidths=1, zorder=8)
 
     ax.set_xlim(-0.5, cols - 0.5)
     ax.set_ylim(rows - 0.5, -0.5)  # invert y so row 0 is at top

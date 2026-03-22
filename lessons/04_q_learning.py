@@ -312,6 +312,7 @@ def main():
     fig, axes = create_lesson_figure(
         "Lesson 04: Q-Learning",
         subtitle="Watkins (1989) -- policy arrows settle into a route",
+        figsize=(14, 7),  # wider for the 4x12 grid
     )
 
     ql_rewards = [h["total_reward"] for h in hist_ql]
@@ -320,11 +321,14 @@ def main():
         snap = snapshots[frame_idx]
 
         # Top-left: cliff grid with path and agent marker
+        # Step-by-step frames show only a short trail (last 4 positions)
+        # to avoid spaghetti. Summary frames show the full path.
+        trail = 4 if not snap.completed else None
         draw_cliff_grid(axes["env"], CliffWorld.ROWS, CliffWorld.COLS,
                         cliff_cells, CliffWorld.START, CliffWorld.GOAL,
                         path=snap.path, policy=snap.policy,
-                        caption="Cliff world: reach G from S, avoid C (-100)",
-                        agent_pos=snap.agent_pos)
+                        caption="Cliff world: reach G from S, avoid the red cliff",
+                        agent_pos=snap.agent_pos, trail_length=trail)
         title = snap.step_label if snap.step_label else f"Episode {snap.episode_num}"
         axes["env"].set_title(title, fontsize=10)
 
@@ -370,6 +374,7 @@ def main():
     fig2, axes2 = create_lesson_figure(
         "Lesson 04: Q-Learning vs SARSA",
         subtitle="Watkins (1989)",
+        figsize=(14, 7),
     )
 
     def update_poster(frame_idx):
