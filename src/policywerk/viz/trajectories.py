@@ -75,9 +75,14 @@ def draw_chain(
 
     ax.clear()
     ax.set_xlim(-1.5, n * spacing + 0.5)
-    ax.set_ylim(-0.3, 1.0)
+    ax.set_ylim(-0.6, 1.0)
     ax.set_aspect("equal")
     ax.axis("off")
+
+    # Caption explaining the game
+    mid_x = (n - 1) * spacing / 2
+    ax.text(mid_x, -0.45, "Random walk: start at C, move left/right at random until terminal",
+            ha="center", va="center", fontsize=7, color=DARK_GRAY, style="italic")
 
     # Draw terminal zones
     ax.text(-1.0, node_y, "[0]", ha="center", va="center", fontsize=11,
