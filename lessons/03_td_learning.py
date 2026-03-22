@@ -208,12 +208,12 @@ def main():
     MC is unbiased (it uses the real outcome) but high-variance.
     To see the variance: the next episode from C might go
     C -> B -> A -> [0], giving G=0. MC would pull V(C) toward
-    0 this time, having just pulled it toward 1. The update
-    target alternates between 0 and 1 across episodes, so V(C)
-    oscillates instead of settling smoothly. TD(0) avoids this
-    because it only uses one step of experience at a time -- the
-    randomness of the entire episode does not affect V(C), only
-    the next state does.
+    0 this time, having just pulled it toward 1. The target can
+    be either 0 or 1 from episode to episode, so repeated pulls
+    in different directions make V(C) noisy instead of settling
+    smoothly. TD(0) avoids this because it only uses one step of
+    experience at a time -- the randomness of the entire episode
+    does not affect V(C), only the next state does.
     """)
 
     # -----------------------------------------------------------------------
