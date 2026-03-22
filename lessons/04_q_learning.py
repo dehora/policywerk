@@ -98,10 +98,11 @@ def main():
     must try again). Reaching the goal ends the episode with
     reward 0.
 
-    The optimal path is along the cliff edge (bottom row, 13 steps,
-    total reward -13). But with epsilon=0.1 exploration, the agent
-    occasionally steps south into the cliff. This is where Q-learning
-    and SARSA disagree about what to learn.
+    The optimal path runs just above the cliff (row 2), then drops
+    to the goal: 13 steps, total reward -12 (12 steps at -1 each,
+    plus the goal step at 0). But with epsilon=0.1 exploration,
+    the agent occasionally steps south into the cliff. This is
+    where Q-learning and SARSA disagree about what to learn.
     """)
 
     env = CliffWorld()
@@ -195,26 +196,45 @@ def main():
         print(f"      Episodes {i:3d}-{i+window-1:3d}:  Q-learning {avg_ql:7.1f}   SARSA {avg_sa:7.1f}")
     print()
 
-    # Extract and show policies
+    # Extract greedy policies
     policy_ql = extract_greedy_policy(Q_ql, env)
     policy_sa = extract_greedy_policy(Q_sa, env)
 
-    # Show the key difference: which row does each policy use?
-    ql_last_path = hist_ql[-1]["path"]
-    sa_last_path = hist_sa[-1]["path"]
-    ql_avg_row = sum(r for r, c in ql_last_path) / len(ql_last_path)
-    sa_avg_row = sum(r for r, c in sa_last_path) / len(sa_last_path)
+    # Run greedy evaluation episodes (no exploration) to show the
+    # learned policies' true behavior, not training-episode noise.
+    from policywerk.actors.q_learner import _label_to_pos
+    def eval_greedy(Q_table, eval_env, max_steps=100):
+        state = eval_env.reset()
+        path = [_label_to_pos(state.label)]
+        total_r = 0.0
+        for _ in range(max_steps):
+            q_vals = [Q_table.get(state.label, a) for a in range(eval_env.num_actions())]
+            action = max(range(len(q_vals)), key=lambda a: q_vals[a])
+            state, reward, done = eval_env.step(action)
+            total_r += reward
+            path.append(_label_to_pos(state.label))
+            if done:
+                break
+        return path, total_r
 
-    print(f"    Q-learning final path: {len(ql_last_path)} steps, avg row {ql_avg_row:.1f}")
-    print(f"    SARSA final path:      {len(sa_last_path)} steps, avg row {sa_avg_row:.1f}")
+    ql_eval_path, ql_eval_reward = eval_greedy(Q_ql, CliffWorld())
+    sa_eval_path, sa_eval_reward = eval_greedy(Q_sa, CliffWorld())
+
+    ql_avg_row = sum(r for r, c in ql_eval_path) / len(ql_eval_path)
+    sa_avg_row = sum(r for r, c in sa_eval_path) / len(sa_eval_path)
+
+    print(f"    Greedy evaluation (no exploration):")
+    print(f"      Q-learning: {len(ql_eval_path)-1} steps, reward {ql_eval_reward:.0f}, avg row {ql_avg_row:.1f}")
+    print(f"      SARSA:      {len(sa_eval_path)-1} steps, reward {sa_eval_reward:.0f}, avg row {sa_avg_row:.1f}")
     print()
-    print("""    Q-learning's path hugs the bottom row (row 3, the cliff edge)
-    because it learned the optimal policy. SARSA's path stays higher
-    (row 2) because it learned to avoid the cliff during exploration.
+    print("""    Q-learning's greedy policy runs just above the cliff (row 2),
+    the shortest safe route. SARSA's greedy policy may take a wider
+    path because it learned to account for exploratory mistakes
+    during training.
 
     Both are "correct" in different senses. Q-learning found the
-    shortest path. SARSA found the path that actually works best
-    when you are still exploring with epsilon=0.1.
+    optimal path. SARSA found the path that works best when the
+    agent is still exploring with epsilon=0.1.
     """)
 
     # -----------------------------------------------------------------------
@@ -346,18 +366,18 @@ def main():
     )
 
     def update_poster(frame_idx):
-        # Show Q-learning's final path with policy
+        # Show Q-learning's greedy eval path with policy
         draw_cliff_grid(axes2["env"], CliffWorld.ROWS, CliffWorld.COLS,
                         cliff_cells, CliffWorld.START, CliffWorld.GOAL,
-                        path=ql_last_path, policy=policy_ql,
-                        caption="Q-learning: optimal cliff-edge path")
+                        path=ql_eval_path, policy=policy_ql,
+                        caption="Q-learning: optimal cliff-adjacent path (greedy)")
         axes2["env"].set_title("Q-Learning Policy", fontsize=10)
 
-        # Show SARSA's final path with policy
+        # Show SARSA's greedy eval path with policy
         draw_cliff_grid(axes2["algo"], CliffWorld.ROWS, CliffWorld.COLS,
                         cliff_cells, CliffWorld.START, CliffWorld.GOAL,
-                        path=sa_last_path, policy=policy_sa,
-                        caption="SARSA: safer path avoiding cliff edge")
+                        path=sa_eval_path, policy=policy_sa,
+                        caption="SARSA: safer path (greedy)")
         axes2["algo"].set_title("SARSA Policy", fontsize=10)
 
         # Reward comparison
@@ -369,8 +389,8 @@ def main():
         # Smoothed
         w = 20
         if num_episodes > w:
-            ql_smooth = [sum(ql_rewards[max(0,i-w):i+1])/min(i+1,w) for i in range(num_episodes)]
-            sa_smooth = [sum(sa_rewards[max(0,i-w):i+1])/min(i+1,w) for i in range(num_episodes)]
+            ql_smooth = [sum(ql_rewards[max(0,i-w+1):i+1])/len(ql_rewards[max(0,i-w+1):i+1]) for i in range(num_episodes)]
+            sa_smooth = [sum(sa_rewards[max(0,i-w+1):i+1])/len(sa_rewards[max(0,i-w+1):i+1]) for i in range(num_episodes)]
             axes2["trace"].plot(range(num_episodes), ql_smooth,
                                 color=TEAL, linewidth=1.5, label="Q-learning")
             axes2["trace"].plot(range(num_episodes), sa_smooth,
@@ -395,8 +415,8 @@ def main():
              color=ORANGE, linewidth=0.3, alpha=0.3)
     w = 20
     if num_episodes > w:
-        ql_smooth = [sum(ql_rewards[max(0,i-w):i+1])/min(i+1,w) for i in range(num_episodes)]
-        sa_smooth = [sum(sa_rewards[max(0,i-w):i+1])/min(i+1,w) for i in range(num_episodes)]
+        ql_smooth = [sum(ql_rewards[max(0,i-w+1):i+1])/len(ql_rewards[max(0,i-w+1):i+1]) for i in range(num_episodes)]
+        sa_smooth = [sum(sa_rewards[max(0,i-w+1):i+1])/len(sa_rewards[max(0,i-w+1):i+1]) for i in range(num_episodes)]
         ax3.plot(range(num_episodes), ql_smooth,
                  color=TEAL, linewidth=1.5, label="Q-learning (smoothed)")
         ax3.plot(range(num_episodes), sa_smooth,

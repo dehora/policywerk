@@ -272,11 +272,23 @@ class TestQLearner:
         assert ql_bottom_row >= sa_bottom_row
 
     def test_extract_greedy_policy(self):
-        """Policy should cover visited states."""
+        """Policy keys should match Q table's visited states."""
         env = CliffWorld()
         Q, _ = q_learning(env, num_episodes=100, seed=42)
         policy = extract_greedy_policy(Q, env)
-        # Should have entries for states the agent visited
-        assert len(policy) > 0
+        # Policy keys should be exactly the state labels in the Q table
+        q_labels = {label for label, _action in Q._values.keys()}
+        assert set(policy.keys()) == q_labels
         # Start state should have a policy
         assert "3,0" in policy
+
+    def test_extract_greedy_policy_skip_labels(self):
+        """skip_labels should exclude those states from the policy."""
+        env = CliffWorld()
+        Q, _ = q_learning(env, num_episodes=100, seed=42)
+        skip = {"3,0", "3,11"}  # skip start and goal
+        policy = extract_greedy_policy(Q, env, skip_labels=skip)
+        assert "3,0" not in policy
+        assert "3,11" not in policy
+        # Other visited states should still be present
+        assert len(policy) > 0

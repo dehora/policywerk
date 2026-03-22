@@ -17,7 +17,7 @@ A 4x12 grid. Start at bottom-left, goal at bottom-right. The cliff runs along th
 S C C C C C C C C C C G    S=start, C=cliff(-100), G=goal
 ```
 
-Normal steps cost -1. Stepping on the cliff costs -100 and teleports back to start. The optimal path is along the cliff edge (13 steps, reward -13).
+Normal steps cost -1. Stepping on the cliff costs -100 and teleports back to start. The optimal path runs just above the cliff (row 2): 13 steps, total reward -12 (12 steps at -1, goal step at 0).
 
 ## Q-Learning: Off-Policy Control
 

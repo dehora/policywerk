@@ -49,12 +49,11 @@ def q_learning(
 ) -> tuple[TabularQ, list[dict]]:
     """Learn action-values using Q-learning (off-policy TD control).
 
+    Requires a grid environment with "r,c" state labels (e.g. CliffWorld,
+    GridWorld). Path history stores (row, col) tuples for grid visualization.
+
     After each step (s, a, r, s'):
       Q(s, a) += alpha * [r + gamma * max_a' Q(s', a') - Q(s, a)]
-
-    The "max" makes this off-policy: the update assumes the agent
-    will act optimally from s' onward, even though it actually
-    explores with epsilon-greedy.
 
     Returns (Q, history) where Q is the learned action-value table
     and history contains per-episode records.
@@ -119,13 +118,12 @@ def sarsa(
 ) -> tuple[TabularQ, list[dict]]:
     """Learn action-values using SARSA (on-policy TD control).
 
+    Requires a grid environment with "r,c" state labels (e.g. CliffWorld).
+
     After each step (s, a, r, s', a'):
       Q(s, a) += alpha * [r + gamma * Q(s', a') - Q(s, a)]
 
-    Unlike Q-learning, SARSA uses the action ACTUALLY taken next,
-    not the best possible one. This makes it on-policy: what the
-    agent learns depends on how it explores.
-
+    Unlike Q-learning, SARSA uses the action ACTUALLY taken next.
     On cliff walking, SARSA learns a safer path because it accounts
     for the possibility that epsilon-greedy will step off the cliff.
     """
