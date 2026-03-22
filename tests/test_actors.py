@@ -9,6 +9,8 @@ from policywerk.actors.barto_sutton import (
     compute_td_error, update_ace, update_ase, train, NUM_BOXES,
 )
 from policywerk.actors.td_learner import td_zero, td_lambda, monte_carlo, rms_error
+from policywerk.actors.q_learner import q_learning, sarsa, extract_greedy_policy
+from policywerk.world.cliffworld import CliffWorld
 from policywerk.building_blocks.value_functions import TabularV
 from policywerk.primitives.random import create_rng
 from policywerk.primitives import vector
@@ -221,3 +223,57 @@ class TestTDLearner:
         early_rms = sum(h["rms"] for h in history[:10]) / 10
         late_rms = sum(h["rms"] for h in history[-10:]) / 10
         assert late_rms < early_rms
+
+
+class TestQLearner:
+    def test_q_learning_converges(self):
+        """Total reward should improve over training."""
+        env = CliffWorld()
+        Q, history = q_learning(env, num_episodes=500, seed=42)
+        early_reward = sum(h["total_reward"] for h in history[:50]) / 50
+        late_reward = sum(h["total_reward"] for h in history[-50:]) / 50
+        assert late_reward > early_reward
+
+    def test_q_learning_finds_goal(self):
+        """The greedy policy should reach the goal."""
+        env = CliffWorld()
+        Q, _ = q_learning(env, num_episodes=500, seed=42)
+        policy = extract_greedy_policy(Q, CliffWorld.ROWS, CliffWorld.COLS, env.num_actions())
+        # Follow the greedy policy from start
+        state = env.reset()
+        for _ in range(100):
+            action = policy.get(state.label, 0)
+            state, _, done = env.step(action)
+            if done:
+                assert state.label == "3,11", "Should reach the goal"
+                break
+        else:
+            assert False, "Greedy policy did not reach goal in 100 steps"
+
+    def test_sarsa_converges(self):
+        """SARSA total reward should also improve."""
+        env = CliffWorld()
+        Q, history = sarsa(env, num_episodes=500, seed=42)
+        early_reward = sum(h["total_reward"] for h in history[:50]) / 50
+        late_reward = sum(h["total_reward"] for h in history[-50:]) / 50
+        assert late_reward > early_reward
+
+    def test_q_vs_sarsa_path_difference(self):
+        """Q-learning's final path should be closer to the cliff than SARSA's."""
+        env = CliffWorld()
+        Q_ql, hist_ql = q_learning(env, num_episodes=500, seed=42)
+        Q_sa, hist_sa = sarsa(env, num_episodes=500, seed=42)
+        # Q-learning's last episode path should use row 3 (cliff edge) more
+        ql_path = hist_ql[-1]["path"]
+        sa_path = hist_sa[-1]["path"]
+        ql_bottom_row = sum(1 for r, c in ql_path if r == 3)
+        sa_bottom_row = sum(1 for r, c in sa_path if r == 3)
+        # Q-learning should spend more time on the bottom row (cliff edge)
+        assert ql_bottom_row >= sa_bottom_row
+
+    def test_extract_greedy_policy(self):
+        """Policy should cover the grid."""
+        env = CliffWorld()
+        Q, _ = q_learning(env, num_episodes=100, seed=42)
+        policy = extract_greedy_policy(Q, CliffWorld.ROWS, CliffWorld.COLS, env.num_actions())
+        assert len(policy) == CliffWorld.ROWS * CliffWorld.COLS
