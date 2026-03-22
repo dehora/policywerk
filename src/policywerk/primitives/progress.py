@@ -69,27 +69,30 @@ class Spinner:
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._chars = _spinner_chars(stream)
+        self._tty = _is_tty(stream)
 
     def __enter__(self):
         self._stop.clear()
-        self._thread = threading.Thread(target=self._spin, daemon=True)
-        self._thread.start()
+        # Only animate on TTY streams — non-TTY (pipes, files) get
+        # a single clean "done." line with no spinner frames.
+        if self._tty:
+            self._thread = threading.Thread(target=self._spin, daemon=True)
+            self._thread.start()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self._stop.set()
         if self._thread:
             self._thread.join()
-        # Choose status word based on whether an exception occurred
         status = "failed." if exc_type is not None else "done."
         done_text = f"    {self._message}... {status}"
-        if _is_tty(self._stream):
-            # Overwrite the spinner line completely — pad with spaces to
-            # clear any residual characters from the spinning text
+        if self._tty:
+            # Overwrite the spinner line — pad with spaces to clear
+            # any residual characters from the spinning text
             padding = " " * 10
             self._stream.write(f"\r{done_text}{padding}\n")
         else:
-            # Non-TTY (pipe, file): write a clean line without padding
+            # Non-TTY: single clean line, no \r, no spinner residue
             self._stream.write(f"{done_text}\n")
         self._stream.flush()
 

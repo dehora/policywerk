@@ -185,3 +185,18 @@ class TestSpinner:
         last_line = output.strip().split("\n")[-1]
         assert "failed" in last_line
         assert "done." not in last_line
+
+    def test_spinner_no_cr_on_non_tty(self):
+        """Non-TTY streams should have no carriage returns or spinner frames."""
+        import time
+        buf = io.StringIO()
+        with Spinner("Working", stream=buf):
+            time.sleep(0.3)  # give spinner thread time to run (if it were to)
+        output = buf.getvalue()
+        assert "\r" not in output, "Non-TTY output should contain no carriage returns"
+        assert "⠋" not in output, "Non-TTY output should contain no spinner characters"
+        assert "|" not in output or "done." in output, "No ASCII spinner frames in output"
+        # Should be exactly one clean line
+        lines = [l for l in output.split("\n") if l.strip()]
+        assert len(lines) == 1
+        assert "done." in lines[0]
