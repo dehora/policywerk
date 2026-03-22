@@ -265,8 +265,12 @@ def main():
     print_weight_grid(ase.weights, "ASE (actor) -- positive = favor push right")
     print_weight_grid(ace.weights, "ACE (critic) -- higher = better state")
 
-    print("""    Reading the actor: look at a1,v1: weight +0.77 (favor right
-    when tilted left). Look at a4,v3: weight -0.76 (favor left
+    # Read specific weights from the actual grid for the narrative
+    # a1,v1 = index 1*6+1 = 7, a4,v3 = index 4*6+3 = 27
+    a1v1 = ase.weights[7]
+    a4v3 = ase.weights[27]
+    print(f"""    Reading the actor: look at a1,v1: weight {a1v1:+.2f} (favor right
+    when tilted left). Look at a4,v3: weight {a4v3:+.2f} (favor left
     when tilted right). The pattern: positive weights in the top-
     left, negative in the bottom-right. The agent learned to push
     against the direction of tilt.
