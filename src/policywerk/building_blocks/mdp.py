@@ -1,11 +1,39 @@
 """Level 1: MDP framework.
 
-A formal framework for sequential decision-making: an agent observes a state,
-picks an action, receives a reward, and arrives in a new state.
+The Markov Decision Process is the formal foundation of reinforcement
+learning. Every RL algorithm in this project — from Bellman's 1957
+value iteration to DreamerV3's 2023 world model — operates within
+this framework.
 
-The environment protocol that every world and actor depends on.
-Defines the Markov Decision Process interface — states, actions,
-transitions, and the contract between agent and environment.
+The idea is simple: an agent lives in an environment. At each moment,
+the agent sees the current state (where it is, what it observes),
+chooses an action (move north, apply force, do nothing), and the
+environment responds with a reward (a number saying how good or bad
+that action was) and a new state. This cycle repeats until the
+episode ends.
+
+    state → agent chooses action → environment returns (reward, new state) → repeat
+
+The "Markov" part means the future depends only on the current state,
+not on the history of how the agent got there. The grid cell you're
+standing on matters; the path you took to reach it doesn't. This
+simplification is what makes RL tractable — the agent only needs to
+learn a value for each state, not for every possible history.
+
+The key design decision in this module is the separation between two
+kinds of environments:
+
+  Environment: the agent can only interact by calling step(). It
+    observes states and rewards but has no access to the environment's
+    internal rules. This is how most RL works — learning from experience.
+
+  StochasticMDP: the agent can also query transition_probs() to ask
+    "if I take action A from state S, what are all the possible outcomes
+    and their probabilities?" This is only possible when the model is
+    fully known, and it's what Bellman's value iteration (L01) requires.
+
+Everything above this module — value functions, policies, actors,
+lessons — depends on these interfaces.
 """
 
 from abc import ABC, abstractmethod
