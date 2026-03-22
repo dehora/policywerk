@@ -185,6 +185,15 @@ class TestNeuralNetwork:
         with pytest.raises(ValueError, match="activation functions"):
             create_network(rng, [4, 8, 2], [activations.relu])
 
+    def test_network_too_few_layer_sizes(self):
+        """layer_sizes needs at least [input_dim, output_dim]."""
+        rng = create_rng(42)
+        import pytest
+        with pytest.raises(ValueError, match="at least 2"):
+            create_network(rng, [4], [activations.relu])
+        with pytest.raises(ValueError, match="at least 2"):
+            create_network(rng, [], [])
+
     def test_gradient_check(self):
         rng = create_rng(42)
         net = create_network(rng, [3, 4, 2], [activations.sigmoid, activations.identity])

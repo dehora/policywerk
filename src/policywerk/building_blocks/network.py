@@ -32,6 +32,11 @@ def create_network(rng, layer_sizes: list[int], activation_fns: list) -> Network
     Raises ValueError if the number of activation functions doesn't
     match the number of layers.
     """
+    if len(layer_sizes) < 2:
+        raise ValueError(
+            "layer_sizes must have at least 2 entries [input_dim, output_dim] "
+            f"(got {len(layer_sizes)})"
+        )
     num_layers = len(layer_sizes) - 1
     if len(activation_fns) != num_layers:
         raise ValueError(

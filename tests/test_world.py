@@ -129,6 +129,23 @@ class TestGridWorld:
         assert "0,4" in state_labels  # goal
         assert "1,3" in state_labels  # pit
 
+    def test_step_from_terminal_is_absorbing(self):
+        """step() after reaching a terminal state should self-loop."""
+        env = GridWorld()
+        env.reset()
+        # Navigate to goal at (0,4)
+        for _ in range(4):
+            env.step(0)  # N
+        for _ in range(3):
+            env.step(1)  # E
+        s, r, done = env.step(1)  # into goal
+        assert done and r == 1.0
+        # Now step again from the terminal state — should stay put
+        s2, r2, done2 = env.step(1)
+        assert done2
+        assert r2 == 0.0  # absorbing: no further reward
+        assert s2.label == s.label  # didn't move
+
 
 class TestCliffWorld:
     def test_reset(self):

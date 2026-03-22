@@ -72,6 +72,10 @@ class GridWorld(StochasticMDP):
         return self._make_state(self._pos)
 
     def step(self, action: int) -> tuple[State, float, bool]:
+        # Terminal states are absorbing — consistent with transition_probs()
+        if self._grid[self._pos[0]][self._pos[1]] in (GOAL, PIT):
+            return self._make_state(self._pos), 0.0, True
+
         r, c = self._pos
         nr = r + _ROW_DELTA[action]
         nc = c + _COL_DELTA[action]
