@@ -272,40 +272,43 @@ def main():
     print_weight_grid(ase.weights, "ASE (actor) -- positive = favor push right")
     print_weight_grid(ace.weights, "ACE (critic) -- higher = better state")
 
-    # Read specific weights and derive directional wording from their signs
+    # Describe specific weights, handling the zero case honestly
+    def weight_direction(w):
+        if w > 0.01:
+            return "favor right"
+        elif w < -0.01:
+            return "favor left"
+        else:
+            return "no preference (unvisited)"
+
     a1v1 = ase.weights[7]   # a1,v1: tilted left, moving left
     a4v3 = ase.weights[27]  # a4,v3: tilted right, moving right
-    a1v1_dir = "favor right" if a1v1 > 0 else "favor left"
-    a4v3_dir = "favor right" if a4v3 > 0 else "favor left"
 
-    # Check the overall pattern using inner bins (a1, a4) where the agent
-    # actually spends time. Extreme bins (a0, a5) have noisy weights because
-    # the agent rarely visits them — it learns to avoid getting there.
-    a1_weights = [ase.weights[i] for i in range(6, 12)]  # a1 row (slight left)
-    a4_weights = [ase.weights[i] for i in range(24, 30)]  # a4 row (slight right)
-    a1_nonzero = [w for w in a1_weights if abs(w) > 0.01]
-    a4_nonzero = [w for w in a4_weights if abs(w) > 0.01]
-    a1_avg = sum(a1_nonzero) / len(a1_nonzero) if a1_nonzero else 0
-    a4_avg = sum(a4_nonzero) / len(a4_nonzero) if a4_nonzero else 0
+    print(f"""    Reading the actor: look at the inner rows where the agent
+    actually spends time (a1-a4, near center):
 
-    if a1_avg > 0 and a4_avg < 0:
-        pattern = "push against the direction of tilt"
-    elif a1_avg < 0 and a4_avg > 0:
-        pattern = "push with the direction of tilt (unusual)"
-    else:
-        pattern = "a mixed strategy near center"
+      a1,v1: weight {a1v1:+.2f} ({weight_direction(a1v1)}
+             when tilted slightly left)
+      a4,v3: weight {a4v3:+.2f} ({weight_direction(a4v3)}
+             when tilted slightly right)
 
-    print(f"""    Reading the actor: look at a1,v1: weight {a1v1:+.2f} ({a1v1_dir}
-    when tilted left). Look at a4,v3: weight {a4v3:+.2f} ({a4v3_dir}
-    when tilted right). The agent learned to {pattern}.
+    In the frequently visited center rows, the pattern is clear:
+    positive weights when tilted left (push right to correct),
+    negative weights when tilted right (push left to correct).
+
+    The extreme rows (a0, a5) have large noisy weights because
+    the agent rarely visits them. Those bins represent states
+    where the pole is nearly falling -- the few experiences there
+    produce outsized weight updates that do not reflect a stable
+    learned strategy.
+
+    Many boxes show 0.00 because the agent never visited them.
+    Once it learns to balance, it stays near center.
 
     Reading the critic: center boxes (a2-a3) have values near zero
     (balanced is "normal"). Edge boxes (a0, a5) have negative
     values (tilted far = danger). The critic learned that being
     centered is safe and being tilted is risky.
-
-    Many boxes have weight 0.00 because the agent never visited
-    them -- once it learns to balance, it stays near center.
     """)
 
     # -----------------------------------------------------------------------

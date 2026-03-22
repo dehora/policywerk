@@ -37,11 +37,13 @@ The critic drives learning through the TD error:
 td_error = reward + gamma * prediction(now) - prediction(before)
 ```
 
+The environment gives reward +1 per step and 0 on failure. For learning, we transform this to the paper's convention: 0 during balancing, -1 on failure. This way the TD error is near zero while the pole is up, and sharply negative when it falls.
+
 ### What Happens When the Pole Falls
 
 ```
 Step 50: state is box 22. Critic predicts V = 0.3.
-Step 51: pole falls. Reward = -1. No future state.
+Step 51: pole falls. Reward = -1 (transformed). No future state.
          TD error = -1 - 0.3 = -1.3
 
 Box 22 (1 step ago):  trace = 0.50  update = 10.0 * (-1.3) * 0.50 = -6.5
@@ -80,7 +82,7 @@ a4   +0.00  +0.00  -0.10  -0.76  +0.87  +0.09
 a5   +0.00  -0.01  -0.14  -1.04  +3.94  -6.25
 ```
 
-The inner bins (a1-a4) show the learned strategy: positive weights when tilted left (push right to correct), negative when tilted right (push left). The extreme bins (a0, a5) have noisy weights because the agent rarely visits them -- it learns to avoid getting there.
+Overall, the left-tilt rows (a0-a2) tend toward positive weights (push right to correct) and the right-tilt rows (a3-a5) tend toward negative weights (push left). Some individual bins may show the opposite sign, especially where angular velocity matters -- if the pole is already swinging fast, the velocity bin affects which correction is needed. The extreme bins (a0, a5) have noisy weights because the agent rarely visits them.
 
 ## Comparison to Lesson 01
 
