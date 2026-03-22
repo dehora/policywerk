@@ -278,14 +278,14 @@ def main():
     print_weight_grid(ase.weights, "ASE (actor) -- positive = favor push right")
     print_weight_grid(ace.weights, "ACE (critic) -- higher = better state")
 
-    # Describe specific weights, handling the zero case honestly
+    # Describe specific weights by magnitude, not visitation
     def weight_direction(w):
         if w > 0.01:
             return "favor right"
         elif w < -0.01:
             return "favor left"
         else:
-            return "no preference (unvisited)"
+            return "near zero"
 
     a1v1 = ase.weights[7]   # a1,v1: tilted left, moving left
     a4v3 = ase.weights[27]  # a4,v3: tilted right, moving right
@@ -298,13 +298,12 @@ def main():
       a4,v3: weight {a4v3:+.2f} ({weight_direction(a4v3)}
              when tilted slightly right)
 
-    In the frequently visited center rows, the general pattern is:
-    positive weights when tilted left (push right to correct),
-    negative weights when tilted right (push left to correct).
-    Some velocity bins show exceptions -- the angular velocity
-    makes the correction more nuanced than pure angle-based
-    pushing. The agent learned a strategy that considers both
-    angle AND velocity, not just angle alone.
+    In the center rows, the tendency is: positive weights when
+    tilted left (push right to correct), negative when tilted
+    right (push left). But some inner bins differ -- the angular
+    velocity also matters, so the strategy is not purely
+    "push opposite to angle." The agent learned a policy that
+    considers both angle and velocity.
 
     The extreme rows (a0, a5) have large noisy weights because
     the agent rarely visits them. Those bins represent states
