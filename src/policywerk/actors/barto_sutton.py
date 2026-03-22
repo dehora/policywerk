@@ -273,7 +273,10 @@ def train_episode(env, ace: ACE, ase: ASE, rng: _random.Random,
         # Compute TD error from the critic
         td_error = compute_td_error(ace, x_next, reward, gamma, learn_done)
 
-        # Update both components using the TD error
+        # Update the state we just LEFT (x), not the state we arrived at
+        # (x_next). The trace records where the agent was when it chose the
+        # action, and the TD error measures the surprise about leaving that
+        # state.
         update_ace(ace, td_error, x, beta, trace_decay)
         update_ase(ase, td_error, x, action, alpha, trace_decay)
 

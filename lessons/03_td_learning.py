@@ -371,7 +371,7 @@ def main():
 
         # First frame: agent at starting position (pre-episode values)
         step_data = ep_steps[0] if ep_steps else {"values": h["pre_values"], "rms": h["pre_rms"]}
-        snapshots.append(TDSnapshot(
+        start_snap = TDSnapshot(
             episode=ep_idx,
             total_reward=0.0,
             estimated=step_data["values"],
@@ -381,13 +381,16 @@ def main():
             outcome=None,
             agent_label=ep_path[0] if ep_path else None,
             step_label=f"Episode {ep_idx}, start at {ep_path[0] if ep_path else '?'}",
-        ))
+        )
+        snapshots.append(start_snap)
+        # Duplicate step-by-step frames so each shows for 2/3 second at 3 fps
+        snapshots.append(start_snap)
         # Subsequent steps: agent moves, values update after each transition
         for step_idx in range(1, len(ep_path)):
             pos = ep_path[step_idx]
             # Use per-step snapshot (after the transition that moved to this state)
             step_data = ep_steps[step_idx] if step_idx < len(ep_steps) else ep_steps[-1]
-            snapshots.append(TDSnapshot(
+            step_snap = TDSnapshot(
                 episode=ep_idx,
                 total_reward=0.0,
                 estimated=step_data["values"],
@@ -397,7 +400,10 @@ def main():
                 outcome=None,
                 agent_label=pos,
                 step_label=f"Episode {ep_idx}, step {step_idx}",
-            ))
+            )
+            snapshots.append(step_snap)
+            # Duplicate step-by-step frames so each shows for 2/3 second at 3 fps
+            snapshots.append(step_snap)
         # Final frame: outcome with post-episode values
         step_data = ep_steps[-1] if ep_steps else {"values": h["values"], "rms": h["rms"]}
         snapshots.append(TDSnapshot(

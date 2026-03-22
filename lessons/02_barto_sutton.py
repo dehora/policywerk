@@ -113,6 +113,12 @@ def main():
     Done:    when |angle| > 0.3 radians (about 17 degrees)
     Goal:    survive 500 steps
 
+    The original 1983 paper used a full cart-pole with four state
+    variables: cart position, cart velocity, pole angle, and pole
+    angular velocity. Our simplified version removes the cart
+    (just angle and angular velocity) because the core ACE/ASE
+    mechanism works the same way with fewer states to learn.
+
     The continuous state is discretized into bins:
 
       Angle bins:    a0 (< -0.2)  a1  a2  a3  a4  a5 (> +0.2)
@@ -254,6 +260,11 @@ def main():
     with only 36 states, the key insight either clicks or it
     does not. Later lessons will show tasks where learning is
     more gradual.
+
+    Remarkably, just 4-5 failure episodes contain enough signal
+    -- via eligibility traces spreading blame across recent states
+    -- to solve the entire task. Each failure teaches the agent
+    about multiple states simultaneously.
 
     The original 1983 paper used full cart-pole (4 state variables,
     162 boxes) and needed roughly 100 episodes. Our simplified

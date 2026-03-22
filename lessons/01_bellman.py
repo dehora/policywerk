@@ -200,7 +200,7 @@ def main():
       Sweep 3-7: the wave continues one step per sweep, reaching
                the far corners of the grid.
       Sweep 8: the last cell updates, values nearly stable.
-      Sweep 9: nothing changes — convergence.
+      Sweep 9: verification — nothing changes, confirming convergence.
 
     The start cell (bottom-left) is 8 steps from the goal, so
     it takes 8 sweeps for goal information to reach it.
