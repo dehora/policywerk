@@ -1,0 +1,106 @@
+# Lesson 3: Temporal-Difference Learning (Sutton, 1988)
+
+In 1988, Richard Sutton formalized the idea that drove Lesson 02's critic: you can learn to predict without waiting for the final outcome. This lesson isolates TD learning on a simple random walk where the true values are known.
+
+```
+uv run python lessons/03_td_learning.py
+```
+
+## The Random Walk
+
+Five states in a chain. The agent starts at C and walks left or right at random (50/50).
+
+```
+[0] <-- A -- B -- C -- D -- E --> [+1]
+ |                                  |
+ lose (reward 0)        win (reward +1)
+```
+
+True values (probability of reaching +1 from each state):
+
+```
+A: 1/6 = 0.167    B: 2/6 = 0.333    C: 3/6 = 0.500
+D: 4/6 = 0.667    E: 5/6 = 0.833
+```
+
+## TD(0): Bootstrapping
+
+TD(0) updates V(s) after every single step:
+
+```
+V(s) += alpha * [reward + gamma * V(s') - V(s)]
+```
+
+Concrete walkthrough (all values start at 0.5, alpha=0.1, gamma=1.0):
+
+```
+Walk: C -> D -> E -> [+1]
+
+Step 1: C -> D, reward=0.  TD error = 0 + 0.5 - 0.5 = 0.   V(C) unchanged.
+Step 2: D -> E, reward=0.  TD error = 0 + 0.5 - 0.5 = 0.   V(D) unchanged.
+Step 3: E -> [+1], reward=1.  TD error = 1 - 0.5 = 0.5.  V(E) = 0.55.
+```
+
+Only E updated. Information propagates backward one step per episode — the same "ripple" as Lesson 01, but learned from experience.
+
+## Monte Carlo: Waiting for the Truth
+
+MC waits for the episode to end, then updates every visited state toward the actual return:
+
+```
+Walk: C -> D -> E -> [+1], G = 1
+
+V(C) += 0.1 * (1 - 0.5) = 0.05 -> 0.55
+V(D) += 0.1 * (1 - 0.5) = 0.05 -> 0.55
+V(E) += 0.1 * (1 - 0.5) = 0.05 -> 0.55
+```
+
+MC updates all visited states at once. Unbiased but high-variance.
+
+## Training Results
+
+```
+Final value estimates vs true values:
+  State    True   TD(0)      MC
+  -----    ----   -----      --
+      A   0.167   0.138   0.191
+      B   0.333   0.422   0.549
+      C   0.500   0.627   0.706
+      D   0.667   0.780   0.786
+      E   0.833   0.921   0.971
+
+Final RMS:  TD(0) = 0.0952   MC = 0.1565
+```
+
+Both converge toward true values. TD(0) typically reaches low error faster because it reuses information across steps.
+
+## TD(lambda): The Spectrum
+
+Lambda blends TD(0) and Monte Carlo via eligibility traces:
+
+```
+lambda = 0.0 : pure TD(0)
+lambda = 0.3 : mostly TD, some backward credit
+lambda = 0.7 : mostly MC, with bootstrapping
+lambda = 1.0 : equivalent to Monte Carlo
+```
+
+## Artifacts
+
+### Value Estimates Animation
+
+![TD learning animation](img/03_td_learning_artifact.gif)
+
+Teal bars (estimated) converge toward orange bars (true values) over episodes. RMS error decreases in the bottom pane.
+
+### Final Estimates vs True Values
+
+![Converged estimates](img/03_td_learning_poster.png)
+
+### TD vs MC vs TD(lambda) Comparison
+
+![Comparison trace](img/03_td_learning_trace.png)
+
+## Next
+
+TD learning predicts values by bootstrapping from the next state's estimate. But prediction is only half the problem. In Lesson 04, Watkins extends TD to control: learning which actions to take, not just how good states are. That is Q-learning.

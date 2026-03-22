@@ -10,7 +10,7 @@ The project follows seven landmark papers chronologically, each one building on 
 |--------|-------|------|-----------|-------------|--------|
 | 01 | Bellman, "A Markovian Decision Process" | 1957 | Value iteration | Gridworld | Done |
 | 02 | Barto, Sutton & Anderson, "Neuronlike Adaptive Elements" | 1983 | ACE/ASE actor-critic | Balance | Done |
-| 03 | Sutton, "Learning to Predict by the Methods of Temporal Differences" | 1988 | TD(0) and TD(λ) | Random walk | — |
+| 03 | Sutton, "Learning to Predict by the Methods of Temporal Differences" | 1988 | TD(0) and TD(λ) | Random walk | Done |
 | 04 | Watkins, "Learning from Delayed Rewards" | 1989 | Q-learning | Cliff walking | — |
 | 05 | Mnih et al., "Playing Atari with Deep Reinforcement Learning" | 2013 | DQN | Pixel gridworld | — |
 | 06 | Schulman et al., "Proximal Policy Optimization Algorithms" | 2017 | PPO | Point-mass control | — |
