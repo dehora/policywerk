@@ -61,21 +61,25 @@ def main():
     print("FROM PREDICTION TO CONTROL")
     print("-" * 64)
     print("""
-    Lesson 03 taught the agent to PREDICT -- learning how good
-    each state is. But prediction alone does not tell the agent
-    what to DO. Knowing that state D is worth 0.667 does not say
-    whether to go left or right.
+    Lesson 03 taught the agent to predict how good each state is.
+    But prediction alone does not tell the agent what to do.
+    Knowing that state D is worth 0.667 does not say whether to
+    go left or right.
 
-    Q-learning solves this by learning action values: Q(s, a) is
-    "how good is it to take action a in state s?" Once you know
-    Q(s, a) for every action, the decision is trivial: pick the
-    action with the highest Q-value.
+    Q-learning solves this by learning action values. Instead of
+    V(s) -- "how good is this state?" -- it learns Q(s, a) --
+    "how good is it to take action a in state s?" Once you have
+    a Q-value for every action, you can pick the one with the
+    highest score.
 
-    The key innovation is off-policy learning. The agent explores
-    randomly (epsilon-greedy) but learns the OPTIMAL policy --
-    as if it always picked the best action. This is possible
-    because the update rule uses "max" over the next state's
-    actions, not the action actually taken.
+    The second idea is off-policy learning. The agent needs to
+    explore -- try random actions to discover what works. But it
+    also needs to learn the best possible behavior, not just the
+    behavior it happens to be trying. Q-learning does both at
+    once: it explores randomly during training, but the update
+    rule always assumes the best action will be taken next. This
+    means the agent can learn the optimal strategy while still
+    trying new things.
     """)
 
     # -----------------------------------------------------------------------
