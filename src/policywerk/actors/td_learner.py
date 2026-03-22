@@ -50,6 +50,9 @@ def rms_error(V: TabularV, true_values: Vector, labels: list[str]) -> float:
     """Root mean squared error between estimated and true values.
 
     Measures how far off the predictions are on average.
+
+    Note: the true_values must match the discount factor used during
+    learning. RandomWalk.TRUE_VALUES assumes gamma=1.0.
     """
     total = 0.0
     for i, label in enumerate(labels):
@@ -195,11 +198,15 @@ def monte_carlo(
 ) -> tuple[TabularV, list[dict]]:
     """Learn state values using first-visit Monte Carlo.
 
-    After each episode, compute the actual return G for each visited
-    state, then update:
-      V(s) += alpha * [G - V(s)]
+    After each episode, compute the discounted return G_t for each
+    timestep, then update only the first occurrence of each state:
+      V(s) += alpha * [G_t - V(s)]
 
     Waits for the episode to end before updating — no bootstrapping.
+
+    Note: this lesson uses gamma=1.0 and the random walk's true
+    values assume gamma=1.0. Using other gamma values would require
+    recomputing the analytical true values.
     """
     rng = create_rng(seed)
     V = TabularV(default=init_value)
@@ -224,16 +231,21 @@ def monte_carlo(
                 break
             state = next_state
 
-        # Compute returns from each visited state (first-visit)
+        # Compute discounted returns for each timestep (backward pass)
+        T = len(states_visited)
+        returns = [0.0] * T
         G = 0.0
-        visited_this_episode: set[str] = set()
-        for t in range(len(states_visited) - 1, -1, -1):
+        for t in range(T - 1, -1, -1):
             G = scalar.add(rewards[t], scalar.multiply(gamma, G))
+            returns[t] = G
+
+        # First-visit: iterate forward, update only the first occurrence
+        visited_this_episode: set[str] = set()
+        for t in range(T):
             label = states_visited[t]
             if label not in visited_this_episode:
                 visited_this_episode.add(label)
-                # V(s) += alpha * [G - V(s)]
-                error = scalar.subtract(G, V.get(label))
+                error = scalar.subtract(returns[t], V.get(label))
                 V.update(label, scalar.multiply(alpha, error))
 
         values = [V.get(label) for label in RandomWalk.LABELS]

@@ -45,17 +45,20 @@ Only E updated. Information propagates backward one step per episode — the sam
 
 ## Monte Carlo: Waiting for the Truth
 
-MC waits for the episode to end, then updates every visited state toward the actual return:
+MC waits for the episode to end, then updates each state toward the actual discounted return from its first visit:
 
 ```
-Walk: C -> D -> E -> [+1], G = 1
+Walk: C -> D -> E -> [+1] (gamma=1.0)
+G from C = 0 + 0 + 1 = 1
+G from D = 0 + 1 = 1
+G from E = 1
 
 V(C) += 0.1 * (1 - 0.5) = 0.05 -> 0.55
 V(D) += 0.1 * (1 - 0.5) = 0.05 -> 0.55
 V(E) += 0.1 * (1 - 0.5) = 0.05 -> 0.55
 ```
 
-MC updates all visited states at once. Unbiased but high-variance.
+MC waits for the outcome, then updates the first visit of each state. Unbiased but high-variance.
 
 ## Training Results
 
@@ -82,7 +85,7 @@ Lambda blends TD(0) and Monte Carlo via eligibility traces:
 lambda = 0.0 : pure TD(0)
 lambda = 0.3 : mostly TD, some backward credit
 lambda = 0.7 : mostly MC, with bootstrapping
-lambda = 1.0 : equivalent to Monte Carlo
+lambda = 1.0 : most MC-like (not exactly identical due to online traces)
 ```
 
 ## Artifacts

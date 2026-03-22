@@ -161,23 +161,26 @@ def main():
     print("-" * 64)
     print("""
     Monte Carlo (MC) takes the opposite approach: wait for the
-    episode to end, then update every visited state toward the
-    actual return G.
+    episode to end, then update each state toward the actual
+    discounted return from its first visit.
 
-      V(s) += alpha * [G - V(s)]
+      V(s) += alpha * [G_t - V(s)]
 
-    For the walk C -> D -> E -> [+1]:
-      G = 1 (the actual outcome)
+    For the walk C -> D -> E -> [+1] (gamma=1.0):
+      G from C = 0 + 0 + 1 = 1
+      G from D = 0 + 1 = 1
+      G from E = 1
       V(C) += 0.1 * (1 - 0.5) = 0.05 -> V(C) = 0.55
       V(D) += 0.1 * (1 - 0.5) = 0.05 -> V(D) = 0.55
       V(E) += 0.1 * (1 - 0.5) = 0.05 -> V(E) = 0.55
 
-    MC updates ALL visited states at once. TD(0) only updates the
-    state that was just left. MC is unbiased (it uses the real
-    outcome) but high-variance (the next episode from C might go
-    C -> B -> A -> [0], giving G=0 instead of G=1). TD(0) is
-    biased (it trusts V(s'), which might be wrong) but lower
-    variance (one step of randomness instead of a whole episode).
+    MC waits for the outcome, then updates the first visit of each
+    state. TD(0) updates after every step without waiting. MC is
+    unbiased (it uses the real outcome) but high-variance (the
+    next episode from C might go C -> B -> A -> [0], giving G=0
+    instead of G=1). TD(0) is biased (it trusts V(s'), which
+    might be wrong) but lower variance (one step of randomness
+    instead of a whole episode).
     """)
 
     # -----------------------------------------------------------------------
@@ -244,7 +247,9 @@ def main():
       lambda = 0.0 : pure TD(0), update only the last state
       lambda = 0.3 : mostly TD, with some backward credit
       lambda = 0.7 : mostly MC, but with bootstrapping
-      lambda = 1.0 : equivalent to Monte Carlo (update all visited states)
+      lambda = 1.0 : most MC-like (update all visited states via traces,
+                     though not exactly identical to MC due to online
+                     accumulating traces)
 
     Eligibility traces remember which states were recently visited.
     When the TD error arrives, all traced states get updated -- not
@@ -267,10 +272,13 @@ def main():
         print(f"      lambda={lam:.1f}:  RMS = {final_rms:.4f}  [{bar[:20]}]")
     print()
 
-    print("""    The best lambda depends on the problem and learning rate.
-    On this small random walk, intermediate values of lambda
-    (0.3-0.7) often do well because they get the stability of
-    TD with some of the directness of MC.
+    # Describe what the results actually show
+    best_lam = min(lambdas, key=lambda l: lambda_results[l][1][-1]["rms"])
+    print(f"""    On this run, lambda={best_lam} gave the lowest final error.
+    The best lambda depends on the problem, the learning rate,
+    and the number of episodes. On larger problems, intermediate
+    lambda values (0.3-0.7) often outperform the extremes because
+    they combine TD's stability with MC's directness.
     """)
 
     # -----------------------------------------------------------------------
