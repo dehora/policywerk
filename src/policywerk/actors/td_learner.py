@@ -86,6 +86,10 @@ def td_zero(
     history: list[dict] = []
 
     for ep in range(num_episodes):
+        # Snapshot values BEFORE this episode's updates (for step-by-step viz)
+        pre_values = [V.get(label) for label in RandomWalk.LABELS]
+        pre_rms = rms_error(V, RandomWalk.TRUE_VALUES, RandomWalk.LABELS)
+
         state = env.reset()
         path: list[str] = [state.label]  # track visited states for viz
         outcome = None
@@ -121,6 +125,8 @@ def td_zero(
             "episode": ep,
             "values": list(values),
             "rms": rms_error(V, RandomWalk.TRUE_VALUES, RandomWalk.LABELS),
+            "pre_values": pre_values,  # values before this episode's updates
+            "pre_rms": pre_rms,
             "path": path,
             "outcome": outcome,
         })

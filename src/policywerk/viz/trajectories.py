@@ -62,6 +62,7 @@ def draw_chain(
     path: list[str] | None = None,
     outcome: str | None = None,
     agent_label: str | None = None,
+    caption: str | None = None,
 ) -> None:
     """Draw a chain of states (e.g. the random walk A-B-C-D-E).
 
@@ -70,6 +71,7 @@ def draw_chain(
     path: optional list of state labels visited this episode (drawn as line).
     outcome: "left" or "right" — which terminal was reached.
     agent_label: if set, draw an agent marker above this state node.
+    caption: optional text displayed below the chain explaining the task.
     """
     n = len(labels)
     node_y = 0.5
@@ -81,10 +83,11 @@ def draw_chain(
     ax.set_aspect("equal")
     ax.axis("off")
 
-    # Caption explaining the game
-    mid_x = (n - 1) * spacing / 2
-    ax.text(mid_x, -0.45, "Random walk: start at C, move left/right at random until terminal",
-            ha="center", va="center", fontsize=7, color=DARK_GRAY, style="italic")
+    # Optional caption below the chain
+    if caption:
+        mid_x = (n - 1) * spacing / 2
+        ax.text(mid_x, -0.45, caption,
+                ha="center", va="center", fontsize=7, color=DARK_GRAY, style="italic")
 
     # Draw terminal zones
     ax.text(-1.0, node_y, "[0]", ha="center", va="center", fontsize=11,

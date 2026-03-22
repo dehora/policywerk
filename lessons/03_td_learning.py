@@ -303,30 +303,46 @@ def main():
         h = hist_td[ep_idx]
         ep_path = h.get("path", [])
         ep_outcome = h.get("outcome")
+        # Use pre-episode values for intermediate steps (learning hasn't happened yet)
+        pre_vals = h.get("pre_values", h["values"])
+        pre_rms_val = h.get("pre_rms", h["rms"])
 
-        # Show each step of the walk as a separate frame
-        for step_idx, pos in enumerate(ep_path):
-            snapshots.append(TDSnapshot(
-                episode=ep_idx,
-                total_reward=0.0,
-                estimated=h["values"],  # values at end of episode
-                rms=h["rms"],
-                episode_num=ep_idx,
-                path=ep_path[:step_idx + 1],  # path so far
-                outcome=None,  # not finished yet
-                agent_label=pos,
-                step_label=f"Episode {ep_idx}, step {step_idx + 1}",
-            ))
-        # Final frame showing the outcome
+        # First frame: agent at starting position
         snapshots.append(TDSnapshot(
             episode=ep_idx,
             total_reward=0.0,
-            estimated=h["values"],
+            estimated=pre_vals,
+            rms=pre_rms_val,
+            episode_num=ep_idx,
+            path=[ep_path[0]] if ep_path else [],
+            outcome=None,
+            agent_label=ep_path[0] if ep_path else None,
+            step_label=f"Episode {ep_idx}, start at {ep_path[0] if ep_path else '?'}",
+        ))
+        # Subsequent steps: agent moves
+        for step_idx in range(1, len(ep_path)):
+            pos = ep_path[step_idx]
+            snapshots.append(TDSnapshot(
+                episode=ep_idx,
+                total_reward=0.0,
+                estimated=pre_vals,  # pre-episode values (no updates yet)
+                rms=pre_rms_val,
+                episode_num=ep_idx,
+                path=ep_path[:step_idx + 1],
+                outcome=None,
+                agent_label=pos,
+                step_label=f"Episode {ep_idx}, step {step_idx}",
+            ))
+        # Final frame showing the outcome with post-episode values
+        snapshots.append(TDSnapshot(
+            episode=ep_idx,
+            total_reward=0.0,
+            estimated=h["values"],  # post-episode values (learning happened)
             rms=h["rms"],
             episode_num=ep_idx,
             path=ep_path,
             outcome=ep_outcome,
-            agent_label=None,  # agent has left the chain
+            agent_label=None,
             step_label=f"Episode {ep_idx} -> {'won' if ep_outcome == 'right' else 'lost'}",
         ))
 
@@ -370,7 +386,8 @@ def main():
         # Top-left: chain diagram with agent position
         draw_chain(axes["env"], labels, values=snap.estimated,
                    path=snap.path, outcome=snap.outcome,
-                   agent_label=snap.agent_label)
+                   agent_label=snap.agent_label,
+                   caption="Random walk: start at C, move left/right at random until terminal")
         title = snap.step_label if snap.step_label else f"Episode {snap.episode_num}"
         axes["env"].set_title(title, fontsize=10)
 
@@ -400,7 +417,8 @@ def main():
 
     def update_poster(frame_idx):
         # Chain with final learned values
-        draw_chain(axes2["env"], labels, values=hist_td[-1]["values"])
+        draw_chain(axes2["env"], labels, values=hist_td[-1]["values"],
+                   caption="Random walk: start at C, move left/right at random until terminal")
         axes2["env"].set_title("Learned Values (TD(0))", fontsize=10)
 
         # Bar chart comparison
