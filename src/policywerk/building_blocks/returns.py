@@ -1,11 +1,44 @@
 """Level 1: Return computation.
 
-The 'return' in RL is the total reward the agent collects from now until the
-end — not a Python return statement.
+The "return" in RL (nothing to do with Python's return statement) is
+the total reward an agent collects from the current moment until the
+episode ends. It's the number the agent is ultimately trying to
+maximize — not the immediate reward from one step, but the cumulative
+payoff of an entire sequence of decisions.
 
-Different ways to estimate the return (cumulative discounted reward)
-from a sequence of rewards. The spectrum from Monte Carlo to TD(0)
-and everything in between.
+The complication is that future rewards are uncertain and distant.
+A reward right now is guaranteed, but a reward 10 steps from now
+depends on what happens in between. Discounting handles this: each
+step into the future multiplies the reward by gamma (γ), a number
+between 0 and 1. With gamma=0.9, a reward 10 steps away is worth
+0.9^10 ≈ 0.35 of its face value. This captures the intuition that
+a bird in the hand is worth more than one in the bush.
+
+The fundamental tradeoff in return estimation:
+
+  Monte Carlo (discount_return): wait until the episode ends, then
+    add up all the actual rewards with discounting. This gives the
+    true return — no guessing — but it's noisy. Two episodes from
+    the same state can give very different returns due to randomness.
+
+  TD(0) / bootstrapping (n_step_return with n=1): don't wait. After
+    one step, use the agent's own value estimate for the next state
+    as a stand-in for all future rewards. This is biased (the estimate
+    might be wrong) but low-variance (it doesn't depend on the
+    randomness of an entire episode).
+
+  TD(λ) / lambda-return: a weighted blend of all n-step returns.
+    lambda=0 gives pure TD(0), lambda=1 gives pure Monte Carlo,
+    and values in between trade off bias against variance.
+
+  GAE (gae): a practical version of the same idea, computing
+    per-step advantages (how much better was this action than
+    average?) with the same lambda-controlled tradeoff. Used by
+    PPO (L06).
+
+This spectrum — from "wait and see" to "guess and go" — is one
+of the central ideas in reinforcement learning. Every algorithm
+in this project sits somewhere on it.
 """
 
 from policywerk.primitives import scalar

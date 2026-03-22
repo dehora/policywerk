@@ -1,12 +1,32 @@
 """Level 1: Tabular value functions.
 
-A value function answers 'how good is this situation?' It stores, for each
-state, the agent's estimate of how much total future reward it can expect
-from there.
+A value function is how the agent remembers what it has learned.
+After thousands of episodes of experience, the agent doesn't
+remember individual episodes — it distills everything into a
+single number per state (or per state-action pair) that answers:
+"how much total future reward can I expect from here?"
 
-Dict-based V(s) and Q(s,a) tables used by the first four lessons.
-Once we move to neural function approximation in L05, these
-are replaced by network outputs.
+This is a powerful idea. Instead of planning ahead by simulating
+future actions (expensive), the agent just looks up the value of
+each neighboring state and picks the best one. The value function
+turns a sequential decision problem into a series of one-step
+lookups.
+
+There are two kinds:
+
+  V(s) — State value: "how good is this state, assuming I follow
+    my current policy from here?" Used by TD learning and critics.
+
+  Q(s, a) — Action value: "how good is taking action a in state s?"
+    Used by Q-learning and DQN. Q is more directly useful than V
+    because it tells you which action to pick: just take the one
+    with the highest Q-value.
+
+In this module, values are stored in Python dicts — one entry per
+state (or state-action pair). This works for small environments
+(grids, chains) where every state can be enumerated. For larger
+environments (pixel observations in L05+), a neural network
+replaces the dict and generalizes to states never seen before.
 """
 
 

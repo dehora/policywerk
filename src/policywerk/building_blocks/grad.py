@@ -1,11 +1,48 @@
-"""Level 1: Gradient computation.
+"""Level 1: Gradient computation (backpropagation).
 
-Backpropagation computes how much each weight contributed to the error.
-Starting from the output, it works backward through the network, asking at
-each layer: 'how much did you contribute to the mistake?' The answer (the
-gradient) tells the optimizer which direction to adjust each weight.
+Backpropagation is the algorithm that makes neural network training
+possible. Before Rumelhart, Hinton, and Williams published it in
+1986, there was no efficient way to train networks with hidden
+layers — you could build them, but you couldn't teach them.
 
-Includes numerical gradient checking via finite differences.
+The problem backpropagation solves is credit assignment in a network:
+when the output is wrong, which weights are responsible? A network
+might have thousands of weights across many layers, and the output
+error is a combined result of all of them. Adjusting weights randomly
+would take forever. Backpropagation finds the answer in a single
+backward pass.
+
+The key insight is the chain rule from calculus. If the network
+computes y = f(g(h(x))), then the sensitivity of y to a small
+change in x flows backward through each function:
+
+    dy/dx = dy/df × df/dg × dg/dh × dh/dx
+
+In a network, each layer is one of those functions. The backward
+pass starts at the loss (how wrong was the output?) and works
+backward through each layer, asking two questions:
+
+  1. How much did each weight in this layer contribute to the error?
+     → This gives the weight gradients (used by the optimizer).
+
+  2. How much error should be passed to the previous layer?
+     → This gives the input gradient (used by the next layer back).
+
+The forward pass cached intermediate values at each layer (the
+inputs, pre-activation sums, and post-activation outputs). The
+backward pass uses those cached values to compute gradients
+without re-running the forward computation.
+
+Concretely, at each layer the backward pass computes:
+
+    delta    = incoming_error × activation_derivative(pre_activation)
+    dW       = outer_product(delta, layer_inputs)
+    db       = delta
+    pass_back = transpose(weights) × delta
+
+This module also includes numerical gradient checking — a slow but
+reliable way to verify that the analytical gradients from backprop
+are correct, by wiggling each weight and measuring the effect.
 """
 
 from dataclasses import dataclass

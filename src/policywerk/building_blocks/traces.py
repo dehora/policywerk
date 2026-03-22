@@ -1,8 +1,43 @@
 """Level 1: Eligibility traces.
 
-When something good or bad happens, which past states deserve credit or blame?
-A trace is a fading memory of recently visited states. The more recently a
-state was visited, the more it gets updated when the agent learns something new.
+Credit assignment is the hard problem of reinforcement learning.
+When the agent finally reaches the goal after 50 steps, which of
+those steps actually mattered? Was it step 3 (turning right at
+the fork) or step 47 (moving forward into the goal)? In supervised
+learning, every input has a clear label — you always know what the
+right answer was. In RL, rewards can arrive long after the decisions
+that caused them.
+
+Eligibility traces solve this by maintaining a fading memory of
+recently visited states. Every time the agent visits a state, that
+state's trace increases. Every time step, all traces decay by a
+factor of gamma × lambda. When the agent receives a reward (or
+learns something new), it updates every state in proportion to
+its current trace — recent states get large updates, distant
+states get small ones.
+
+The two parameters control the reach of credit assignment:
+
+  gamma (discount factor): how much to value future vs present.
+    Also used in return computation — it appears throughout RL.
+
+  lambda (trace decay): how far back to spread credit.
+    lambda=0: only the most recent state gets credit (like TD(0)).
+    lambda=1: all visited states share credit equally (like Monte Carlo).
+    Values in between give a smooth tradeoff.
+
+There are two trace update strategies:
+
+  Accumulating traces (visit): the trace grows each time a state
+    is revisited. A state visited 3 times has trace ≈ 3 (before
+    decay). This rewards states that appear often.
+
+  Replacing traces (replace): the trace resets to 1 on each visit.
+    Revisiting doesn't stack. This is often better in practice
+    because it avoids inflating traces for states in loops.
+
+Eligibility traces are used by TD(λ) in L03 and the ACE/ASE
+actor-critic architecture in L02.
 """
 
 from policywerk.primitives import scalar
