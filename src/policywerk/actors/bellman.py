@@ -67,13 +67,12 @@ def value_iteration(
 
             old_value = V.get(state.label)
 
-            # Bellman optimality backup: V(s) = max_a Σ P(s'|s,a)[R + γV(s')]
+            # Bellman optimality backup: try all actions, keep the best
             best_value = float("-inf")
             for action in range(num_actions):
                 action_value = 0.0
                 for next_state, prob, reward in env.transition_probs(state, action):
-                    # Expected value of taking this action:
-                    # probability × (immediate reward + discounted future value)
+                    # action_value += prob * (reward + gamma * V[next_state])
                     action_value = scalar.add(
                         action_value,
                         scalar.multiply(prob,
@@ -150,7 +149,9 @@ def policy_iteration(
                 old_value = V.get(state.label)
                 action = policy[state.label]
 
-                # V(s) = Σ P(s'|s, π(s)) × [R + γV(s')]
+                # new_value += prob * (reward + gamma * V[next_state])
+                # Unlike value_iteration, we don't try all actions here —
+                # we use the single action prescribed by the current policy.
                 new_value = 0.0
                 for next_state, prob, reward in env.transition_probs(state, action):
                     new_value = scalar.add(
@@ -217,13 +218,21 @@ def _best_action(
     gamma: float,
     num_actions: int,
 ) -> int:
-    """Find the action with highest expected value from this state."""
+    """Find the action with highest expected value from this state.
+
+    This action evaluation logic appears in three places:
+      - value_iteration: tries all actions, keeps the best value
+      - policy_evaluation: uses a single fixed action from the current policy
+      - extract_policy / _best_action: finds the best action without modifying V
+    Same core calculation, different usage.
+    """
     best_a = 0
     best_val = float("-inf")
 
     for action in range(num_actions):
         action_value = 0.0
         for next_state, prob, reward in env.transition_probs(state, action):
+            # action_value += prob * (reward + gamma * V[next_state])
             action_value = scalar.add(
                 action_value,
                 scalar.multiply(prob,

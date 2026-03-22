@@ -11,7 +11,7 @@ Run: uv run python lessons/01_bellman.py
 import os
 from dataclasses import dataclass
 
-from policywerk.world.gridworld import GridWorld
+from policywerk.world.gridworld import GridWorld, WALL, GOAL, PIT
 from policywerk.actors.bellman import value_iteration, policy_iteration, extract_policy
 from policywerk.primitives.progress import Spinner
 from policywerk.viz.animate import (
@@ -41,30 +41,42 @@ class BellmanSnapshot(FrameSnapshot):
 # Display helpers
 # ---------------------------------------------------------------------------
 
+# Labels for special cells in the terminal grid
+_CELL_LABELS = {GOAL: "   G  ", WALL: "  ##  ", PIT: "   X  "}
+
+
 def print_grid_values(env: GridWorld, values: list[list[float]]) -> None:
-    """Print the value function as a formatted grid."""
+    """Print the value function as a formatted grid with labeled special cells."""
     for r in range(len(values)):
         cells = []
         for c in range(len(values[0])):
-            val = values[r][c]
-            if env._grid[r][c] == 1:  # WALL
-                cells.append("  ##  ")
+            cell_type = env._grid[r][c]
+            if cell_type in _CELL_LABELS:
+                cells.append(_CELL_LABELS[cell_type])
             else:
-                cells.append(f"{val:+.3f}")
+                cells.append(f"{values[r][c]:+.3f}")
         print("    " + "  ".join(cells))
 
 
-def print_policy(policy: dict[str, int], rows: int, cols: int) -> None:
-    """Print the policy as a grid of directional arrows."""
+def print_policy(policy: dict[str, int], env: GridWorld, rows: int, cols: int) -> None:
+    """Print the policy as a grid of directional arrows with labeled special cells."""
     arrows = {0: "^", 1: ">", 2: "v", 3: "<"}
     for r in range(rows):
         cells = []
         for c in range(cols):
-            label = f"{r},{c}"
-            if label in policy:
-                cells.append(f"  {arrows[policy[label]]}   ")
+            cell_type = env._grid[r][c]
+            if cell_type == GOAL:
+                cells.append("  G   ")
+            elif cell_type == PIT:
+                cells.append("  X   ")
+            elif cell_type == WALL:
+                cells.append("  #   ")
             else:
-                cells.append("  .   ")
+                label = f"{r},{c}"
+                if label in policy:
+                    cells.append(f"  {arrows[policy[label]]}   ")
+                else:
+                    cells.append("  .   ")
         print("    " + " ".join(cells))
 
 
@@ -104,7 +116,7 @@ def main():
 
     Layout:
       . . . . G     G = goal (+1 reward, episode ends)
-      . W . X .     W = wall (impassable)
+      . # . X .     # = wall (impassable)
       . . . . .     X = pit (-1 reward, episode ends)
       . . . . .     . = empty (-0.04 per step)
       S . . . .     S = start
@@ -125,15 +137,40 @@ def main():
     print("VALUE ITERATION")
     print("-" * 64)
     print("""
-    Value iteration answers: "how good is each state?" It works by
-    repeatedly sweeping through every state, asking:
+    Value iteration answers "how good is each state?" by assigning
+    a number to every cell. This number is called V (the value) and
+    it represents how much total future reward the agent can expect
+    from that cell, assuming it plays optimally from there.
 
-      V(s) = best action's [expected reward + gamma x value of next state]
+    At the start, all values are zero — the agent knows nothing.
+    Then it sweeps through every cell, updating each one:
 
-    On the first sweep, only states next to the goal or pit get
+      "Try all four actions. For each action, look at the immediate
+       reward and the value of wherever that action leads. Multiply
+       the future value by gamma (0.9) because one step of distance
+       makes it worth a bit less. Keep the best score."
+
+    In math: V(s) = max over actions of [reward + gamma * V(next state)]
+
+    Here is a concrete example. Consider cell (0,3), directly west
+    of the goal:
+
+      Move East  -> reach goal, get +1.  Value: +1.0 + 0.9 * 0 = +1.0
+      Move North -> hit boundary, stay.  Value: -0.04 + 0.9 * 0 = -0.04
+      Move South -> cell (1,3) is pit.   Value: -1.0 + 0.9 * 0 = -1.0
+      Move West  -> cell (0,2), empty.   Value: -0.04 + 0.9 * 0 = -0.04
+
+      Best action: East. New V(0,3) = +1.0
+
+    On the first sweep, only cells next to the goal or pit get
     meaningful values. On the second sweep, their neighbors update.
     Gradually, information about rewards "ripples" backward through
-    the grid until every state knows how good it is.
+    the grid until every cell knows how good it is.
+
+    Note: in this grid, each action has exactly one outcome — move
+    East and you always land one cell to the right. The formula
+    above uses "expected value" language because later lessons will
+    have environments where outcomes are uncertain.
     """)
 
     V_vi, history = value_iteration(env, gamma=gamma, theta=theta)
@@ -151,28 +188,47 @@ def main():
         print(f"      Sweep {record['sweep']:2d}:  {record['max_change']:.6f}  [{bar}]")
     print()
 
-    print(f"""    The grid is 5 columns wide, and information travels one column
-    per sweep. After {len(history)} sweeps, the reward signal from the goal
-    has reached every corner of the grid. The max change drops to
-    zero when all values have fully stabilized.
+    print(f"""    The grid is 5 columns wide, and information travels roughly
+    one column per sweep:
+
+      Sweep 1: cells next to the goal or pit update — they can see
+               the reward directly.
+      Sweep 2: their neighbors update, using sweep 1's values.
+      Sweep 3: the wave reaches the middle of the grid.
+      Sweep 4: the far left column finally receives information.
+      Sweep 5: nothing changes — all values have stabilized.
     """)
 
     # Show final values
-    print("    Final state values:")
+    print("    Final state values (G=goal, X=pit, #=wall):")
     grid_values = env.grid_values(V_vi)
     print_grid_values(env, grid_values)
     print()
 
+    print("""    Reading the grid: the highest values are near the goal
+    (top-right). The lowest are at the start (bottom-left), furthest
+    away. Values decrease smoothly with distance — each step away
+    from the goal costs roughly a factor of gamma (0.9).
+
+    The start cell has value +0.270. The goal is about 8 steps away,
+    and 0.9^8 = 0.43, but step costs of -0.04 along the way reduce
+    it further. The green-to-red gradient in the animation is
+    literally the discount factor at work.
+    """)
+
     # Derive and show the greedy policy
     policy_vi = extract_policy(env, V_vi, gamma=gamma)
-    print("    Optimal policy (derived from values):")
-    print_policy(policy_vi, 5, 5)
+    print("    Optimal policy (G=goal, X=pit, #=wall):")
+    print_policy(policy_vi, env, 5, 5)
     print()
 
-    print("""    The arrows show the greedy policy: at each state, go in the
-    direction that leads to the highest expected value. Notice how
-    the arrows point toward the goal and away from the pit. The
-    values encode the consequences of each path.
+    print("""    Starting at S (bottom-left), follow the arrows: up, up, up,
+    up to the top row, then right, right, right, right to the goal.
+    Eight steps — the shortest path. The wall and pit are naturally
+    avoided because their neighbors have lower values.
+
+    The arrows point toward higher-valued states. The agent does not
+    need to "see" the goal — it just follows the gradient uphill.
     """)
 
     # -----------------------------------------------------------------------
@@ -192,6 +248,13 @@ def main():
          For each state, switch to the best action under the new values.
 
     Repeat until the policy stops changing.
+
+    For example, suppose the initial policy says "go North from every
+    cell." After evaluation, the top-row cells get terrible values —
+    they keep hitting the boundary and paying -0.04 each step with no
+    way to reach the goal. Improvement switches those cells to East.
+    The next evaluation confirms that East is better. Each cycle fixes
+    the worst decisions in the current policy.
     """)
 
     V_pi, policy_pi, iterations = policy_iteration(env, gamma=gamma, theta=theta)
@@ -206,13 +269,13 @@ def main():
     """)
 
     # Show final values
-    print("    Final state values:")
+    print("    Final state values (G=goal, X=pit, #=wall):")
     grid_values_pi = env.grid_values(V_pi)
     print_grid_values(env, grid_values_pi)
     print()
 
-    print("    Optimal policy:")
-    print_policy(policy_pi, 5, 5)
+    print("    Optimal policy (G=goal, X=pit, #=wall):")
+    print_policy(policy_pi, env, 5, 5)
     print()
 
     # -----------------------------------------------------------------------
