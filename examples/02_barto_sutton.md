@@ -67,6 +67,8 @@ First successful balance (500 steps): episode 5
 Final 10 episodes average: 500 steps
 ```
 
+Notice the sharp transition: the agent does not gradually improve. Once it learns "push against the tilt" from a few failures, it immediately succeeds. In a task this simple with only 36 states, the key insight either clicks or it does not. Later lessons will show tasks where learning is more gradual.
+
 The original 1983 paper used full cart-pole (4 state variables, 162 boxes) and needed roughly 100 episodes. Our simplified balance (2 variables, 36 boxes) converges faster because the strategy is simpler and there are fewer states to learn. But the mechanism is the same -- TD error flowing through eligibility traces.
 
 ## Learned Weights
@@ -82,7 +84,7 @@ a4   +0.00  +0.00  -0.10  -0.76  +0.87  +0.09
 a5   +0.00  -0.01  -0.14  -1.04  +3.94  -6.25
 ```
 
-Overall, the left-tilt rows (a0-a2) tend toward positive weights (push right to correct) and the right-tilt rows (a3-a5) tend toward negative weights (push left). Some individual bins may show the opposite sign, especially where angular velocity matters -- if the pole is already swinging fast, the velocity bin affects which correction is needed. The extreme bins (a0, a5) have noisy weights because the agent rarely visits them.
+In the center rows, the tendency is: positive weights when tilted left (push right to correct), negative when tilted right (push left). But some inner bins differ -- the angular velocity also matters, so the strategy is not purely "push opposite to angle." The agent learned a policy that considers both angle and velocity. The extreme bins (a0, a5) have large noisy weights because the agent rarely visits them. Many boxes show 0.00 -- near zero, either unvisited or with updates that canceled out.
 
 ## Comparison to Lesson 01
 
