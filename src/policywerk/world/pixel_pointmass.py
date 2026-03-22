@@ -1,5 +1,8 @@
 """Level 2: Pixel-observed point-mass.
 
+This class reuses PointMass for physics and just changes how the agent
+perceives the state — pixels instead of coordinates.
+
 Wraps the PointMass environment with 16x16 pixel observations.
 The agent and target are rendered as small markers on a grayscale grid.
 Same physics as pointmass.py, but observations are images.
@@ -24,6 +27,7 @@ class PixelPointMass(Environment):
     """Pixel-observed wrapper around PointMass."""
 
     def __init__(self, **kwargs):
+        # All PointMass parameters (target, force_scale, damping, etc.) are passed through.
         self._inner = PointMass(**kwargs)
 
     def reset(self) -> State:
@@ -50,8 +54,9 @@ class PixelPointMass(Environment):
         """
         frame = [[0.0] * SIZE for _ in range(SIZE)]
 
-        # Map continuous position to grid cell
-        bounds = self._inner._bounds
+        # Map continuous position to grid cell.
+        # Grid rows map to y (vertical), columns map to x (horizontal).
+        bounds = self._inner.bounds
         ax, ay = self._inner.position
         tx, ty = self._inner.target
 
@@ -77,7 +82,10 @@ class PixelPointMass(Environment):
 
     @staticmethod
     def _to_grid(val: float, bounds: float) -> int:
-        """Map a continuous value in [-bounds, bounds] to [0, SIZE-1]."""
+        """Map a continuous value in [-bounds, bounds] to [0, SIZE-1].
+
+        Shift from [-bounds, bounds] to [0, 1], then scale to pixel coordinates.
+        """
         normalized = (val + bounds) / (2.0 * bounds)
         idx = int(normalized * (SIZE - 1))
         return max(0, min(SIZE - 1, idx))

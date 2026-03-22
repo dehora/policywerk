@@ -1,8 +1,8 @@
 """Level 2: Deterministic gridworld.
 
 5x5 grid with a goal (+1 reward), a pit (-1 reward), and walls.
-Implements StochasticMDP so value iteration can query transition
-probabilities directly.
+Implements StochasticMDP so planning algorithms can ask 'what would
+happen if I take action A from state S?' without actually taking the step.
 
 Default layout:
   . . . . G     G = goal (+1, terminal)
@@ -34,9 +34,11 @@ _DEFAULT_GRID = [
 ]
 
 # Action deltas: N, E, S, W
-_DR = [-1, 0, 1, 0]
-_DC = [0, 1, 0, -1]
+_ROW_DELTA = [-1, 0, 1, 0]
+_COL_DELTA = [0, 1, 0, -1]
 
+# A small penalty for each step encourages the agent to reach the goal
+# quickly rather than wandering.
 STEP_COST = -0.04
 GOAL_REWARD = 1.0
 PIT_REWARD = -1.0
@@ -71,8 +73,8 @@ class GridWorld(StochasticMDP):
 
     def step(self, action: int) -> tuple[State, float, bool]:
         r, c = self._pos
-        nr = r + _DR[action]
-        nc = c + _DC[action]
+        nr = r + _ROW_DELTA[action]
+        nc = c + _COL_DELTA[action]
 
         # Boundary or wall → stay in place
         if not (0 <= nr < self._rows and 0 <= nc < self._cols):
@@ -105,10 +107,15 @@ class GridWorld(StochasticMDP):
     def transition_probs(
         self, state: State, action: int
     ) -> list[tuple[State, float, float]]:
-        """Deterministic: one outcome with probability 1.0."""
+        """Deterministic: one outcome with probability 1.0.
+
+        step() moves the agent. transition_probs() answers the same question
+        hypothetically — used by planning algorithms that reason about all
+        possibilities.
+        """
         r, c = self._parse_label(state.label)
-        nr = r + _DR[action]
-        nc = c + _DC[action]
+        nr = r + _ROW_DELTA[action]
+        nc = c + _COL_DELTA[action]
 
         if not (0 <= nr < self._rows and 0 <= nc < self._cols):
             nr, nc = r, c
@@ -132,7 +139,7 @@ class GridWorld(StochasticMDP):
         return self._grid[r][c] in (GOAL, PIT)
 
     def grid_values(self, value_fn) -> list[list[float]]:
-        """Extract state values as a rows x cols matrix for visualization.
+        """Converts the agent's internal value estimates into a grid for heatmap visualization.
 
         value_fn: anything with a .get(label) method (TabularV).
         Walls get 0.0.

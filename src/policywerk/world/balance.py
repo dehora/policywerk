@@ -1,5 +1,8 @@
 """Level 2: Simplified 1D balance environment.
 
+Imagine balancing a broomstick on your fingertip — the agent can only
+push left or right and must prevent the pole from tipping over.
+
 A pole hinged at a point — the agent applies left or right torque
 to keep it upright. Simpler than full cart-pole: no cart position,
 just angle and angular velocity.
@@ -9,7 +12,9 @@ Actions: 0 = left torque, 1 = right torque
 Reward: +1 per step of survival
 Terminal: |angle| > max_angle
 
-The state is discretized into buckets for tabular methods (ACE/ASE).
+The continuous angle and velocity are grouped into coarse ranges so
+the agent can use a simple lookup table. 6 angle bins x 6 velocity
+bins = 36 possible discrete states.
 """
 
 import math
@@ -52,15 +57,15 @@ class Balance(Environment):
         self._gravity = gravity
         self._length = length
         self._torque_mag = torque_magnitude
-        self._dt = dt
-        self._max_angle = max_angle
+        self._dt = dt  # Time step: how much simulated time passes per action
+        self._max_angle = max_angle  # (about 17 degrees)
         self._max_steps = max_steps
         self._angle = 0.0
         self._vel = 0.0
         self._step_count = 0
 
     def reset(self) -> State:
-        # Small random-ish initial perturbation (deterministic for reproducibility)
+        # Small initial tilt so the pole starts slightly off-balance
         self._angle = 0.01
         self._vel = 0.0
         self._step_count = 0
@@ -70,13 +75,17 @@ class Balance(Environment):
         # Apply torque: 0 = left, 1 = right
         torque = -self._torque_mag if action == 0 else self._torque_mag
 
-        # Simple pendulum physics
+        # Gravity pulls the pole down — the further it tilts, the harder
+        # gravity pulls. The agent's torque pushes against gravity.
         angular_accel = (self._gravity / self._length) * math.sin(self._angle) + torque
         self._vel += angular_accel * self._dt
         self._angle += self._vel * self._dt
         self._step_count += 1
 
         done = abs(self._angle) > self._max_angle or self._step_count >= self._max_steps
+        # Reward 1 for each step of survival.
+        # Reward 0 if the pole fell.
+        # Reward 1 if survived all max_steps (success).
         reward = 0.0 if done and abs(self._angle) > self._max_angle else 1.0
 
         return self._make_state(), reward, done

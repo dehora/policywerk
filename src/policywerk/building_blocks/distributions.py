@@ -17,7 +17,8 @@ Vector = list[float]
 class Categorical:
     """Categorical distribution parameterized by logits.
 
-    Converts logits to probabilities via softmax, then supports
+    Logits are raw unnormalized scores — higher means more likely.
+    Softmax converts them to actual probabilities, then supports
     sampling, log-probability computation, and entropy.
     """
 
@@ -30,11 +31,20 @@ class Categorical:
         return sample_categorical(rng, self.probs)
 
     def log_prob(self, action: int) -> float:
-        """Log probability of a specific action."""
+        """Log probability of a specific action.
+
+        Log probabilities are numerically more stable and are what
+        policy gradient math requires.
+        """
         return scalar.log(self.probs[action])
 
     def entropy(self) -> float:
-        """Shannon entropy: -Σ p log p. Measures randomness."""
+        """Shannon entropy: -Σ p log p.
+
+        How uncertain is this distribution? High entropy = all actions
+        roughly equally likely (exploring). Low entropy = one action
+        dominates (committed).
+        """
         total = 0.0
         for p in self.probs:
             if p > 1e-15:
@@ -43,7 +53,7 @@ class Categorical:
 
 
 class Gaussian:
-    """Diagonal Gaussian distribution parameterized by mean and std.
+    """Bell curve (Gaussian) distribution parameterized by mean and std.
 
     Each dimension is independent. Used for continuous action spaces.
     """
@@ -53,7 +63,7 @@ class Gaussian:
         self.std = std
 
     def sample(self, rng: _random.Random) -> Vector:
-        """Draw a sample: mean + std * N(0, 1)."""
+        """Draw a sample: mean + std * bell-curve random number centered at 0 with spread 1."""
         return [
             scalar.add(m, scalar.multiply(s, rng.gauss(0.0, 1.0)))
             for m, s in zip(self.mean, self.std)
@@ -61,6 +71,9 @@ class Gaussian:
 
     def log_prob(self, x: Vector) -> float:
         """Log probability of x under this Gaussian.
+
+        Log probabilities are numerically more stable and are what
+        policy gradient math requires.
 
         log p(x) = -0.5 * Σ [ ((x-μ)/σ)² + 2*log(σ) + log(2π) ]
         """
@@ -76,7 +89,11 @@ class Gaussian:
         return total
 
     def entropy(self) -> float:
-        """Entropy of diagonal Gaussian: 0.5 * Σ [1 + log(2π) + 2*log(σ)]."""
+        """Entropy of Gaussian: 0.5 * Σ [1 + log(2π) + 2*log(σ)].
+
+        How uncertain is this distribution? Higher entropy means wider
+        spread and more exploration.
+        """
         total = 0.0
         for s in self.std:
             total = scalar.add(total,

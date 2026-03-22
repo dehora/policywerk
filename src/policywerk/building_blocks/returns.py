@@ -1,5 +1,8 @@
 """Level 1: Return computation.
 
+The 'return' in RL is the total reward the agent collects from now until the
+end — not a Python return statement.
+
 Different ways to estimate the return (cumulative discounted reward)
 from a sequence of rewards. The spectrum from Monte Carlo to TD(0)
 and everything in between.
@@ -13,7 +16,12 @@ Vector = list[float]
 def discount_return(rewards: Vector, gamma: float) -> float:
     """Monte Carlo return: G = r_0 + γr_1 + γ²r_2 + ...
 
-    Uses all rewards in the sequence. Unbiased but high variance.
+    Uses all rewards in the sequence. Accurate on average but noisy —
+    needs many episodes for a stable estimate.
+
+    gamma: discount factor — how much to devalue future rewards.
+           gamma=0.9 means a reward 10 steps away is worth about 0.35
+           of its face value.
     """
     g = 0.0
     for r in reversed(rewards):
@@ -26,6 +34,9 @@ def n_step_return(rewards: Vector, bootstrap_value: float, gamma: float) -> floa
 
     Uses n actual rewards then bootstraps from a value estimate.
     Interpolates between TD(0) (n=1) and Monte Carlo (n=∞).
+
+    bootstrap_value: an estimated value standing in for the unknown future —
+                     the agent guesses how much reward will come from here.
     """
     g = bootstrap_value
     for r in reversed(rewards):
@@ -36,7 +47,8 @@ def n_step_return(rewards: Vector, bootstrap_value: float, gamma: float) -> floa
 def lambda_return(rewards: Vector, values: Vector, gamma: float, lam: float) -> float:
     """TD(λ) return: weighted average of all n-step returns.
 
-    λ=0 gives TD(0), λ=1 gives Monte Carlo.
+    lambda=0: use only the next-step estimate (fast but biased).
+    lambda=1: use all actual rewards (slow but accurate).
     Computed efficiently with the forward view.
     """
     t = len(rewards)
@@ -60,7 +72,9 @@ def gae(rewards: Vector, values: Vector, next_value: float,
         gamma: float, lam: float) -> Vector:
     """Generalized Advantage Estimation (Schulman et al., 2016).
 
-    Computes advantage estimates A_t for each timestep:
+    Computes the advantage at each timestep — how much better was this action
+    than average? Positive = better than expected, negative = worse.
+
       δ_t = r_t + γV(s_{t+1}) - V(s_t)
       A_t = Σ_{l=0}^{T-t} (γλ)^l δ_{t+l}
 

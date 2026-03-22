@@ -1,5 +1,8 @@
 """Level 1: MDP framework.
 
+A formal framework for sequential decision-making: an agent observes a state,
+picks an action, receives a reward, and arrives in a new state.
+
 The environment protocol that every world and actor depends on.
 Defines the Markov Decision Process interface — states, actions,
 transitions, and the contract between agent and environment.
@@ -15,7 +18,8 @@ Vector = list[float]
 class State:
     """A state in the environment.
 
-    features: numeric representation the agent can observe.
+    features: The numbers the agent sees — grid coordinates, sensor readings,
+              or pixel values depending on the environment.
     label: human-readable identifier (e.g. grid position, box index).
     """
     features: Vector
@@ -24,7 +28,7 @@ class State:
 
 @dataclass
 class Transition:
-    """One step of experience: (s, a, r, s', done)."""
+    """One step of experience: state, action, reward, next_state, done."""
     state: State
     action: int
     reward: float
@@ -52,7 +56,8 @@ class Environment(ABC):
     """Base environment protocol.
 
     Every environment must implement reset() and step().
-    The agent interacts through this interface only.
+    The agent interacts through this interface only — it never accesses
+    the environment's internal state directly.
     """
 
     @abstractmethod
@@ -76,6 +81,10 @@ class StochasticMDP(Environment):
 
     Extends Environment with transition_probs() for dynamic programming
     methods that need the full model (e.g. value iteration).
+
+    The name refers to having known transition probabilities, not random
+    outcomes — even deterministic environments use this when planning
+    algorithms need to query 'what would happen if?'
     """
 
     @abstractmethod
@@ -88,6 +97,7 @@ class StochasticMDP(Environment):
         """Return all possible transitions from (state, action).
 
         Returns list of (next_state, probability, reward) tuples.
+        Each tuple describes one possible outcome and how likely it is.
         Probabilities must sum to 1.
         """
         ...

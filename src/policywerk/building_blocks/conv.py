@@ -1,5 +1,9 @@
 """Level 1: Convolutional layer.
 
+Slides small patterns (filters) across an image, checking at each position how
+well the pattern matches. Each filter learns to detect a different feature — an
+edge, a corner, a texture.
+
 2D cross-correlation with learnable filters.
 Used by DQN for spatial feature extraction from game frames.
 """
@@ -28,7 +32,12 @@ class ConvCache:
 
 
 def create_conv(rng, in_channels: int, out_channels: int, kernel_size: int = 3) -> ConvLayer:
-    """Create a conv layer with Xavier-initialized filters and zero biases."""
+    """Create a conv layer with Xavier-initialized filters and zero biases.
+
+    kernel_size is the width and height of each filter (also called 'kernel').
+    in_channels = how many layers the input has (e.g. 1 for grayscale, 4 for
+    stacked game frames). out_channels = how many different features to detect.
+    """
     fan_in = in_channels * kernel_size * kernel_size
     fan_out = out_channels * kernel_size * kernel_size
     limit = (6.0 / (fan_in + fan_out)) ** 0.5
@@ -63,6 +72,8 @@ def conv_forward(
     z = tensor3d_zeros(num_filters, out_h, out_w)
     a = tensor3d_zeros(num_filters, out_h, out_w)
 
+    # For each filter, at each output position, compute the dot product
+    # between the filter and the corresponding input patch.
     for filt in range(num_filters):
         for out_row in range(out_h):
             for out_col in range(out_w):
@@ -102,6 +113,7 @@ def conv_backward(
     out_h = len(output_grad[0])
     out_w = len(output_grad[0][0])
 
+    # Step 1: compute delta — error signal adjusted for the activation
     delta = tensor3d_zeros(num_filters, out_h, out_w)
     for filt in range(num_filters):
         for out_row in range(out_h):
@@ -111,12 +123,14 @@ def conv_backward(
                     deriv_fn(cache.z[filt][out_row][out_col]),
                 )
 
+    # Step 2: bias gradients — sum delta over all spatial positions
     bias_grads = [0.0] * num_filters
     for filt in range(num_filters):
         for out_row in range(out_h):
             for out_col in range(out_w):
                 bias_grads[filt] = scalar.add(bias_grads[filt], delta[filt][out_row][out_col])
 
+    # Step 3: filter gradients — how much should each filter weight change?
     filter_grads = []
     for filt in range(num_filters):
         fg = []
@@ -140,6 +154,7 @@ def conv_backward(
             fg.append(channel)
         filter_grads.append(fg)
 
+    # Step 4: input gradients — how much should each input pixel change?
     input_grad = tensor3d_zeros(in_channels, in_h, in_w)
     for ch in range(in_channels):
         for in_row in range(in_h):

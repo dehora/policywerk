@@ -14,7 +14,14 @@ Matrix = list[list[float]]
 
 
 def sgd_update(network, gradients: list[LayerGradients], learning_rate: float):
-    """Update weights and biases using vanilla SGD. Modifies network in place."""
+    """Update weights and biases using vanilla SGD. Modifies network in place.
+
+    The negative sign is key: we move each weight in the opposite direction of
+    its gradient, toward lower loss.
+
+    learning_rate: How big a step to take — too large and training overshoots,
+    too small and it's slow.
+    """
     for layer, grads in zip(network.layers, gradients):
         layer.weights = matrix.add(
             layer.weights,
@@ -33,7 +40,14 @@ def sgd_momentum_update(
     learning_rate: float,
     momentum: float = 0.9,
 ) -> list[LayerGradients]:
-    """Update weights using SGD with momentum. Returns updated velocities."""
+    """Update weights using SGD with momentum. Returns updated velocities.
+
+    Like a ball rolling downhill — builds up speed in consistent directions,
+    smoothing out noisy zig-zagging.
+
+    Note: velocities reuses the LayerGradients dataclass for convenience —
+    the fields store velocity vectors, not actual gradients.
+    """
     new_velocities = []
 
     for layer, grads, vel in zip(network.layers, gradients, velocities):
@@ -60,8 +74,8 @@ def sgd_momentum_update(
 @dataclass
 class AdamState:
     """Per-layer Adam optimizer state."""
-    m_weights: Matrix    # first moment (mean of gradients)
-    v_weights: Matrix    # second moment (mean of squared gradients)
+    m_weights: Matrix    # running average of recent gradients
+    v_weights: Matrix    # running average of how much gradients vary
     m_biases: Vector
     v_biases: Vector
     t: int = 0           # timestep
@@ -93,8 +107,11 @@ def adam_update(
 ) -> None:
     """Update weights using Adam optimizer. Modifies network and states in place.
 
-    Adam combines momentum (first moment) with RMSProp (second moment)
-    and includes bias correction for the early timesteps.
+    Adam combines momentum (running gradient average) with RMSProp (gradient
+    variance tracking) and includes bias correction for the early timesteps.
+
+    beta1: how much history the gradient average remembers (0.9 ~ last 10 updates).
+    beta2: how much history the variance estimate uses (0.999 ~ last 1000 updates).
     """
     for layer, grads, state in zip(network.layers, gradients, states):
         state.t += 1
@@ -123,11 +140,15 @@ def adam_update(
                     grads.bias_grads[b], grads.bias_grads[b])),
             )
 
-        # Bias correction
+        # Bias correction: in the first few updates, the averages are biased toward
+        # zero because they started at zero — this correction compensates.
         bc1 = scalar.inverse(scalar.subtract(1.0, scalar.power(beta1, state.t)))
         bc2 = scalar.inverse(scalar.subtract(1.0, scalar.power(beta2, state.t)))
 
         # Apply updates: w -= lr * m_hat / (sqrt(v_hat) + eps)
+        # Divide by sqrt(variance) to normalize: parameters with consistently large
+        # gradients take smaller steps, parameters with small gradients take larger
+        # steps — automatic per-parameter learning rate.
         for r in range(len(layer.weights)):
             for c in range(len(layer.weights[0])):
                 m_hat = scalar.multiply(state.m_weights[r][c], bc1)

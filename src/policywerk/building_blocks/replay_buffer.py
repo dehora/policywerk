@@ -2,6 +2,10 @@
 
 Circular buffer that stores transitions and serves random mini-batches.
 Breaks temporal correlation in training data — the key insight of DQN.
+
+If the network trains on consecutive experiences, it sees correlated data
+and may learn spurious patterns. Random sampling mixes experiences from
+different times.
 """
 
 import random as _random
@@ -29,7 +33,11 @@ class ReplayBuffer:
         self._position = (self._position + 1) % self._capacity
 
     def sample(self, rng: _random.Random, batch_size: int) -> list[Transition]:
-        """Sample a random mini-batch of transitions."""
+        """Sample a random mini-batch of transitions.
+
+        A mini-batch is a small random subset of stored experiences used
+        for one training update.
+        """
         indices = [rng.randint(0, len(self._buffer) - 1) for _ in range(batch_size)]
         return [self._buffer[i] for i in indices]
 

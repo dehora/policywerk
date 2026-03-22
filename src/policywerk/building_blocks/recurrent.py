@@ -106,6 +106,11 @@ def gru_backward(
 ) -> tuple[Vector, Vector, GRULayer]:
     """GRU backward pass.
 
+    Reverse each forward step, computing how the error flows backward through:
+    (1) the output interpolation, (2) the candidate computation, (3) the reset
+    gate, (4) the update gate. Each path contributes gradients to the previous
+    hidden state, the input, and the weights.
+
     Returns (grad_h_prev, grad_x, grad_layer) where grad_layer contains
     accumulated weight/bias gradients in a GRULayer-shaped structure.
     """
@@ -130,7 +135,6 @@ def gru_backward(
     ]
 
     # Gradient through h_candidate = tanh(W_h @ [r*h, x] + b_h)
-    h_pre_vals = []
     reset_h = vector.elementwise(scalar.multiply, cache.r_gate, cache.h_prev)
     combined_reset = vector.concat(reset_h, cache.x)
     h_pre = vector.add(matrix.mat_vec(layer.W_h, combined_reset), layer.b_h)

@@ -1,12 +1,19 @@
 """Level 2: Random walk environment.
 
-Sutton's 5-state chain for demonstrating TD learning.
+A simple chain of 5 states used to demonstrate how an agent can learn
+to predict outcomes. Walking right eventually wins (+1 reward), walking
+left eventually loses (0 reward).
+
+    [0] <- A -- B -- C -- D -- E -> [+1]
+
 States A through E in a line. Start at C. Terminal at both
 ends: left terminal gives reward 0, right terminal gives reward 1.
 All other transitions give reward 0.
 
-The true state values under a uniform random policy are known
-analytically: [1/6, 2/6, 3/6, 4/6, 5/6].
+If the agent moves left or right at random, we can calculate exactly
+how likely it is to reach the right end from each state. From C (the
+middle), it's 50/50 -- each step right increases the chance by 1/6.
+True values: [1/6, 2/6, 3/6, 4/6, 5/6].
 """
 
 from policywerk.building_blocks.mdp import Environment, State
@@ -42,11 +49,13 @@ class RandomWalk(Environment):
 
         # Left terminal (fell off left side)
         if self._position < 0:
+            # Position -1.0 extends beyond 0-4 to indicate terminal (off-the-edge) state
             terminal_state = State(features=[-1.0], label="LEFT_TERMINAL")
             return terminal_state, 0.0, True
 
         # Right terminal (fell off right side)
         if self._position > 4:
+            # Position 5.0 extends beyond 0-4 to indicate terminal (off-the-edge) state
             terminal_state = State(features=[5.0], label="RIGHT_TERMINAL")
             return terminal_state, 1.0, True
 

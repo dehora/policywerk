@@ -1,5 +1,6 @@
 """Level 1: Fully-connected (dense) layer.
 
+Every input connects to every output — each output neuron sees all inputs.
 A collection of neurons represented as a weight matrix and bias vector.
 Forward pass returns output and cache for backprop.
 """
@@ -21,10 +22,15 @@ class DenseLayer:
 
 @dataclass
 class DenseCache:
-    """Values saved during forward pass, needed for backprop."""
+    """Values saved during forward pass, needed for backprop.
+
+    Saved because backpropagation needs them later — knowing what the inputs
+    and pre-activation values were at each layer is how we compute how to
+    adjust the weights.
+    """
     inputs: Vector   # the input to this layer
-    z: Vector        # pre-activation: W @ inputs + biases
-    a: Vector        # post-activation: f(z)
+    z: Vector        # pre-activation: W × inputs (matrix-vector multiply) + biases
+    a: Vector        # output after applying the activation function
 
 
 def create_dense(rng, num_inputs: int, num_outputs: int) -> DenseLayer:

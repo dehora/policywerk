@@ -1,6 +1,8 @@
 """Level 1: Pooling layers.
 
-Max and average pooling for spatial downsampling.
+Shrink the image by summarizing small regions — keeps important information
+while reducing the amount of data. Max and average pooling for spatial
+downsampling.
 """
 
 from dataclasses import dataclass
@@ -17,18 +19,22 @@ class MaxPoolCache:
     in_channels: int
     in_height: int
     in_width: int
+    # Remembers which input pixel was the maximum, so the backward pass knows where to route the gradient.
     max_indices: list[tuple[int, int, int, int, int]]  # (ch, out_r, out_c, in_r, in_c)
 
 
 @dataclass
 class AvgPoolCache:
+    """Saved during forward pass for backprop — input dimensions needed to reconstruct gradient shape."""
     in_channels: int
     in_height: int
     in_width: int
 
 
 def max_pool_forward(
-    inputs: Tensor3D, pool_size: int = 2, stride: int = 2
+    inputs: Tensor3D,
+    pool_size: int = 2,   # size of the window to summarize (e.g. 2x2)
+    stride: int = 2,      # how far to move the window each step (usually same as pool_size)
 ) -> tuple[Tensor3D, MaxPoolCache]:
     """Max pooling forward pass — take the maximum in each window."""
     channels = len(inputs)

@@ -41,12 +41,12 @@ class PointMass(Environment):
     def __init__(
         self,
         target: tuple[float, float] = (0.8, 0.8),
-        force_scale: float = 0.5,
-        damping: float = 0.95,
+        force_scale: float = 0.5,  # strength multiplier for the agent's force
+        damping: float = 0.95,  # friction — velocity loses 5% per step, prevents oscillation
         dt: float = 0.1,
-        reach_threshold: float = 0.1,
+        reach_threshold: float = 0.1,  # how close to target counts as 'reached'
         max_steps: int = 200,
-        bounds: float = 2.0,
+        bounds: float = 2.0,  # play area — agent can't leave [-bounds, bounds]
     ):
         self._target = target
         self._force_scale = force_scale
@@ -80,7 +80,9 @@ class PointMass(Environment):
     def step_continuous(self, force: Vector) -> tuple[State, float, bool]:
         """Continuous action: apply (force_x, force_y) directly.
 
-        Used by PPO and Dreamer for continuous policy optimization.
+        Discrete step() maps action numbers to compass directions.
+        step_continuous() takes an arbitrary force vector — used by
+        continuous-action algorithms like PPO.
         """
         fx = scalar.clamp(force[0], -1.0, 1.0) * self._force_scale
         fy = scalar.clamp(force[1], -1.0, 1.0) * self._force_scale
@@ -97,10 +99,19 @@ class PointMass(Environment):
     def target(self) -> tuple[float, float]:
         return self._target
 
+    @property
+    def bounds(self) -> float:
+        return self._bounds
+
     def _apply_force(self, fx: float, fy: float) -> tuple[State, float, bool]:
-        # Newtonian: a = F (unit mass), v += a*dt, x += v*dt
-        self._vx = scalar.multiply(scalar.add(self._vx, scalar.multiply(fx, self._dt)), self._damping)
-        self._vy = scalar.multiply(scalar.add(self._vy, scalar.multiply(fy, self._dt)), self._damping)
+        # Apply force: velocity += force x time_step
+        self._vx = scalar.add(self._vx, scalar.multiply(fx, self._dt))
+        # Apply friction: velocity *= damping (slows down naturally)
+        self._vx = scalar.multiply(self._vx, self._damping)
+        # Apply force: velocity += force x time_step
+        self._vy = scalar.add(self._vy, scalar.multiply(fy, self._dt))
+        # Apply friction: velocity *= damping (slows down naturally)
+        self._vy = scalar.multiply(self._vy, self._damping)
         self._x = scalar.add(self._x, scalar.multiply(self._vx, self._dt))
         self._y = scalar.add(self._y, scalar.multiply(self._vy, self._dt))
 
@@ -115,7 +126,7 @@ class PointMass(Environment):
         dy = scalar.subtract(self._y, self._target[1])
         dist = math.sqrt(scalar.add(scalar.multiply(dx, dx), scalar.multiply(dy, dy)))
 
-        # Reward: negative distance
+        # Closer to target = less negative = better
         reward = scalar.negate(dist)
 
         # Terminal: reached target or max steps
@@ -124,6 +135,7 @@ class PointMass(Environment):
         return self._make_state(), reward, done
 
     def _make_state(self) -> State:
+        # x position, y position, x velocity, y velocity, target x, target y
         return State(
             features=[self._x, self._y, self._vx, self._vy,
                       self._target[0], self._target[1]],

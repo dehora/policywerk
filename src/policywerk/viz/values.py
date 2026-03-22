@@ -5,7 +5,7 @@ grouped bar charts for value comparisons, Q-value displays.
 """
 
 import matplotlib
-matplotlib.use("Agg")
+matplotlib.use("Agg")  # non-interactive backend — renders to files
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
@@ -15,6 +15,7 @@ Vector = list[float]
 Matrix = list[list[float]]
 
 # Arrow directions for grid actions: N, E, S, W
+# Values are how far the arrow extends, in grid-cell units
 _ARROW_DX = {0: 0, 1: 0.3, 2: 0, 3: -0.3}
 _ARROW_DY = {0: 0.3, 1: 0, 2: -0.3, 3: 0}
 
@@ -27,22 +28,31 @@ def draw_value_heatmap(
 ) -> None:
     """Draw colored cells representing state values on a grid.
 
-    values: rows x cols matrix of floats.
+    Red = low values (bad states), green = high values (good states).
+    Each cell shows its numeric value as text.
+
+    values: rows × cols matrix of floats.
     """
     ax.clear()
     rows = len(values)
     cols = len(values[0]) if values else 0
 
+    # imshow displays a matrix as a colored image
+    # cmap="RdYlGn" = Red-Yellow-Green gradient
+    # origin="upper" = row 0 at the top (matching grid convention)
+    # aspect="equal" = cells are square, not stretched
     im = ax.imshow(
         values, cmap="RdYlGn", vmin=vmin, vmax=vmax,
         origin="upper", aspect="equal",
     )
 
-    # Annotate cells with values
+    # Annotate cells with numeric values
     for r in range(rows):
         for c in range(cols):
             val = values[r][c]
+            # White text on dark cells, black text on light cells
             color = "white" if abs(val) > (vmax - vmin) * 0.4 else "black"
+            # ha/va = horizontal/vertical alignment
             ax.text(c, r, f"{val:.2f}", ha="center", va="center",
                     fontsize=7, color=color, fontweight="bold")
 
@@ -59,7 +69,7 @@ def draw_policy_arrows(
     rows: int,
     cols: int,
 ) -> None:
-    """Overlay directional arrows on grid cells showing the greedy policy.
+    """Overlay directional arrows showing which way the agent would go.
 
     policy: maps "r,c" -> action (0=N, 1=E, 2=S, 3=W).
     """
@@ -68,7 +78,7 @@ def draw_policy_arrows(
         r, c = int(parts[0]), int(parts[1])
         dx = _ARROW_DX.get(action, 0)
         dy = _ARROW_DY.get(action, 0)
-        # imshow y-axis is inverted, so flip dy
+        # imshow's y-axis is inverted (row 0 at top), so flip dy
         ax.annotate("", xy=(c + dx, r - dy), xytext=(c, r),
                      arrowprops=dict(arrowstyle="->", color=DARK_GRAY, lw=1.5))
 
@@ -87,6 +97,8 @@ def draw_grid_overlay(
     goals = goals or []
 
     for r, c in walls:
+        # imshow centers each cell at integer coordinates, so the cell
+        # at (r,c) spans from (c-0.5) to (c+0.5). Fill exactly one cell.
         rect = patches.Rectangle((c - 0.5, r - 0.5), 1, 1,
                                   facecolor=DARK_GRAY, alpha=0.8)
         ax.add_patch(rect)
@@ -110,7 +122,8 @@ def draw_value_bars(
 ) -> None:
     """Grouped bar chart comparing estimated vs true state values.
 
-    Used by L03 TD learning to show prediction convergence.
+    Shows how close the agent's predictions are to reality.
+    Used by L03 TD learning to visualize prediction convergence.
     """
     ax.clear()
     n = len(labels)
@@ -134,9 +147,10 @@ def draw_q_bars(
     q_values: Vector,
     action_labels: list[str],
 ) -> None:
-    """Bar chart of Q-values for available actions at the current state.
+    """Bar chart of Q-values (action scores) for the current state.
 
-    Used by L05 DQN to show action-value confidence.
+    The best action is highlighted in teal — this is the one
+    the agent would choose.
     """
     ax.clear()
     n = len(action_labels)

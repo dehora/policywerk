@@ -8,7 +8,7 @@ real-vs-imagined split-screen for world models.
 import math
 
 import matplotlib
-matplotlib.use("Agg")
+matplotlib.use("Agg")  # non-interactive backend — renders to files
 import matplotlib.pyplot as plt
 
 from policywerk.viz.animate import TEAL, ORANGE, LIGHT_GRAY, DARK_GRAY
@@ -24,7 +24,7 @@ def draw_trajectory(
     alpha: float = 0.6,
     linewidth: float = 1.5,
 ) -> None:
-    """Draw a path through a sequence of (x, y) positions."""
+    """Draw the path an agent took through a sequence of (x, y) positions."""
     if len(positions) < 2:
         return
     xs = [p[0] for p in positions]
@@ -39,6 +39,7 @@ def draw_agent(
     size: float = 80,
 ) -> None:
     """Draw an agent marker at the given position."""
+    # zorder=10 ensures the agent is drawn on top of grid lines and trajectories
     ax.scatter([position[0]], [position[1]], c=color, s=size,
                zorder=10, edgecolors=DARK_GRAY, linewidths=1)
 
@@ -58,11 +59,13 @@ def draw_pixel_env(
     ax: plt.Axes,
     frame: Matrix,
 ) -> None:
-    """Render a pixel-grid environment (e.g. 16x16) using imshow.
+    """Display a pixel-grid environment (e.g. 16×16) as an image.
 
-    frame: rows x cols matrix of floats (0.0 = empty, higher = objects).
+    frame: rows × cols matrix of floats (0.0 = empty, higher = objects).
+    Uses reversed grayscale: 0.0 = white (empty), 1.0 = black (agent).
     """
     ax.clear()
+    # interpolation="nearest" keeps pixels as sharp squares (no blurring)
     ax.imshow(frame, cmap="gray_r", interpolation="nearest",
               vmin=0.0, vmax=1.0, aspect="equal")
     ax.set_xticks([])
@@ -76,26 +79,29 @@ def draw_policy_gaussian(
     action_range: tuple[float, float] = (-2.0, 2.0),
     num_points: int = 100,
 ) -> None:
-    """Draw a Gaussian policy distribution curve.
+    """Draw the agent's action distribution as a bell curve.
 
-    Shows the probability density of continuous actions,
-    useful for L06 PPO to visualize policy smoothing.
+    Shows how likely each action value is. A tall narrow curve means
+    the agent is confident; a short wide curve means uncertain.
+    Used by L06 PPO to show policy smoothing over training.
     """
     ax.clear()
     lo, hi = action_range
     step = (hi - lo) / num_points
     xs = [lo + i * step for i in range(num_points + 1)]
 
-    # Gaussian PDF: (1 / (σ√2π)) * exp(-0.5 * ((x-μ)/σ)²)
+    # Bell curve formula: (1 / (std × √(2π))) × exp(-0.5 × ((x - mean) / std)²)
     inv_norm = 1.0 / (std * math.sqrt(2.0 * math.pi))
     ys = []
     for x in xs:
         z = (x - mean) / std
         ys.append(inv_norm * math.exp(-0.5 * z * z))
 
+    # fill_between shades the area under the curve
     ax.fill_between(xs, ys, alpha=0.3, color=TEAL)
     ax.plot(xs, ys, color=TEAL, linewidth=1.5)
-    ax.axvline(mean, color=ORANGE, linestyle="--", linewidth=1, label=f"μ={mean:.2f}")
+    # axvline draws a vertical line marking the mean action
+    ax.axvline(mean, color=ORANGE, linestyle="--", linewidth=1, label=f"mean={mean:.2f}")
     ax.set_xlabel("Action", fontsize=9)
     ax.set_ylabel("Density", fontsize=9)
     ax.legend(fontsize=8)
@@ -107,10 +113,13 @@ def draw_real_vs_imagined(
     real_frame: Matrix,
     imagined_frame: Matrix,
 ) -> None:
-    """Split-screen comparison: real observation vs world-model prediction.
+    """Split-screen: real observation on the left, world-model prediction on the right.
 
-    Draws both frames side by side within a single axes.
-    Used by L07 Dreamer to show imagination tracking/drifting.
+    Both frames are combined into one image so they stay perfectly
+    aligned, making frame-by-frame comparison immediate. A gray gap
+    column separates them visually.
+
+    Used by L07 Dreamer to show imagination tracking reality, then diverging.
     """
     ax.clear()
 
@@ -119,7 +128,7 @@ def draw_real_vs_imagined(
     rows_i = len(imagined_frame)
     cols_i = len(imagined_frame[0]) if imagined_frame else 0
 
-    # Combine side by side with a 1-pixel gap
+    # Combine side by side with a 1-pixel gray gap as separator
     gap = 1
     combined_cols = cols_r + gap + cols_i
     combined = [[0.5] * combined_cols for _ in range(max(rows_r, rows_i))]
@@ -136,7 +145,6 @@ def draw_real_vs_imagined(
     ax.set_xticks([])
     ax.set_yticks([])
 
-    # Labels
     ax.text(cols_r / 2, -1.5, "Real", ha="center", fontsize=8, color=TEAL)
     ax.text(cols_r + gap + cols_i / 2, -1.5, "Imagined", ha="center",
             fontsize=8, color=ORANGE)

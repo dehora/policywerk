@@ -5,6 +5,12 @@ The cliff runs along the bottom row from (3,1) to (3,10).
 Stepping on the cliff gives -100 reward and teleports to start.
 Normal steps cost -1. Reaching the goal gives 0 and terminates.
 
+Layout:
+  . . . . . . . . . . . .
+  . . . . . . . . . . . .
+  . . . . . . . . . . . .
+  S C C C C C C C C C C G    S=start, C=cliff(-100), G=goal
+
 This is the classic testbed for comparing Q-learning (risky optimal
 path along the cliff edge) vs SARSA (safer path away from the cliff).
 
@@ -21,8 +27,8 @@ _START = (3, 0)
 _GOAL = (3, 11)
 
 # Action deltas: N, E, S, W
-_DR = [-1, 0, 1, 0]
-_DC = [0, 1, 0, -1]
+_ROW_DELTA = [-1, 0, 1, 0]
+_COL_DELTA = [0, 1, 0, -1]
 
 
 class CliffWorld(Environment):
@@ -43,21 +49,24 @@ class CliffWorld(Environment):
 
     def step(self, action: int) -> tuple[State, float, bool]:
         r, c = self._pos
-        nr = r + _DR[action]
-        nc = c + _DC[action]
+        nr = r + _ROW_DELTA[action]
+        nc = c + _COL_DELTA[action]
 
         # Boundary clamp
         nr = max(0, min(_ROWS - 1, nr))
         nc = max(0, min(_COLS - 1, nc))
 
-        # Cliff: -100 and back to start
+        # Cliff: -100 and back to start.
+        # The agent isn't eliminated — it's sent back to the start, which is
+        # costly because it has to walk all the way again.
         if (nr, nc) in self.CLIFF:
             self._pos = _START
             return self._make_state(self._pos), -100.0, False
 
         self._pos = (nr, nc)
 
-        # Goal
+        # Goal — the agent isn't rewarded for reaching the goal; it's trying
+        # to stop accumulating step penalties (-1 per step).
         if self._pos == _GOAL:
             return self._make_state(self._pos), 0.0, True
 

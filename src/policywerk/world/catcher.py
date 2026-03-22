@@ -1,11 +1,14 @@
 """Level 2: Pixel gridworld (Catcher).
 
 16x16 binary grid. The agent navigates to collect reward items
-and avoid hazards. Observations are raw pixel frames — the state
-that DQN must learn features from.
+and avoid hazards. Instead of knowing its grid coordinates, the agent
+sees only a 16x16 image. It must figure out where it is and where
+items are directly from the pixels.
 
 State.features: flattened 256 floats (the pixel grid)
   0.0 = empty, 0.3 = hazard, 0.7 = reward item, 1.0 = agent
+  Different brightness levels encode different objects. The neural
+  network learns to distinguish them.
 
 Actions: 0=North, 1=East, 2=South, 3=West.
 """
@@ -97,7 +100,8 @@ class Catcher(Environment):
         if self._step_count >= self._max_steps:
             return self._make_state(), 0.0, True
 
-        return self._make_state(), -0.01, False  # small step cost
+        # Small step cost encourages collecting items quickly rather than wandering
+        return self._make_state(), -0.01, False
 
     def num_actions(self) -> int:
         return 4
@@ -114,6 +118,8 @@ class Catcher(Environment):
         return frame
 
     def _make_state(self) -> State:
+        # The agent's observation is the raw pixel grid flattened into a
+        # list — no direct access to position coordinates.
         frame = self.render_frame()
         features = []
         for row in frame:

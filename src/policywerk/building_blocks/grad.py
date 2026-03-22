@@ -1,7 +1,11 @@
 """Level 1: Gradient computation.
 
-Backpropagation logic for dense layers, plus numerical gradient
-checking via finite differences.
+Backpropagation computes how much each weight contributed to the error.
+Starting from the output, it works backward through the network, asking at
+each layer: 'how much did you contribute to the mistake?' The answer (the
+gradient) tells the optimizer which direction to adjust each weight.
+
+Includes numerical gradient checking via finite differences.
 """
 
 from dataclasses import dataclass
@@ -20,6 +24,8 @@ Vector = list[float]
 Matrix = list[list[float]]
 
 
+# Maps each activation function to its derivative — during backprop, we need
+# the derivative of whatever activation was used in the forward pass.
 _DERIVATIVES = {
     sigmoid: sigmoid_derivative,
     tanh_: tanh_derivative,
@@ -38,8 +44,16 @@ class LayerGradients:
 
 
 def backward(network, cache, loss_grad: Vector) -> list[LayerGradients]:
-    """Compute gradients for every layer via backpropagation."""
+    """Compute gradients for every layer via backpropagation.
+
+    Walk backward through the network. At each layer:
+    (1) compute how sensitive the activation was to its input (f_prime),
+    (2) multiply by the incoming error signal to get delta,
+    (3) compute weight gradients from delta and the layer's inputs,
+    (4) pass the error signal to the previous layer through the transposed weights.
+    """
     gradients = []
+    # delta is the error signal flowing backward — starts as 'how wrong was the output?'
     delta = loss_grad
 
     for layer_idx in range(len(network.layers) - 1, -1, -1):
@@ -48,9 +62,11 @@ def backward(network, cache, loss_grad: Vector) -> list[LayerGradients]:
         activation_fn = network.activation_fns[layer_idx]
         deriv_fn = _DERIVATIVES[activation_fn]
 
+        # how sensitive each activation was to its pre-activation input
         f_prime = vector.apply(deriv_fn, layer_cache.z)
         delta = vector.elementwise(scalar.multiply, delta, f_prime)
 
+        # each weight's gradient = error at this neuron × input that fed it
         weight_grads = matrix.outer(delta, layer_cache.inputs)
         bias_grads = list(delta)
 
@@ -59,6 +75,7 @@ def backward(network, cache, loss_grad: Vector) -> list[LayerGradients]:
             bias_grads=bias_grads,
         ))
 
+        # pass error signal backward through this layer's weights to the previous layer
         delta = matrix.mat_vec(matrix.transpose(layer.weights), delta)
 
     gradients.reverse()
@@ -73,6 +90,11 @@ def numerical_gradient_check(
     epsilon: float = 1e-5,
 ) -> float:
     """Check analytical gradients against numerical (finite-difference) gradients.
+
+    Wiggle each weight by a tiny amount (+/- epsilon) and measure how the loss
+    changes. This gives a slow but reliable gradient that we compare against the
+    fast analytical gradient from backward(). If they match, the backward pass
+    is correct.
 
     Returns the maximum relative error across all weights.
     """

@@ -1,7 +1,8 @@
 """Level 1: Network container.
 
-A sequential collection of dense layers with a forward pass that threads
-input through each layer, caching intermediate values for backprop.
+A sequential collection of dense layers. Passes input through each layer in
+sequence — each layer's output becomes the next layer's input. Intermediate
+values are cached for backprop.
 """
 
 from dataclasses import dataclass
@@ -14,7 +15,7 @@ Vector = list[float]
 @dataclass
 class Network:
     layers: list[DenseLayer]
-    activation_fns: list     # one activation function per layer
+    activation_fns: list     # one non-linear function per layer, applied after each layer's linear computation
 
 
 @dataclass
