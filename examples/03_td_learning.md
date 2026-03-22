@@ -68,7 +68,7 @@ V(D) += 0.1 * (1 - 0.5) = 0.05 -> 0.55
 V(E) += 0.1 * (1 - 0.5) = 0.05 -> 0.55
 ```
 
-MC waits for the outcome, then updates the first visit of each state at once. Unbiased but high-variance — the next episode from C might give G=0 instead of G=1, making V(C) bounce between targets.
+MC waits for the outcome, then updates the first visit of each state at once. Unbiased but high-variance — the target can be either 0 or 1 from episode to episode, so repeated pulls in different directions make V(C) noisy instead of settling smoothly.
 
 ## Training Results
 

@@ -22,6 +22,8 @@ Done:    when |angle| > 0.3 radians (about 17 degrees)
 Goal:    survive 500 steps
 ```
 
+The original 1983 paper used a full cart-pole with four state variables: cart position, cart velocity, pole angle, and pole angular velocity. Our simplified version removes the cart (just angle and angular velocity) because the core ACE/ASE mechanism works the same way with fewer states to learn.
+
 The continuous state is discretized into 6 angle bins x 6 velocity bins = 36 "boxes." Each box gets one weight in the actor and one in the critic. The input is a one-hot vector: 36 numbers, all zeros except a 1.0 at the current box.
 
 ## The ACE/ASE Architecture
@@ -70,6 +72,8 @@ Final 10 episodes average: 500 steps
 The agent learns quickly. Early episodes end as the pole topples. Within a few episodes, the large negative TD errors from failures have pushed the actor weights in the right direction. By episode 10, it balances indefinitely.
 
 Notice the sharp transition: the agent does not gradually improve. Once it learns "push against the tilt" from a few failures, it immediately succeeds. In a task this simple with only 36 states, the key insight either clicks or it does not. Later lessons will show tasks where learning is more gradual.
+
+Remarkably, just 4-5 failure episodes contain enough signal -- via eligibility traces spreading blame across recent states -- to solve the entire task. Each failure teaches the agent about multiple states simultaneously.
 
 The original 1983 paper used full cart-pole (4 state variables, 162 boxes) and needed roughly 100 episodes. Our simplified balance (2 variables, 36 boxes) converges faster because the strategy is simpler and there are fewer states to learn. But the mechanism is the same -- TD error flowing through eligibility traces -- and it scales to harder problems.
 
