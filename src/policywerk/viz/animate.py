@@ -124,8 +124,9 @@ def save_animation(
     frame_count: int,
     path: str,
     fps: int = 10,
+    pdf: bool = True,
 ) -> None:
-    """Export an animation to GIF or MP4.
+    """Export an animation to GIF or MP4, optionally with a PDF storyboard.
 
     Args:
         fig: the matplotlib Figure to animate.
@@ -134,6 +135,9 @@ def save_animation(
         frame_count: total number of frames.
         path: output file path (.gif or .mp4).
         fps: frames per second.
+        pdf: if True, also export a multi-page PDF (one page per frame)
+            alongside the animation. The PDF path is derived from the
+            animation path by replacing the extension.
     """
     # FuncAnimation calls update_fn(0), update_fn(1), ..., update_fn(frame_count-1),
     # and the writer captures each resulting figure as one frame.
@@ -149,6 +153,17 @@ def save_animation(
         writer = PillowWriter(fps=fps)
 
     anim.save(path, writer=writer, dpi=DPI)
+
+    # Export a PDF storyboard — one page per frame, useful for review
+    # and for embedding individual frames in documentation.
+    if pdf:
+        from matplotlib.backends.backend_pdf import PdfPages
+        pdf_path = path.rsplit(".", 1)[0] + ".pdf"
+        with PdfPages(pdf_path) as pp:
+            for frame_idx in range(frame_count):
+                update_fn(frame_idx)
+                pp.savefig(fig, dpi=DPI, bbox_inches="tight")
+
     plt.close(fig)
 
 
