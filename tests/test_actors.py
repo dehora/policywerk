@@ -284,7 +284,7 @@ class TestQLearner:
         ql_path, _, _ = eval_greedy(policy_ql, CliffWorld())
         sa_path, _, _ = eval_greedy(policy_sa, CliffWorld())
         # Q-learning finds the optimal (shorter) path
-        assert len(ql_path) <= len(sa_path)
+        assert len(ql_path) < len(sa_path)
 
     def test_extract_greedy_policy(self):
         """Policy keys should match Q table's visited states."""

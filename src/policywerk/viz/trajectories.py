@@ -67,55 +67,78 @@ def draw_cliff_grid(
     caption: str | None = None,
     agent_pos: tuple[int, int] | None = None,
     trail_length: int | None = None,
+    cell_values: dict[tuple[int, int], float] | None = None,
 ) -> None:
-    """Draw a cliff walking grid with episode trajectory shown as visited-cell dots.
+    """Draw a cliff walking grid with value-gradient cell coloring.
 
-    path: the agent's trajectory as a list of (row, col) positions.
-        Shown as teal dots in each visited cell (no connecting lines).
-    agent_pos: if set, draw an orange circle at this position.
-    trail_length: kept for API compatibility but ignored (dots don't spaghetti).
+    path: not used for coloring (kept for API compatibility).
+    agent_pos: if set, that cell is colored light blue.
+    trail_length: not used (kept for API compatibility).
+
+    Cell colors are determined by the 'values' dict if provided
+    (mapping "r,c" -> float), using the same green gradient as
+    L01's value heatmap. Otherwise cells are light gray.
     """
     ax.clear()
     import matplotlib.patches as patches
 
     cliff_set = set(cliff)
 
+    # Determine value range for color mapping
+    cell_vals = cell_values or {}
+    if cell_vals:
+        all_vals = list(cell_vals.values())
+        vmin = min(all_vals)
+        vmax = max(all_vals)
+        if vmin == vmax:
+            vmin, vmax = vmin - 1, vmax + 1
+    else:
+        vmin, vmax = -1, 0
+
     # Draw grid cells
     for r in range(rows):
         for c in range(cols):
             if (r, c) in cliff_set:
                 color = "#cc3333"  # bold red for cliff
+            elif agent_pos is not None and (r, c) == agent_pos:
+                color = "#a8d8ea"  # light blue for agent position
+            elif (r, c) in cell_vals:
+                # Green gradient: higher value = more green (like L01)
+                val = cell_vals[(r, c)]
+                frac = (val - vmin) / (vmax - vmin) if vmax > vmin else 0.5
+                # Blend: yellow(low) -> green(high), cap at 0.75 to keep darkest readable
+                import matplotlib.cm as cm
+                rgba = cm.YlGn(frac * 0.75)
+                color = f"#{int(rgba[0]*255):02x}{int(rgba[1]*255):02x}{int(rgba[2]*255):02x}"
             elif (r, c) == start:
-                color = "#b3d9ff"  # blue for start
+                color = "#e8e8e8"
             elif (r, c) == goal:
                 color = "#85e085"  # green for goal
             else:
                 color = "#f0f0f0"  # light gray
             rect = patches.Rectangle((c - 0.5, r - 0.5), 1, 1,
-                                      facecolor=color, edgecolor="#dddddd",
+                                      facecolor=color, edgecolor="#cccccc",
                                       linewidth=0.5, zorder=1)
             ax.add_patch(rect)
 
-    # Label start and goal
+    # Row labels on the left (cartesian: bottom row = 0), column labels on the bottom
+    for r in range(rows):
+        cartesian_r = (rows - 1) - r
+        ax.text(-0.85, r, str(cartesian_r), ha="center", va="center",
+                fontsize=6, color="#999999")
+    for c in range(cols):
+        ax.text(c, rows - 0.35, str(c), ha="center", va="top",
+                fontsize=6, color="#999999")
+
+    # Label start and goal prominently (white text with dark outline for contrast)
+    import matplotlib.patheffects as pe
+    marker_effects = [pe.withStroke(linewidth=2.5, foreground=DARK_GRAY)]
     ax.text(start[1], start[0], "S", ha="center", va="center",
-            fontsize=9, fontweight="bold", color="white", zorder=5)
+            fontsize=11, fontweight="bold", color="white", zorder=9,
+            path_effects=marker_effects)
     ax.text(goal[1], goal[0], "G", ha="center", va="center",
-            fontsize=9, fontweight="bold", color="white", zorder=5)
-
-    # Draw trajectory as dots in visited cells
-    if path and len(path) > 1:
-        # Count visits per cell for opacity (more visits = darker)
-        visit_counts: dict[tuple[int, int], int] = {}
-        for pos in path:
-            visit_counts[pos] = visit_counts.get(pos, 0) + 1
-        max_visits = max(visit_counts.values()) if visit_counts else 1
-
-        for (r, c), count in visit_counts.items():
-            if (r, c) == start or (r, c) == goal:
-                continue  # don't overlay dots on S/G labels
-            alpha = 0.3 + 0.5 * (count / max_visits)  # more visits = more opaque
-            ax.scatter([c], [r], c=TEAL, s=80, alpha=alpha,
-                       edgecolors="none", zorder=3)
+            fontsize=11, fontweight="bold", color="white", zorder=9,
+            path_effects=marker_effects)
 
     # Draw policy arrows
     if policy:
@@ -133,17 +156,19 @@ def draw_cliff_grid(
                                          lw=1.2, alpha=0.7),
                          zorder=4)
 
-    # Agent marker (orange circle) at current position
-    if agent_pos is not None:
+    # Agent marker (orange circle) at current position, skip at goal
+    if agent_pos is not None and agent_pos != goal:
         ar, ac = agent_pos
         ax.scatter([ac], [ar], c=ORANGE, s=180, zorder=8,
                    edgecolors=DARK_GRAY, linewidths=1.5)
 
-    ax.set_xlim(-0.5, cols - 0.5)
+    ax.set_xlim(-1.2, cols - 0.5)
     ax.set_ylim(rows - 0.5, -0.5)  # invert y so row 0 is at top
     ax.set_aspect("equal")
     ax.set_xticks([])
     ax.set_yticks([])
+    for spine in ax.spines.values():
+        spine.set_visible(False)
 
     if caption:
         ax.text(cols / 2 - 0.5, rows + 0.1, caption,

@@ -29,7 +29,7 @@ def draw_value_heatmap(
 ) -> None:
     """Draw colored cells representing state values on a grid.
 
-    Red = low values (bad states), green = high values (good states).
+    Yellow = low values (bad states), green = high values (good states).
     Each cell shows its numeric value as text.
 
     values: rows × cols matrix of floats.
@@ -43,11 +43,16 @@ def draw_value_heatmap(
     skip = skip_cells or set()
 
     # imshow displays a matrix as a colored image
-    # cmap="RdYlGn" = Red-Yellow-Green gradient
+    # Use truncated YlGn (0–0.75) so darkest cells stay readable
+    import matplotlib.colors as mcolors
+    import matplotlib.pyplot as _plt
+    full_cmap = _plt.get_cmap("YlGn")
+    samples = [full_cmap(i / 255 * 0.75) for i in range(256)]
+    trunc_cmap = mcolors.LinearSegmentedColormap.from_list("YlGn_light", samples)
     # origin="upper" = row 0 at the top (matching grid convention)
     # aspect="equal" = cells are square, not stretched
     im = ax.imshow(
-        values, cmap="RdYlGn", vmin=vmin, vmax=vmax,
+        values, cmap=trunc_cmap, vmin=vmin, vmax=vmax,
         origin="upper", aspect="equal",
     )
 
@@ -99,6 +104,7 @@ def draw_grid_overlay(
     goals: list[tuple[int, int]] | None = None,
 ) -> None:
     """Mark special cells on a grid — walls, pits, goals."""
+    import matplotlib.patheffects as pe
     walls = walls or []
     pits = pits or []
     goals = goals or []
@@ -117,8 +123,9 @@ def draw_grid_overlay(
                 fontsize=12, fontweight="bold")
 
     for r, c in goals:
-        ax.text(c, r, "G", ha="center", va="center", color="green",
-                fontsize=12, fontweight="bold")
+        ax.text(c, r, "G", ha="center", va="center", color="white",
+                fontsize=12, fontweight="bold",
+                path_effects=[pe.withStroke(linewidth=2.5, foreground=DARK_GRAY)])
 
 
 def draw_value_bars(

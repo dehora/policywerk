@@ -105,9 +105,12 @@ def main():
 
     The optimal path runs just above the cliff (row 2), then drops
     to the goal: 13 steps, total reward -12 (12 steps at -1 each,
-    plus the goal step at 0). But with epsilon=0.1 exploration,
-    the agent occasionally steps south into the cliff. This is
-    where Q-learning and SARSA disagree about what to learn.
+    plus the goal step at 0). But with epsilon=0.1 exploration
+    (epsilon is the exploration rate—the probability that the agent
+    picks a random action instead of its current best; with
+    epsilon=0.1, one in ten actions is random), the agent
+    occasionally steps south into the cliff. This is where
+    Q-learning and SARSA disagree about what to learn.
     """)
 
     env = CliffWorld()
@@ -165,9 +168,10 @@ def main():
     because it uses the best action (which would never step into
     the cliff).
 
-    Result: Q-learning learns the cliff-edge path (optimal but
-    risky during training). SARSA learns a safer path one row up
-    (suboptimal but avoids the cliff penalty during exploration).
+    Result: Q-learning learns the cliff-edge path—optimal if the
+    agent follows the greedy policy perfectly. SARSA learns a safer
+    path one row up—optimal given that the agent is still exploring
+    with epsilon=0.1. Both are correct for the question they answer.
     """)
 
     # -----------------------------------------------------------------------
@@ -201,7 +205,34 @@ def main():
         print(f"      Episodes {i:3d}-{i+window-1:3d}:  Q-learning {avg_ql:7.1f}   SARSA {avg_sa:7.1f}")
     print()
 
-    # Extract greedy policies
+    # Show early episode volatility
+    early = [(h["episode"], h["total_reward"], h["steps"]) for h in hist_ql[:10]]
+    print("    Early episodes (Q-learning):")
+    for ep, r, s in early:
+        r_str = f"{r:.0f}" if r > -1000 else "< -1000"
+        print(f"      Episode {ep:2d}:  reward {r_str:>8s}   steps {s}")
+    print()
+
+    print("""    The early episodes are wild. The agent falls off the cliff
+    repeatedly, getting teleported back to start, racking up huge
+    penalties. By episode 3 it has mostly learned to avoid the
+    cliff, but occasional relapses show that epsilon exploration
+    near the edge is genuinely dangerous even after the agent
+    knows what to do.
+
+    Notice that Q-learning's average training reward stays worse
+    than SARSA's even after hundreds of episodes. This is the
+    on-policy/off-policy trade-off in a nutshell: the better the
+    learned policy, the worse the training performance when
+    exploration adds noise. Q-learning's cliff-edge path is
+    optimal when executed perfectly, but maximally punished by
+    random exploration. SARSA's safer path is suboptimal but
+    more forgiving of mistakes.
+    """)
+
+    # Extract greedy policies: pick the action with the highest
+    # Q-value in each state, converting the Q-table into a
+    # deterministic strategy.
     policy_ql = extract_greedy_policy(Q_ql, env)
     policy_sa = extract_greedy_policy(Q_sa, env)
 
@@ -237,15 +268,14 @@ def main():
 
     os.makedirs("output", exist_ok=True)
 
-    # Build snapshots: one frame per sampled episode showing the complete
-    # trajectory as dots-in-cells. No step-by-step — the grid is too large
-    # for that to read well. Each frame shows where the agent went.
+    # Build snapshots: show policy arrows evolving over training.
+    # Each frame shows the current greedy policy as arrows in the grid,
+    # so the viewer watches the arrows settle into a route.
     snapshots = []
 
-    # Sample more densely early (where the learning happens), sparser later
     sample_episodes = sorted(set(
-        list(range(0, min(20, num_episodes))) +
-        list(range(20, num_episodes, max(1, num_episodes // 15))) +
+        list(range(0, min(10, num_episodes))) +
+        list(range(10, num_episodes, max(1, num_episodes // 20))) +
         [num_episodes - 1]
     ))
 
@@ -253,23 +283,38 @@ def main():
         if ep_idx < num_episodes:
             h = hist_ql[ep_idx]
             ep_path = h["path"]
-            # Show policy arrows on the last few frames
-            pol = extract_greedy_policy(Q_ql, env) if ep_idx >= num_episodes - 3 else None
             last_pos = ep_path[-1] if ep_path else None
             reward_str = f"{h['total_reward']:.0f}" if h['total_reward'] > -1000 else "< -1000"
             snapshots.append(QLearningSnapshot(
                 episode=ep_idx,
                 total_reward=h["total_reward"],
                 path=ep_path,
-                policy=pol,
+                policy=h.get("policy"),  # evolving policy arrows
                 episode_num=ep_idx,
                 ep_reward=h["total_reward"],
                 method="Q-learning",
-                agent_pos=last_pos,
+                agent_pos=last_pos,  # blue cell at agent's final position
                 step_label=f"Episode {ep_idx} (reward: {reward_str})",
             ))
 
     cliff_cells = list(CliffWorld.CLIFF)
+
+    # Append greedy replay frames: step through the learned optimal path,
+    # looped 4 times so it lingers in the animation.
+    final_policy = hist_ql[-1].get("policy")
+    for _loop in range(4):
+        for step_idx, pos in enumerate(ql_eval_path):
+            snapshots.append(QLearningSnapshot(
+                episode=num_episodes,
+                total_reward=ql_eval_reward,
+                path=ql_eval_path[:step_idx + 1],
+                policy=final_policy,
+                episode_num=num_episodes - 1,
+                ep_reward=ql_eval_reward,
+                method="Q-learning",
+                agent_pos=pos,
+                step_label=f"Learned policy (step {step_idx}/{len(ql_eval_path)-1})",
+            ))
 
     # --- Artifact 1: Animation ---
 
@@ -284,36 +329,57 @@ def main():
     def update(frame_idx):
         snap = snapshots[frame_idx]
 
-        # Top-left: cliff grid with trajectory as visited-cell dots
+        # Compute cell values from the Q-value snapshot for this episode
+        ep_hist = hist_ql[min(snap.episode_num, len(hist_ql) - 1)]
+        vals_dict = ep_hist.get("values", {})
+        cv = {}
+        for label, val in vals_dict.items():
+            parts = label.split(",")
+            cv[(int(parts[0]), int(parts[1]))] = val
+
+        # Top-left: cliff grid with value-gradient coloring and policy arrows
         draw_cliff_grid(axes["env"], CliffWorld.ROWS, CliffWorld.COLS,
                         cliff_cells, CliffWorld.START, CliffWorld.GOAL,
-                        path=snap.path, policy=snap.policy,
-                        caption="Cliff world: reach G from S, avoid the red cliff",
-                        agent_pos=snap.agent_pos)
+                        policy=snap.policy,
+                        caption="Cliff world: green = high value, red = cliff",
+                        agent_pos=snap.agent_pos, cell_values=cv)
         title = snap.step_label if snap.step_label else f"Episode {snap.episode_num}"
         axes["env"].set_title(title, fontsize=10)
 
         # Top-right: info
         axes["algo"].clear()
         axes["algo"].axis("off")
+        is_replay = snap.episode >= num_episodes
         reward_str = f"{snap.ep_reward:.0f}" if snap.ep_reward > -1000 else "< -1000"
-        info_lines = [
-            f"Episode: {snap.episode_num}",
-            f"Reward:  {reward_str}",
-            f"Steps:   {len(snap.path) - 1}",
-            "",
-            f"Method: {snap.method}",
-            f"alpha:   {alpha}",
-            f"epsilon: {epsilon}",
-        ]
-        if snap.policy:
-            info_lines.append("")
-            info_lines.append(">> Policy arrows shown")
+        if is_replay:
+            info_lines = [
+                "Greedy replay",
+                f"(no exploration)",
+                "",
+                f"Reward:  {reward_str}",
+                f"Steps:   {len(ql_eval_path) - 1}",
+                "",
+                "Following learned policy",
+            ]
+        else:
+            info_lines = [
+                f"Episode: {snap.episode_num}",
+                f"Reward:  {reward_str}",
+                f"Steps:   {len(snap.path) - 1}",
+                "",
+                f"Method: {snap.method}",
+                f"alpha:   {alpha}",
+                f"epsilon: {epsilon}",
+            ]
+            if snap.policy:
+                info_lines.append("")
+                info_lines.append(">> Policy arrows shown")
         text = "\n".join(info_lines)
         axes["algo"].text(0.1, 0.9, text, transform=axes["algo"].transAxes,
                           fontsize=10, verticalalignment="top",
                           fontfamily="monospace", color=DARK_GRAY)
-        axes["algo"].set_title("Training State", fontsize=10)
+        axes["algo"].set_title("Greedy Replay" if is_replay else "Training State",
+                               fontsize=10)
 
         # Bottom: reward trace
         n = min(snap.episode_num + 1, len(ql_rewards))
@@ -337,17 +403,21 @@ def main():
 
     def update_poster(frame_idx):
         # Show Q-learning's greedy eval path with policy
+        # Q-learning final values as cell colors
+        ql_final_vals = hist_ql[-1].get("values", {})
+        ql_cv = {(int(l.split(",")[0]), int(l.split(",")[1])): v
+                 for l, v in ql_final_vals.items()}
         draw_cliff_grid(axes2["env"], CliffWorld.ROWS, CliffWorld.COLS,
                         cliff_cells, CliffWorld.START, CliffWorld.GOAL,
-                        path=ql_eval_path, policy=policy_ql,
-                        caption="Q-learning: optimal cliff-adjacent path (greedy)")
+                        policy=policy_ql, cell_values=ql_cv,
+                        caption="Q-learning: green = high value")
         axes2["env"].set_title("Q-Learning Policy", fontsize=10)
 
-        # Show SARSA's greedy eval path with policy
+        # SARSA: no values snapshot recorded, show with policy only
         draw_cliff_grid(axes2["algo"], CliffWorld.ROWS, CliffWorld.COLS,
                         cliff_cells, CliffWorld.START, CliffWorld.GOAL,
                         path=sa_eval_path, policy=policy_sa,
-                        caption="SARSA: safer path (greedy)")
+                        caption="SARSA: greedy evaluation path")
         axes2["algo"].set_title("SARSA Policy", fontsize=10)
 
         # Reward comparison

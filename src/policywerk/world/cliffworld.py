@@ -38,6 +38,10 @@ class CliffWorld(Environment):
     COLS = _COLS
     START = _START
     GOAL = _GOAL
+    # List, not set — `in` is a linear scan of 10 elements on every step.
+    # A set would be O(1) in production code, but for 10 cells the
+    # difference is negligible and the list preserves insertion order
+    # for iteration in viz code.
     CLIFF = [(3, c) for c in range(1, 11)]
 
     def __init__(self):
