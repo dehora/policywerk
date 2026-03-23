@@ -237,60 +237,24 @@ def main():
 
     os.makedirs("output", exist_ok=True)
 
-    # Build snapshots: step-by-step for first 2 episodes, then summaries
+    # Build snapshots: one frame per sampled episode showing the complete
+    # trajectory as dots-in-cells. No step-by-step — the grid is too large
+    # for that to read well. Each frame shows where the agent went.
     snapshots = []
-    STEP_BY_STEP_EPISODES = 2
 
-    for ep_idx in range(min(STEP_BY_STEP_EPISODES, num_episodes)):
-        h = hist_ql[ep_idx]
-        ep_path = h["path"]
-        # Subsample long paths (show every Nth step to keep frame count reasonable)
-        step_stride = max(1, len(ep_path) // 20)
-        step_indices = list(range(0, len(ep_path), step_stride))
-        if step_indices[-1] != len(ep_path) - 1:
-            step_indices.append(len(ep_path) - 1)
-
-        for si in step_indices:
-            pos = ep_path[si]
-            snapshots.append(QLearningSnapshot(
-                episode=ep_idx,
-                total_reward=h["total_reward"],
-                path=ep_path[:si + 1],
-                policy=None,
-                episode_num=ep_idx,
-                ep_reward=h["total_reward"],
-                method="Q-learning",
-                agent_pos=pos,
-                step_label=f"Episode {ep_idx}, step {si}",
-                completed=False,  # mid-episode: don't advance trace
-            ))
-        # Final frame for this episode: mark completed so trace advances
-        final_snap = QLearningSnapshot(
-            episode=ep_idx,
-            total_reward=h["total_reward"],
-            path=ep_path,
-            policy=None,
-            episode_num=ep_idx,
-            ep_reward=h["total_reward"],
-            method="Q-learning",
-            agent_pos=ep_path[-1] if ep_path else None,
-            step_label=f"Episode {ep_idx} done",
-            completed=True,
-        )
-        snapshots.append(final_snap)
-
-    # Summary frames for remaining episodes
-    summary_episodes = sorted(set(
-        list(range(STEP_BY_STEP_EPISODES, min(15, num_episodes))) +
-        list(range(15, num_episodes, num_episodes // 15)) +
+    # Sample more densely early (where the learning happens), sparser later
+    sample_episodes = sorted(set(
+        list(range(0, min(20, num_episodes))) +
+        list(range(20, num_episodes, max(1, num_episodes // 15))) +
         [num_episodes - 1]
     ))
 
-    for ep_idx in summary_episodes:
+    for ep_idx in sample_episodes:
         if ep_idx < num_episodes:
             h = hist_ql[ep_idx]
             ep_path = h["path"]
-            pol = extract_greedy_policy(Q_ql, env) if ep_idx == num_episodes - 1 else None
+            # Show policy arrows on the last few frames
+            pol = extract_greedy_policy(Q_ql, env) if ep_idx >= num_episodes - 3 else None
             last_pos = ep_path[-1] if ep_path else None
             reward_str = f"{h['total_reward']:.0f}" if h['total_reward'] > -1000 else "< -1000"
             snapshots.append(QLearningSnapshot(
@@ -320,15 +284,12 @@ def main():
     def update(frame_idx):
         snap = snapshots[frame_idx]
 
-        # Top-left: cliff grid with path and agent marker
-        # Step-by-step frames show only a short trail (last 4 positions)
-        # to avoid spaghetti. Summary frames show the full path.
-        trail = 4 if not snap.completed else None
+        # Top-left: cliff grid with trajectory as visited-cell dots
         draw_cliff_grid(axes["env"], CliffWorld.ROWS, CliffWorld.COLS,
                         cliff_cells, CliffWorld.START, CliffWorld.GOAL,
                         path=snap.path, policy=snap.policy,
                         caption="Cliff world: reach G from S, avoid the red cliff",
-                        agent_pos=snap.agent_pos, trail_length=trail)
+                        agent_pos=snap.agent_pos)
         title = snap.step_label if snap.step_label else f"Episode {snap.episode_num}"
         axes["env"].set_title(title, fontsize=10)
 
@@ -354,11 +315,8 @@ def main():
                           fontfamily="monospace", color=DARK_GRAY)
         axes["algo"].set_title("Training State", fontsize=10)
 
-        # Bottom: reward trace — only show completed episodes
-        if snap.completed:
-            n = min(snap.episode_num + 1, len(ql_rewards))
-        else:
-            n = min(snap.episode_num, len(ql_rewards))
+        # Bottom: reward trace
+        n = min(snap.episode_num + 1, len(ql_rewards))
         update_trace_axes(axes["trace"], ql_rewards[:n],
                           label="Episode reward", color=TEAL)
         axes["trace"].set_ylabel("Reward", fontsize=9)
@@ -367,7 +325,7 @@ def main():
 
     with Spinner("Generating animation"):
         save_animation(fig, update, len(snapshots),
-                       "output/04_q_learning_artifact.gif", fps=3)
+                       "output/04_q_learning_artifact.gif", fps=2)
 
     # --- Artifact 2: Poster ---
 
