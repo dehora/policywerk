@@ -343,3 +343,58 @@ class TestQLearner:
         assert "3,11" not in policy
         # Other visited states should still be present
         assert len(policy) > 0
+
+    def test_q_learning_history_has_policy_and_values(self):
+        """Q-learning history should record policy and values snapshots."""
+        env = CliffWorld()
+        _, history = q_learning(env, num_episodes=50, seed=42)
+        for h in history:
+            assert "policy" in h, "history entry missing 'policy'"
+            assert "values" in h, "history entry missing 'values'"
+            assert isinstance(h["policy"], dict)
+            assert isinstance(h["values"], dict)
+        # Final episode should have non-empty snapshots
+        assert len(history[-1]["policy"]) > 0
+        assert len(history[-1]["values"]) > 0
+
+    def test_sarsa_history_has_policy_and_values(self):
+        """SARSA history should record policy and values snapshots."""
+        env = CliffWorld()
+        _, history = sarsa(env, num_episodes=50, seed=42)
+        for h in history:
+            assert "policy" in h, "history entry missing 'policy'"
+            assert "values" in h, "history entry missing 'values'"
+            assert isinstance(h["policy"], dict)
+            assert isinstance(h["values"], dict)
+        assert len(history[-1]["policy"]) > 0
+        assert len(history[-1]["values"]) > 0
+
+    def test_snapshot_values_match_greedy_action(self):
+        """Snapshot values should be the Q-value of the best seen action,
+        not max_value which includes unseen actions at default 0.0."""
+        from policywerk.building_blocks.value_functions import TabularQ
+        env = CliffWorld()
+        Q, history = q_learning(env, num_episodes=200, seed=42)
+        final = history[-1]
+        num_actions = env.num_actions()
+        for label, value in final["values"].items():
+            best_a = Q.best_action(label, num_actions)
+            expected = Q.get(label, best_a)
+            assert value == expected, (
+                f"State {label}: snapshot value {value} != "
+                f"Q(best_action={best_a}) = {expected}"
+            )
+
+    def test_sarsa_and_q_learning_histories_differ(self):
+        """SARSA and Q-learning should produce different value snapshots,
+        confirming they are independent histories."""
+        env = CliffWorld()
+        _, hist_ql = q_learning(env, num_episodes=200, seed=42)
+        _, hist_sa = sarsa(env, num_episodes=200, seed=42)
+        ql_vals = hist_ql[-1]["values"]
+        sa_vals = hist_sa[-1]["values"]
+        # They share many state labels but values should differ
+        shared = set(ql_vals.keys()) & set(sa_vals.keys())
+        assert len(shared) > 0, "Should have overlapping states"
+        diffs = sum(1 for k in shared if ql_vals[k] != sa_vals[k])
+        assert diffs > 0, "Q-learning and SARSA values should differ"
