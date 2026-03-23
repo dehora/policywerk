@@ -98,15 +98,18 @@ def q_learning(
                 break
             state = next_state
 
-        # Snapshot current greedy policy and state values for animation
+        # Snapshot current greedy policy and state values for animation.
+        # values_snap uses the Q-value of the best *seen* action so the
+        # heatmap matches the displayed policy arrow.
         policy_snap: dict[str, int] = {}
         values_snap: dict[str, float] = {}
         seen_labels: set[str] = set()
         for (label, _a) in Q._values.keys():
             seen_labels.add(label)
         for label in seen_labels:
-            policy_snap[label] = Q.best_action(label, num_actions)
-            values_snap[label] = Q.max_value(label, num_actions)
+            best_a = Q.best_action(label, num_actions)
+            policy_snap[label] = best_a
+            values_snap[label] = Q.get(label, best_a)
 
         history.append({
             "episode": ep,
@@ -179,11 +182,24 @@ def sarsa(
             state = next_state
             action = next_action
 
+        # Snapshot current greedy policy and state values for animation
+        policy_snap: dict[str, int] = {}
+        values_snap: dict[str, float] = {}
+        seen_labels: set[str] = set()
+        for (label, _a) in Q._values.keys():
+            seen_labels.add(label)
+        for label in seen_labels:
+            best_a = Q.best_action(label, num_actions)
+            policy_snap[label] = best_a
+            values_snap[label] = Q.get(label, best_a)
+
         history.append({
             "episode": ep,
             "total_reward": total_reward,
             "path": path,
             "steps": step_count,
+            "policy": policy_snap,
+            "values": values_snap,
         })
 
     return Q, history

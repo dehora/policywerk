@@ -62,21 +62,17 @@ def draw_cliff_grid(
     cliff: list[tuple[int, int]],
     start: tuple[int, int],
     goal: tuple[int, int],
-    path: list[tuple[int, int]] | None = None,
     policy: dict[str, int] | None = None,
     caption: str | None = None,
     agent_pos: tuple[int, int] | None = None,
-    trail_length: int | None = None,
     cell_values: dict[tuple[int, int], float] | None = None,
 ) -> None:
     """Draw a cliff walking grid with value-gradient cell coloring.
 
-    path: not used for coloring (kept for API compatibility).
     agent_pos: if set, that cell is colored light blue.
-    trail_length: not used (kept for API compatibility).
 
-    Cell colors are determined by the 'values' dict if provided
-    (mapping "r,c" -> float), using the same green gradient as
+    Cell colors are determined by cell_values if provided
+    (mapping (row, col) -> float), using the same green gradient as
     L01's value heatmap. Otherwise cells are light gray.
     """
     ax.clear()

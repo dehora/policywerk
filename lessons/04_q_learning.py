@@ -317,14 +317,14 @@ def main():
             ))
 
     # Append SARSA greedy replay frames: same idea, different path.
-    final_policy_sa = hist_sa[-1].get("policy")
+    # Use policy_sa directly (the extracted greedy policy).
     for _loop in range(4):
         for step_idx, pos in enumerate(sa_eval_path):
             snapshots.append(QLearningSnapshot(
                 episode=num_episodes + 1,
                 total_reward=sa_eval_reward,
                 path=sa_eval_path[:step_idx + 1],
-                policy=final_policy_sa,
+                policy=policy_sa,
                 episode_num=num_episodes,
                 ep_reward=sa_eval_reward,
                 method="SARSA",
@@ -345,8 +345,13 @@ def main():
     def update(frame_idx):
         snap = snapshots[frame_idx]
 
-        # Compute cell values from the Q-value snapshot for this episode
-        ep_hist = hist_ql[min(snap.episode_num, len(hist_ql) - 1)]
+        # Compute cell values from the Q-value snapshot for this episode.
+        # Use the correct history for the method being displayed.
+        is_replay = snap.episode >= num_episodes
+        if is_replay and snap.method == "SARSA":
+            ep_hist = hist_sa[-1]
+        else:
+            ep_hist = hist_ql[min(snap.episode_num, len(hist_ql) - 1)]
         vals_dict = ep_hist.get("values", {})
         cv = {}
         for label, val in vals_dict.items():
@@ -365,7 +370,6 @@ def main():
         # Top-right: info
         axes["algo"].clear()
         axes["algo"].axis("off")
-        is_replay = snap.episode >= num_episodes
         reward_str = f"{snap.ep_reward:.0f}" if snap.ep_reward > -1000 else "< -1000"
         if is_replay:
             eval_path = ql_eval_path if snap.method == "Q-learning" else sa_eval_path
@@ -431,11 +435,14 @@ def main():
                         caption="Q-learning: green = high value")
         axes2["env"].set_title("Q-Learning Policy", fontsize=10)
 
-        # SARSA: no values snapshot recorded, show with policy only
+        # SARSA final values as cell colors
+        sa_final_vals = hist_sa[-1].get("values", {})
+        sa_cv = {(int(l.split(",")[0]), int(l.split(",")[1])): v
+                 for l, v in sa_final_vals.items()}
         draw_cliff_grid(axes2["algo"], CliffWorld.ROWS, CliffWorld.COLS,
                         cliff_cells, CliffWorld.START, CliffWorld.GOAL,
-                        path=sa_eval_path, policy=policy_sa,
-                        caption="SARSA: greedy evaluation path")
+                        policy=policy_sa, cell_values=sa_cv,
+                        caption="SARSA: green = high value")
         axes2["algo"].set_title("SARSA Policy", fontsize=10)
 
         # Reward comparison

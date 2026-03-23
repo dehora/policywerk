@@ -4,6 +4,8 @@ Reinforcement learning from scratch, built piece by piece from scalar operations
 
 This is the RL counterpart to [modelwerk](https://github.com/dehora/modelwerk). Same philosophy: understand the machinery by building it yourself. If you're looking for a Stable Baselines tutorial, this isn't it. If you want to know what those frameworks are doing under the hood, read on.
 
+Blog post: [Policywerk: Building Reinforcement Learning from First Principles](https://dehora.net/journal/2026/policywerk-building-reinforcement-learning-from-first-principles)
+
 The project follows seven landmark papers chronologically, each one building on the previous lesson's code and concepts:
 
 | Lesson | Paper | Year | Algorithm | Environment | Status |
