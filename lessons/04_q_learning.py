@@ -316,6 +316,22 @@ def main():
                 step_label=f"Learned policy (step {step_idx}/{len(ql_eval_path)-1})",
             ))
 
+    # Append SARSA greedy replay frames: same idea, different path.
+    final_policy_sa = hist_sa[-1].get("policy")
+    for _loop in range(4):
+        for step_idx, pos in enumerate(sa_eval_path):
+            snapshots.append(QLearningSnapshot(
+                episode=num_episodes + 1,
+                total_reward=sa_eval_reward,
+                path=sa_eval_path[:step_idx + 1],
+                policy=final_policy_sa,
+                episode_num=num_episodes,
+                ep_reward=sa_eval_reward,
+                method="SARSA",
+                agent_pos=pos,
+                step_label=f"SARSA policy (step {step_idx}/{len(sa_eval_path)-1})",
+            ))
+
     # --- Artifact 1: Animation ---
 
     fig, axes = create_lesson_figure(
@@ -352,12 +368,14 @@ def main():
         is_replay = snap.episode >= num_episodes
         reward_str = f"{snap.ep_reward:.0f}" if snap.ep_reward > -1000 else "< -1000"
         if is_replay:
+            eval_path = ql_eval_path if snap.method == "Q-learning" else sa_eval_path
+            eval_reward = ql_eval_reward if snap.method == "Q-learning" else sa_eval_reward
             info_lines = [
-                "Greedy replay",
+                f"Greedy replay: {snap.method}",
                 f"(no exploration)",
                 "",
-                f"Reward:  {reward_str}",
-                f"Steps:   {len(ql_eval_path) - 1}",
+                f"Reward:  {eval_reward:.0f}",
+                f"Steps:   {len(eval_path) - 1}",
                 "",
                 "Following learned policy",
             ]

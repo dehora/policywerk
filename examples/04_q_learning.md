@@ -74,11 +74,11 @@ The early episodes are volatile. Episode 1 gets reward < -1000 in 470 steps—th
 
 ```
 Greedy evaluation (no exploration):
-  Q-learning: 13 steps, reward -12, avg row 2.4
-  SARSA:      25 steps, reward -24, avg row 1.5
+  Q-learning: 13 steps, reward -12, avg row 2.1
+  SARSA:      17 steps, reward -16, avg row 0.9
 ```
 
-With exploration turned off, Q-learning's policy is strictly better: 13 steps (optimal) versus SARSA's 25. SARSA's higher average row confirms it learned the safer, longer route.
+With exploration turned off, Q-learning's policy is strictly better: 13 steps (optimal) versus SARSA's 17. SARSA's lower average row confirms it learned the safer, longer route.
 
 ## Artifacts
 
@@ -86,7 +86,7 @@ With exploration turned off, Q-learning's policy is strictly better: 13 steps (o
 
 ![Q-learning animation](img/04_q_learning_artifact.gif)
 
-Policy arrows start chaotic and settle into a clear rightward route along row 1. The greedy replay at the end walks through the learned path step by step, highlighting each cell as the agent lands on it.
+Policy arrows start chaotic and settle into a clear rightward route along row 2. The greedy replay at the end walks through Q-learning's learned path step by step, then SARSA's safer route, highlighting each cell as the agent lands on it.
 
 ### Q-Learning vs SARSA Policies
 
