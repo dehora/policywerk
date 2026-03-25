@@ -285,7 +285,7 @@ def draw_chain(
 def draw_pole(
     ax: plt.Axes,
     angle: float,
-    action: int | None = None,
+    action: int | float | None = None,
     pole_length: float = 0.8,
 ) -> None:
     """Draw a simple inverted pendulum (pole on a pivot).
@@ -293,6 +293,10 @@ def draw_pole(
     The pole is a line from a fixed pivot point, tilted by the
     current angle. The pivot is drawn as a small triangle base.
     Optionally shows the applied force direction.
+
+    action can be:
+      int: 0=left, 1=right (L02 discrete)
+      float: continuous torque in [-1, 1] (L06 continuous)
     """
     # Pivot at bottom center
     pivot_x, pivot_y = 0.0, 0.0
@@ -318,10 +322,16 @@ def draw_pole(
     # Show force direction arrow if action is given
     if action is not None:
         arrow_y = -0.08
-        arrow_dx = 0.2 if action == 1 else -0.2
-        ax.annotate("", xy=(pivot_x + arrow_dx, arrow_y),
-                     xytext=(pivot_x, arrow_y),
-                     arrowprops=dict(arrowstyle="->", color=ORANGE, lw=2))
+        if isinstance(action, float):
+            # Continuous torque: arrow length proportional to magnitude
+            arrow_dx = 0.3 * action  # scale to fit the viz
+        else:
+            # Discrete action: fixed-length arrow
+            arrow_dx = 0.2 if action == 1 else -0.2
+        if abs(arrow_dx) > 0.01:  # skip tiny arrows
+            ax.annotate("", xy=(pivot_x + arrow_dx, arrow_y),
+                         xytext=(pivot_x, arrow_y),
+                         arrowprops=dict(arrowstyle="->", color=ORANGE, lw=2))
 
     # Ground line
     ax.plot([-0.5, 0.5], [-0.05, -0.05], color=LIGHT_GRAY, linewidth=1, zorder=1)

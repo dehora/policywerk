@@ -1,0 +1,618 @@
+"""Lesson 06: Proximal Policy Optimization (PPO).
+
+Schulman et al. (2017), 'Proximal Policy Optimization Algorithms.'
+
+Learns the policy directly instead of deriving it from Q-values.
+The actor network outputs a probability distribution over actions,
+and the agent samples from it. A clipped surrogate objective
+prevents catastrophically large updates.
+
+    uv run python lessons/06_ppo.py
+
+Artifacts:
+  output/06_ppo_artifact.gif   Training animation
+  output/06_ppo_poster.png     Trained agent snapshot
+  output/06_ppo_trace.png      Reward and entropy curves
+"""
+
+import os
+import math
+from dataclasses import dataclass
+
+from policywerk.actors.ppo import ppo
+from policywerk.building_blocks.network import network_forward
+from policywerk.building_blocks.distributions import Gaussian
+from policywerk.world.balance import Balance
+from policywerk.viz.animate import (
+    FrameSnapshot, create_lesson_figure, save_animation, save_poster,
+    TEAL, ORANGE, DARK_GRAY,
+)
+from policywerk.viz.traces import update_trace_axes
+from policywerk.viz.trajectories import draw_pole, draw_policy_gaussian
+from policywerk.primitives.progress import Spinner
+from policywerk.primitives import scalar
+
+import matplotlib.pyplot as plt
+
+
+@dataclass
+class PPOSnapshot(FrameSnapshot):
+    angle: float
+    torque: float
+    mean: float
+    std: float
+    step_label: str
+    ep_length: int = 0
+
+
+def main():
+    print("=" * 64)
+    print("  Lesson 06: Proximal Policy Optimization (2017)")
+    print("  Schulman et al., 'Proximal Policy Optimization Algorithms'")
+    print("=" * 64)
+    print()
+
+    # -----------------------------------------------------------------------
+    # 1. From values to actions
+    # -----------------------------------------------------------------------
+
+    print("FROM VALUES TO ACTIONS")
+    print("-" * 64)
+    print("""
+    In Lesson 05, DQN learned Q-values for three discrete actions
+    (left, stay, right) and picked the one with the highest value.
+    That works when actions come from a short list. But what if
+    the action is a continuous torque — any real number between
+    -1 and +1?
+
+    You cannot take argmax over an infinite range. There is no
+    table entry for torque = 0.372. A fundamentally different
+    approach is needed.
+
+    PPO solves this by learning the policy directly. Instead of
+    learning values and deriving actions, the network outputs a
+    probability distribution over actions. For continuous control,
+    that distribution is a Gaussian (bell curve). The network
+    outputs the mean and standard deviation, and the agent samples
+    an action from the curve.
+
+    This is the shift from value-based to policy-gradient methods.
+    DQN asks "how good is each action?" and picks the best. PPO
+    asks "what action should I probably take?" and samples from
+    the answer.
+    """)
+
+    # -----------------------------------------------------------------------
+    # 2. The policy as a bell curve
+    # -----------------------------------------------------------------------
+
+    print("THE POLICY AS A BELL CURVE")
+    print("-" * 64)
+    print("""
+    The actor network takes the current state (angle and angular
+    velocity) and outputs two numbers: the mean and log-standard-
+    deviation of a Gaussian distribution over torques.
+
+      Actor network:  state -> [mean, log_std]
+      Policy:         action ~ Gaussian(mean, exp(log_std))
+
+    A wide bell curve (large std) means the agent is uncertain —
+    it explores by sampling a broad range of torques. A narrow
+    bell curve (small std) means the agent is confident — it
+    applies nearly the same torque every time.
+
+    Training makes the bell curve narrower and shifts it toward
+    the right torque. Early in training, the agent swings wildly.
+    Late in training, it applies precise, controlled corrections.
+
+    The log of the probability of an action under the Gaussian:
+
+      log p(a) = -0.5 * ((a - mean) / std)^2 - log(std) - 0.5 * log(2pi)
+
+    This log-probability is the foundation of the policy gradient.
+    Actions that led to high advantage get their log-probability
+    increased; actions that led to low advantage get decreased.
+    """)
+
+    # -----------------------------------------------------------------------
+    # 3. The surrogate objective
+    # -----------------------------------------------------------------------
+
+    print("THE SURROGATE OBJECTIVE")
+    print("-" * 64)
+    print("""
+    Why not simply do gradient ascent on the expected return?
+    Because large policy updates can be catastrophic. A policy
+    that was balancing well can be destroyed by a single oversized
+    gradient step.
+
+    PPO constrains the update using a clipped surrogate objective.
+    The idea: compute the ratio of the new policy's probability
+    to the old policy's probability for each action taken:
+
+      ratio = pi_new(a | s) / pi_old(a | s) = exp(log_prob_new - log_prob_old)
+
+    If the advantage is positive (good action), the objective
+    wants to increase the ratio — make this action more likely.
+    But the clip prevents it from going above 1 + epsilon:
+
+      L = min(ratio * A, clip(ratio, 1-eps, 1+eps) * A)
+
+    Concrete example. The agent applied torque 0.3 when the pole
+    was tilting right. This turned out well (advantage = +2.0).
+    The old policy gave this action probability ratio 1.0 (it was
+    the current policy). After the update, the new policy wants
+    to make this action more likely, pushing the ratio toward 1.5.
+    But with epsilon = 0.2, the clip caps it at 1.2. The gradient
+    from this sample is zero beyond that point.
+
+    This is the "proximal" in PPO: the new policy stays close to
+    the old one. No single update can move the policy too far,
+    which prevents the catastrophic forgetting that plagues naive
+    policy gradient methods.
+    """)
+
+    # -----------------------------------------------------------------------
+    # 4. Generalized Advantage Estimation
+    # -----------------------------------------------------------------------
+
+    print("GENERALIZED ADVANTAGE ESTIMATION")
+    print("-" * 64)
+    print("""
+    The advantage measures how much better an action was than
+    average. If the critic predicts value V(s) = 50 for a state,
+    and the agent gets a return of 70, the advantage is +20.
+    That action was much better than expected.
+
+    But computing the return requires choosing between the same
+    tradeoff from Lesson 03: wait for the full episode (Monte
+    Carlo — unbiased but high variance) or bootstrap from the
+    critic's estimate (TD — biased but low variance).
+
+    GAE (Generalized Advantage Estimation) blends both using
+    lambda, the same parameter as TD(lambda):
+
+      delta_t = r_t + gamma * V(s_{t+1}) - V(s_t)
+      A_t = delta_t + (gamma * lambda) * delta_{t+1} + ...
+
+    With lambda = 0, only the one-step TD residual is used.
+    With lambda = 1, the advantage is a discounted sum of all
+    future residuals — equivalent to Monte Carlo. Lambda = 0.95
+    is a standard choice that leans toward longer horizons while
+    keeping variance manageable.
+    """)
+
+    # -----------------------------------------------------------------------
+    # 5. Revisiting Balance
+    # -----------------------------------------------------------------------
+
+    print("REVISITING BALANCE")
+    print("-" * 64)
+    print("""
+    In Lesson 02, Barto, Sutton, and Anderson (1983) solved the
+    inverted pendulum with an ACE/ASE actor-critic. The state was
+    discretized into 36 boxes (6 angle bins x 6 velocity bins).
+    The action was binary: push left or push right, full force.
+    Eligibility traces propagated credit backward through time.
+
+    PPO solves the same physics with none of those constraints.
+    The state is the raw angle and angular velocity — two
+    continuous numbers, not a box index. The action is a
+    continuous torque between -1 and +1 — not a binary choice.
+    The network learns smooth, proportional control: a small
+    tilt gets a small correction, a large tilt gets a large one.
+
+    Same environment, same goal (keep the pole upright for 500
+    steps), but 34 years of algorithmic progress:
+
+      L02 (1983): 2 discrete actions, 36 boxes, eligibility traces
+      L06 (2017): continuous torque, raw state, neural policy gradients
+    """)
+
+    # -----------------------------------------------------------------------
+    # 6. Training
+    # -----------------------------------------------------------------------
+
+    print("TRAINING")
+    print("-" * 64)
+
+    num_iterations = 150
+    steps_per_iter = 500
+    num_epochs = 5
+    hidden_size = 32
+    learning_rate_actor = 0.001
+    learning_rate_critic = 0.003
+    gamma = 0.99
+    lam = 0.95
+    clip_epsilon = 0.2
+    entropy_coeff = 0.005
+
+    print(f"""
+    Each iteration collects {steps_per_iter} steps of experience, then
+    runs {num_epochs} epochs of PPO updates over the whole batch.
+    The actor and critic are separate networks, each with a
+    {hidden_size}-neuron hidden layer (tanh activation).
+
+    Actor:  2 inputs (angle, velocity) -> {hidden_size} hidden -> 2 outputs (mean, log_std)
+    Critic: 2 inputs (angle, velocity) -> {hidden_size} hidden -> 1 output (value)
+
+    Hyperparameters:
+      Iterations:     {num_iterations}
+      Steps/iter:     {steps_per_iter}
+      Epochs:         {num_epochs}
+      Gamma:          {gamma}
+      Lambda (GAE):   {lam}
+      Clip epsilon:   {clip_epsilon}
+      Actor LR:       {learning_rate_actor}
+      Critic LR:      {learning_rate_critic}
+      Entropy coeff:  {entropy_coeff}
+    """)
+
+    env = Balance()
+
+    actor_net, critic_net, history = ppo(
+        env,
+        num_iterations=num_iterations,
+        steps_per_iter=steps_per_iter,
+        num_epochs=num_epochs,
+        gamma=gamma,
+        lam=lam,
+        clip_epsilon=clip_epsilon,
+        learning_rate_actor=learning_rate_actor,
+        learning_rate_critic=learning_rate_critic,
+        entropy_coeff=entropy_coeff,
+        hidden_size=hidden_size,
+        seed=42,
+    )
+
+    # Print training summary
+    window = 30
+    print()
+    print(f"    Average per {window} iterations:")
+    for start in range(0, num_iterations, window):
+        end = min(start + window, num_iterations)
+        avg_r = sum(h["avg_reward"] for h in history[start:end]) / (end - start)
+        avg_std = sum(h["mean_std"] for h in history[start:end]) / (end - start)
+        avg_ent = sum(h["entropy"] for h in history[start:end]) / (end - start)
+        print(f"      Iterations {start:3d}-{end-1:3d}:  "
+              f"reward {avg_r:7.1f}  std {avg_std:.3f}  entropy {avg_ent:.3f}")
+    print()
+
+    # -----------------------------------------------------------------------
+    # 7. What PPO learned
+    # -----------------------------------------------------------------------
+
+    print("WHAT PPO LEARNED")
+    print("-" * 64)
+    print("""
+    With the trained policy, the agent plays greedily: at each
+    step it uses the mean of the Gaussian (no sampling noise).
+    This is the deterministic policy — the best single action
+    the network has learned for each state.
+    """)
+
+    # Greedy evaluation
+    eval_env = Balance()
+    state = eval_env.reset()
+    eval_steps = 0
+    eval_reward = 0.0
+    eval_angles = []
+    eval_torques = []
+    for _ in range(500):
+        actor_out, _ = network_forward(actor_net, state.features)
+        mean = actor_out[0]
+        # Greedy: use mean directly, no sampling
+        state, reward, done = eval_env.step_continuous(mean)
+        eval_reward += reward
+        eval_steps += 1
+        eval_angles.append(state.features[0])
+        eval_torques.append(mean)
+        if done:
+            break
+
+    print(f"    Greedy evaluation (deterministic policy):")
+    print(f"      Steps survived:  {eval_steps}")
+    print(f"      Total reward:    {eval_reward:.0f}")
+    max_angle = max(abs(a) for a in eval_angles)
+    avg_torque = sum(abs(t) for t in eval_torques) / len(eval_torques)
+    print(f"      Max |angle|:     {max_angle:.4f} rad")
+    print(f"      Avg |torque|:    {avg_torque:.4f}")
+    print()
+
+    # Policy at a few representative states
+    print("    Policy at representative states:")
+    test_states = [
+        (0.0, 0.0, "upright, still"),
+        (0.1, 0.0, "tilting right"),
+        (-0.1, 0.0, "tilting left"),
+        (0.0, 0.5, "upright, rotating right"),
+    ]
+    for angle, vel, desc in test_states:
+        out, _ = network_forward(actor_net, [angle, vel])
+        m = out[0]
+        ls = scalar.clamp(out[1], -2.0, 2.0)
+        s = scalar.exp(ls)
+        print(f"      {desc:30s}  mean={m:+.3f}  std={s:.3f}")
+    print()
+
+    print(f"""    The agent survived {eval_steps} steps — the maximum. It kept
+    the pole within {max_angle:.4f} radians of vertical, applying
+    an average torque of {avg_torque:.4f}. Compare this to L02's
+    discrete push-left / push-right: PPO applies smooth,
+    proportional corrections that keep the pole nearly still.
+
+    The policy at representative states shows what the network
+    learned: when the pole tilts right, apply negative torque
+    (push left). When tilting left, apply positive torque (push
+    right). When upright and still, apply near-zero torque. The
+    std of ~{history[-1]['mean_std']:.2f} means the agent still explores slightly,
+    but the mean torque does the real work.
+    """)
+    print()
+
+    # -----------------------------------------------------------------------
+    # 8. Animation
+    # -----------------------------------------------------------------------
+
+    print("GENERATING ARTIFACTS")
+    print("-" * 64)
+
+    os.makedirs("output", exist_ok=True)
+
+    snapshots: list[PPOSnapshot] = []
+    from policywerk.primitives.random import create_rng as _create_rng
+
+    # --- Phase 1: Random policy rollout ---
+    rand_rng = _create_rng(99)
+    rand_env = Balance()
+    state = rand_env.reset()
+    rand_done = False
+    rand_step = 0
+    while not rand_done and rand_step < 200:
+        torque = rand_rng.gauss(0.0, 1.0)
+        torque = max(-1.0, min(1.0, torque))
+        state, reward, rand_done = rand_env.step_continuous(torque)
+        rand_step += 1
+        snapshots.append(PPOSnapshot(
+            episode=0,
+            total_reward=float(rand_step),
+            angle=state.features[0],
+            torque=torque,
+            mean=0.0,
+            std=1.0,
+            step_label=f"Random policy (step {rand_step})",
+            ep_length=rand_step,
+        ))
+    # Hold on final frame
+    for _ in range(8):
+        snapshots.append(PPOSnapshot(
+            episode=0,
+            total_reward=float(rand_step),
+            angle=state.features[0],
+            torque=0.0,
+            mean=0.0,
+            std=1.0,
+            step_label=f"Fell after {rand_step} steps",
+            ep_length=rand_step,
+        ))
+
+    # --- Phase 2: Training progression ---
+    sample_iters = sorted(set(
+        list(range(0, num_iterations, max(1, num_iterations // 12))) +
+        [num_iterations - 1]
+    ))
+    for idx in sample_iters:
+        h = history[idx]
+        snapshots.append(PPOSnapshot(
+            episode=idx,
+            total_reward=h["avg_reward"],
+            angle=0.0,  # show pole upright as placeholder
+            torque=0.0,
+            mean=0.0,
+            std=h["mean_std"],
+            step_label=f"Training: iteration {idx}/{num_iterations}",
+            ep_length=int(h["avg_reward"]),
+        ))
+
+    # --- Phase 3: Trained policy rollout (loop twice) ---
+    for _loop in range(2):
+        t_env = Balance()
+        state = t_env.reset()
+        t_done = False
+        t_step = 0
+        while not t_done and t_step < 500:
+            actor_out, _ = network_forward(actor_net, state.features)
+            mean = actor_out[0]
+            log_std = scalar.clamp(actor_out[1], -2.0, 2.0)
+            std = scalar.exp(log_std)
+            state, reward, t_done = t_env.step_continuous(mean)
+            t_step += 1
+            if t_step % 5 == 0 or t_done:  # sample every 5th step to keep GIF reasonable
+                snapshots.append(PPOSnapshot(
+                    episode=num_iterations,
+                    total_reward=float(t_step),
+                    angle=state.features[0],
+                    torque=mean,
+                    mean=mean,
+                    std=std,
+                    step_label=f"Trained policy (step {t_step})",
+                    ep_length=t_step,
+                ))
+        # Hold on final
+        end_label = f"Balanced for {t_step} steps!" if t_step >= 500 else f"Fell after {t_step} steps"
+        for _ in range(12):
+            snapshots.append(PPOSnapshot(
+                episode=num_iterations,
+                total_reward=float(t_step),
+                angle=state.features[0],
+                torque=0.0,
+                mean=mean,
+                std=std,
+                step_label=end_label,
+                ep_length=t_step,
+            ))
+
+    # --- Artifact 1: Animation ---
+
+    fig, axes = create_lesson_figure(
+        "Lesson 06: PPO",
+        subtitle="Schulman et al. (2017) | policy gradients replace Q-values",
+        figsize=(12, 7),
+    )
+
+    rewards_list = [h["avg_reward"] for h in history]
+
+    def update(frame_idx):
+        snap = snapshots[frame_idx]
+        is_trained = snap.episode >= num_iterations
+        is_random = snap.episode == 0
+
+        # Top-left: pole
+        axes["env"].clear()
+        draw_pole(axes["env"], snap.angle, action=snap.torque)
+        axes["env"].set_title(snap.step_label, fontsize=10)
+
+        # Top-right: policy Gaussian
+        axes["algo"].clear()
+        if is_random:
+            draw_policy_gaussian(axes["algo"], 0.0, 1.0, action_range=(-2.0, 2.0))
+            axes["algo"].set_title("Random Policy (std=1.0)", fontsize=10)
+        elif is_trained:
+            draw_policy_gaussian(axes["algo"], snap.mean, snap.std, action_range=(-2.0, 2.0))
+            axes["algo"].set_title(f"Trained Policy (std={snap.std:.2f})", fontsize=10)
+        else:
+            draw_policy_gaussian(axes["algo"], 0.0, snap.std, action_range=(-2.0, 2.0))
+            axes["algo"].set_title(f"Policy at iter {snap.episode} (std={snap.std:.2f})", fontsize=10)
+
+        # Bottom: reward trace
+        axes["trace"].clear()
+        if is_random:
+            axes["trace"].axis("off")
+            axes["trace"].text(0.5, 0.5, "Training not started",
+                               transform=axes["trace"].transAxes,
+                               ha="center", va="center", fontsize=10,
+                               color=DARK_GRAY, style="italic")
+        else:
+            n = min(snap.episode + 1, len(rewards_list))
+            if n > 0:
+                update_trace_axes(axes["trace"], rewards_list[:n],
+                                  label="Avg reward", color=TEAL)
+            axes["trace"].set_ylabel("Reward", fontsize=9)
+            axes["trace"].set_xlabel("Iteration", fontsize=9)
+            axes["trace"].set_title("Learning Progress", fontsize=10)
+
+    with Spinner("Generating animation"):
+        save_animation(fig, update, len(snapshots),
+                       "output/06_ppo_artifact.gif", fps=8)
+
+    # --- Artifact 2: Poster ---
+
+    fig2, axes2 = create_lesson_figure(
+        "Lesson 06: PPO",
+        subtitle="Schulman et al. (2017)",
+        figsize=(12, 7),
+    )
+
+    # Use a mid-evaluation frame for the poster
+    poster_angle = eval_angles[len(eval_angles) // 4] if eval_angles else 0.0
+    poster_torque = eval_torques[len(eval_torques) // 4] if eval_torques else 0.0
+    final_out, _ = network_forward(actor_net, [0.0, 0.0])
+    poster_mean = final_out[0]
+    poster_log_std = scalar.clamp(final_out[1], -2.0, 2.0)
+    poster_std = scalar.exp(poster_log_std)
+
+    def update_poster(frame_idx):
+        draw_pole(axes2["env"], poster_angle, action=poster_torque)
+        axes2["env"].set_title("Trained Agent (greedy)", fontsize=10)
+
+        draw_policy_gaussian(axes2["algo"], poster_mean, poster_std, action_range=(-2.0, 2.0))
+        axes2["algo"].set_title(f"Policy distribution (std={poster_std:.2f})", fontsize=10)
+
+        axes2["trace"].plot(range(num_iterations), rewards_list,
+                            color=TEAL, linewidth=0.5, alpha=0.3)
+        w = 20
+        if num_iterations > w:
+            smooth = [sum(rewards_list[max(0, i - w + 1):i + 1]) /
+                      len(rewards_list[max(0, i - w + 1):i + 1])
+                      for i in range(num_iterations)]
+            axes2["trace"].plot(range(num_iterations), smooth,
+                                color=TEAL, linewidth=1.5, label="Reward (smoothed)")
+        axes2["trace"].set_ylabel("Reward", fontsize=9)
+        axes2["trace"].set_xlabel("Iteration", fontsize=9)
+        axes2["trace"].set_title("Training Progress", fontsize=10)
+        axes2["trace"].legend(fontsize=8)
+
+    with Spinner("Generating poster"):
+        save_poster(fig2, update_poster, 0, "output/06_ppo_poster.png")
+    plt.close(fig2)
+
+    # --- Artifact 3: Trace ---
+
+    fig3, (ax_r, ax_e) = plt.subplots(2, 1, figsize=(10, 5), dpi=150, sharex=True)
+
+    ax_r.plot(range(num_iterations), rewards_list,
+              color=TEAL, linewidth=0.5, alpha=0.3, label="Raw reward")
+    w = 20
+    if num_iterations > w:
+        smooth_r = [sum(rewards_list[max(0, i - w + 1):i + 1]) /
+                    len(rewards_list[max(0, i - w + 1):i + 1])
+                    for i in range(num_iterations)]
+        ax_r.plot(range(num_iterations), smooth_r,
+                  color=TEAL, linewidth=1.5, label="Reward (smoothed)")
+    ax_r.set_ylabel("Avg Reward", fontsize=9)
+    ax_r.set_title("PPO Training on Balance", fontsize=10)
+    ax_r.legend(fontsize=8)
+    ax_r.grid(True, alpha=0.3)
+
+    entropy_list = [h["entropy"] for h in history]
+    ax_e.plot(range(num_iterations), entropy_list,
+              color=ORANGE, linewidth=1.0, label="Entropy")
+    ax_e.set_ylabel("Entropy", fontsize=9)
+    ax_e.set_xlabel("Iteration", fontsize=9)
+    ax_e.legend(fontsize=8)
+    ax_e.grid(True, alpha=0.3)
+
+    fig3.tight_layout()
+
+    with Spinner("Generating trace"):
+        fig3.savefig("output/06_ppo_trace.png")
+    plt.close(fig3)
+
+    print("    Generating animation... done.")
+    print("    Generating poster... done.")
+    print("    Generating trace... done.")
+    print()
+    print("    Artifacts saved to output/:")
+    print("      06_ppo_artifact.gif  PPO training on Balance")
+    print("      06_ppo_poster.png    Trained agent snapshot")
+    print("      06_ppo_trace.png     Reward and entropy curves")
+    print()
+
+    print("=" * 64)
+    print("  Lesson 06 complete.")
+    print()
+    print("  PPO closed the gap between discrete and continuous control.")
+    print("  Lesson 05's DQN needed a finite set of actions to take")
+    print("  argmax over. PPO replaced the value function with a policy")
+    print("  network that outputs a probability distribution. Three ideas")
+    print("  made it work: clipped surrogate (trust region without second-")
+    print("  order optimization), GAE (advantage estimation with bias-")
+    print("  variance tradeoff), and multiple epochs (reusing on-policy")
+    print("  data for more learning per batch).")
+    print()
+    print("  But PPO still has a fundamental limitation: it learns from")
+    print("  real experience only. Every training step requires actually")
+    print("  running the environment. If the environment is expensive")
+    print("  (a robot, a simulator, the real world), this is wasteful.")
+    print()
+    print("  In Lesson 07, DreamerV3 takes a different approach: learn a")
+    print("  model of the environment, then train the policy in imagination.")
+    print("  Instead of running the real environment for every gradient")
+    print("  step, the agent dreams up synthetic experience and learns")
+    print("  from it. Real data trains the world model; imagined data")
+    print("  trains the policy.")
+    print("=" * 64)
+
+
+if __name__ == "__main__":
+    main()
