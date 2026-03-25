@@ -16,9 +16,9 @@ L06:      learn the policy directly
 L07:      learn the world, train in imagination
 ```
 
-## The Pixel Point-Mass
+## The Pixel World
 
-The familiar point-mass, now observed through a 16x16 pixel grid. Agent = white dot (1.0), target = gray dot (0.7), background = black (0.0). The agent sees 256 pixel values, not coordinates.
+A 16x16 pixel grid. The white dot is the agent, the gray dot is the target, the background is black. The agent applies a 2D force to move toward the target—think of pushing a marble across a table. The physics is a "point-mass" (position and velocity, no shape). The agent sees 256 pixel values, not coordinates.
 
 ```
 Observation: 16x16 = 256 pixel values

@@ -86,23 +86,24 @@ def main():
     # 2. The PixelPointMass
     # -----------------------------------------------------------------------
 
-    print("THE PIXEL POINT-MASS")
+    print("THE PIXEL WORLD")
     print("-" * 64)
     print(f"""
-    The agent controls a point-mass on a 2D plane, observed
-    through a {SIZE}x{SIZE} pixel grid. The agent appears as a
-    white dot (1.0), the target as a gray dot (0.7), and the
-    background is black (0.0).
+    The environment is a {SIZE}x{SIZE} pixel grid. A white dot
+    is the agent. A gray dot is the target. The background is
+    black. The agent applies a 2D force to move toward the
+    target—think of pushing a marble across a table.
 
       Observation: {SIZE}x{SIZE} = {SIZE * SIZE} pixel values (flattened)
       Action:      [force_x, force_y] in [-1, +1] (continuous 2D)
       Reward:      negative distance to target (closer = less negative)
       Goal:        reach the target
 
-    The agent does not see coordinates. It sees {SIZE * SIZE} numbers
-    and must learn to navigate from pixels alone. This is the same
-    point-mass physics from the L06 environment list, but now
-    observed through a camera instead of coordinates.
+    The agent does not see coordinates—it sees {SIZE * SIZE} numbers
+    and must learn to navigate from pixels alone. The physics is
+    a "point-mass" (an object with position and velocity but no
+    shape), the same as the PointMass environment from L06's
+    building blocks but now observed through a camera.
     """)
 
     # -----------------------------------------------------------------------
@@ -580,7 +581,7 @@ def main():
     ax_r.plot(range(num_iterations), reward_list,
               color=TEAL, linewidth=1.0, label="Reward")
     ax_r.set_ylabel("Avg Reward", fontsize=9)
-    ax_r.set_title("DreamerV3 Training on Pixel Point-Mass", fontsize=10)
+    ax_r.set_title("DreamerV3 Training on Pixel World", fontsize=10)
     ax_r.legend(fontsize=8)
     ax_r.grid(True, alpha=0.3)
 
