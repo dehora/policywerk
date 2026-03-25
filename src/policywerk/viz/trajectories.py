@@ -384,7 +384,7 @@ def draw_pixel_env(
     """
     ax.clear()
     # interpolation="nearest" keeps pixels as sharp squares (no blurring)
-    ax.imshow(frame, cmap="gray_r", interpolation="nearest",
+    ax.imshow(frame, cmap="gray", interpolation="nearest",
               vmin=0.0, vmax=1.0, aspect="equal")
     ax.set_xticks([])
     ax.set_yticks([])
@@ -458,7 +458,7 @@ def draw_real_vs_imagined(
         for c in range(cols_i):
             combined[r][cols_r + gap + c] = imagined_frame[r][c]
 
-    ax.imshow(combined, cmap="gray_r", interpolation="nearest",
+    ax.imshow(combined, cmap="gray", interpolation="nearest",
               vmin=0.0, vmax=1.0, aspect="equal")
     ax.set_xticks([])
     ax.set_yticks([])

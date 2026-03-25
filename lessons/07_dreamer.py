@@ -386,68 +386,69 @@ def main():
 
     snapshots: list[DreamerSnapshot] = []
 
-    # --- Phase 1: Early training (poor reconstruction) ---
-    # Use first few real frames and their reconstructions from early training
-    early_env = PixelPointMass(max_steps=50)
-    state = early_env.reset()
-    for step in range(20):
-        real_frame = early_env.render_frame()
-        pixels = state.features
-        z, _ = network_forward(encoder, pixels)
-        recon, _ = network_forward(decoder, z)
-        recon_frame = matrix.reshape(recon, SIZE, SIZE)
-        snapshots.append(DreamerSnapshot(
-            episode=0,
-            total_reward=0.0,
-            real_frame=real_frame,
-            imagined_frame=recon_frame,
-            step_label=f"1/3  Trained model: step {step}",
-            phase="recon",
-        ))
-        # Random action
-        action = [0.3, 0.3]
-        state, _, done = early_env.step_continuous(action)
+    blank_frame = [[0.0] * SIZE for _ in range(SIZE)]
+
+    # --- Phase 1: Random policy (no world model yet) ---
+    # Use strong random forces so the dot visibly moves at 16x16 resolution.
+    # Sample every 3rd step to keep this phase short.
+    from policywerk.primitives.random import create_rng as _create_rng
+    rand_rng = _create_rng(99)
+    rand_env = PixelPointMass(max_steps=50)
+    state = rand_env.reset()
+    rand_reward = 0.0
+    for step in range(30):
+        action = [rand_rng.choice([-1.0, 1.0]), rand_rng.choice([-1.0, 1.0])]
+        state, reward, done = rand_env.step_continuous(action)
+        rand_reward += reward
+        if step % 3 == 0:
+            snapshots.append(DreamerSnapshot(
+                episode=0, total_reward=rand_reward,
+                real_frame=rand_env.render_frame(), imagined_frame=blank_frame,
+                step_label=f"1/3  Random policy (step {step})",
+                phase="random",
+            ))
         if done:
             break
-
-    # Hold
-    for _ in range(8):
+    for _ in range(4):
         snapshots.append(DreamerSnapshot(
-            episode=0, total_reward=0.0,
-            real_frame=real_frame,
-            imagined_frame=recon_frame,
-            step_label="1/3  Real (left) vs Reconstructed (right)",
-            phase="recon",
+            episode=0, total_reward=rand_reward,
+            real_frame=rand_env.render_frame(), imagined_frame=blank_frame,
+            step_label=f"1/3  Random: reward {rand_reward:.1f}",
+            phase="random",
         ))
 
     # --- Phase 2: Training progression ---
+    # Show the starting frame as static context while the loss curve builds.
+    start_frame = PixelPointMass(max_steps=10).reset()
+    ref_frame = PixelPointMass(max_steps=10)
+    ref_frame.reset()
+    reference_frame = ref_frame.render_frame()
+
     sample_iters = sorted(set(
         list(range(0, num_iterations, max(1, num_iterations // 10))) +
         [num_iterations - 1]
     ))
-    blank_frame = [[0.0] * SIZE for _ in range(SIZE)]
     for idx in sample_iters:
         h = history[idx]
         snapshots.append(DreamerSnapshot(
             episode=idx,
             total_reward=h["avg_reward"],
-            real_frame=blank_frame,
+            real_frame=reference_frame,
             imagined_frame=blank_frame,
-            step_label=f"2/3  Training: iter {idx}/{num_iterations}  recon={h['recon_loss']:.4f}",
+            step_label=f"2/3  Training: iter {idx}  recon={h['recon_loss']:.4f}",
             phase="training",
         ))
 
-    # --- Phase 3: Trained agent evaluation ---
-    for step_idx in range(0, min(len(eval_real_frames), 50), 2):
+    # --- Phase 3: Trained agent with real vs reconstructed ---
+    for step_idx in range(min(len(eval_real_frames), 50)):
         snapshots.append(DreamerSnapshot(
             episode=num_iterations,
             total_reward=eval_reward,
             real_frame=eval_real_frames[step_idx],
             imagined_frame=eval_imagined_frames[step_idx],
-            step_label=f"3/3  Evaluation: step {step_idx}",
+            step_label=f"3/3  Trained agent (step {step_idx})",
             phase="eval",
         ))
-    # Hold final
     for _ in range(12):
         snapshots.append(DreamerSnapshot(
             episode=num_iterations,
@@ -471,36 +472,45 @@ def main():
     def update(frame_idx):
         snap = snapshots[frame_idx]
 
-        # Top-left: real vs imagined
+        # Top-left: pixel frames
         axes["env"].clear()
-        draw_real_vs_imagined(axes["env"], snap.real_frame, snap.imagined_frame)
+        if snap.phase == "random":
+            # Random phase: show real frame only (no model yet)
+            draw_pixel_env(axes["env"], snap.real_frame)
+        else:
+            # Training and eval: show real vs reconstructed
+            draw_real_vs_imagined(axes["env"], snap.real_frame, snap.imagined_frame)
         axes["env"].set_title(snap.step_label, fontsize=10)
 
-        # Top-right: info
+        # Top-right: phase info
         axes["algo"].clear()
         axes["algo"].axis("off")
-        if snap.phase == "recon":
-            axes["algo"].text(0.5, 0.5, "Real (left) vs\nReconstructed (right)",
+        if snap.phase == "random":
+            axes["algo"].text(0.5, 0.5, "Before training\n(random actions)\n\n"
+                              f"Reward: {snap.total_reward:+.1f}",
                               transform=axes["algo"].transAxes,
                               ha="center", va="center", fontsize=10, color=DARK_GRAY)
         elif snap.phase == "training":
-            axes["algo"].text(0.1, 0.7, f"Iteration: {snap.episode}\n"
-                              f"Reward: {snap.total_reward:+.1f}",
+            axes["algo"].text(0.1, 0.7,
+                              f"Iteration: {snap.episode}\n"
+                              f"Reward:    {snap.total_reward:+.1f}\n"
+                              f"Recon MSE: {history[snap.episode]['recon_loss']:.4f}",
                               transform=axes["algo"].transAxes,
                               fontsize=10, color=DARK_GRAY, fontfamily="monospace",
                               verticalalignment="top")
-            axes["algo"].set_title("Training Progress", fontsize=10)
+            axes["algo"].set_title("World Model Training", fontsize=10)
         else:
             axes["algo"].text(0.5, 0.5, "Real (left) vs\nReconstructed (right)\n\n"
                               f"Reward: {snap.total_reward:+.1f}",
                               transform=axes["algo"].transAxes,
                               ha="center", va="center", fontsize=10, color=DARK_GRAY)
+            axes["algo"].set_title("Trained Agent", fontsize=10)
 
         # Bottom: loss trace
         axes["trace"].clear()
-        if snap.phase == "recon":
+        if snap.phase == "random":
             axes["trace"].axis("off")
-            axes["trace"].text(0.5, 0.5, "World model trained",
+            axes["trace"].text(0.5, 0.5, "Training not started",
                                transform=axes["trace"].transAxes,
                                ha="center", va="center", fontsize=10,
                                color=DARK_GRAY, style="italic")
