@@ -373,39 +373,51 @@ def draw_breakout_frame(
                 fontfamily="monospace")
 
 
-def _pixel_to_rgb(val: float) -> list[float]:
+def _pixel_to_rgb(val: float, imagined: bool = False) -> list[float]:
     """Map a grayscale pixel value to RGB for display.
 
-    Three bands with sharp transitions:
+    Real frames (imagined=False):
       0.0-0.15  → dark background
-      0.15-0.80 → orange, intensity grows with value (target = 0.7)
-      0.80-1.0  → teal, intensity grows with value (agent = 1.0)
+      0.15-0.80 → orange (target at 0.7)
+      0.80-1.0  → teal (agent at 1.0)
 
-    The 0.80 threshold ensures the real target (0.7) is always orange
-    and the real agent (1.0) is always teal. Decoder outputs in the
-    0.3-0.7 range show as visible orange blobs.
+    Imagined frames (imagined=True):
+      Lighter background, lower thresholds so the decoder's soft
+      outputs (~0.3-0.6) appear as visible colored dots. The decoder
+      can't push sigmoid output past ~0.7, so the agent threshold
+      is lowered to 0.55 on the imagined side.
     """
     # ORANGE = #E8915C (0.91, 0.57, 0.36), TEAL = #5CB8B2 (0.36, 0.72, 0.70)
-    bg = [0.10, 0.10, 0.18]
-    if val < 0.15:
+    if imagined:
+        bg = [0.15, 0.15, 0.22]
+        lo = 0.10           # lower threshold—decoder outputs are faint
+        orange_hi = 0.55    # decoder target outputs ~0.3-0.5
+    else:
+        bg = [0.10, 0.10, 0.18]
+        lo = 0.15
+        orange_hi = 0.80    # real target is exactly 0.7
+
+    if val < lo:
         return list(bg)
-    elif val < 0.80:
-        # Orange band: intensity ramps from dim to full over 0.15→0.80
-        t = (val - 0.15) / 0.65
+    elif val < orange_hi:
+        t = (val - lo) / (orange_hi - lo)
         return [bg[0] + (0.91 - bg[0]) * t,
                 bg[1] + (0.57 - bg[1]) * t,
                 bg[2] + (0.36 - bg[2]) * t]
     else:
-        # Teal band: intensity ramps from dim to full over 0.80→1.0
-        t = (val - 0.80) / 0.20
+        t = min((val - orange_hi) / (1.0 - orange_hi), 1.0)
         return [bg[0] + (0.36 - bg[0]) * t,
                 bg[1] + (0.72 - bg[1]) * t,
                 bg[2] + (0.70 - bg[2]) * t]
 
 
-def _frame_to_rgb(frame: Matrix) -> list[list[list[float]]]:
-    """Convert a grayscale pixel frame to RGB using the project color scheme."""
-    return [[_pixel_to_rgb(val) for val in row] for row in frame]
+def _frame_to_rgb(frame: Matrix, imagined: bool = False) -> list[list[list[float]]]:
+    """Convert a grayscale pixel frame to RGB using the project color scheme.
+
+    imagined=True uses a lighter background and lower thresholds so
+    the decoder's soft outputs are visible as colored dots.
+    """
+    return [[_pixel_to_rgb(val, imagined=imagined) for val in row] for row in frame]
 
 
 def _add_pixel_grid(ax: plt.Axes, rows: int, cols: int) -> None:
@@ -491,9 +503,10 @@ def draw_real_vs_imagined(
     rows_i = len(imagined_frame)
     cols_i = len(imagined_frame[0]) if imagined_frame else 0
 
-    # Convert both frames to RGB, combine with a gray gap column
-    rgb_r = _frame_to_rgb(real_frame)
-    rgb_i = _frame_to_rgb(imagined_frame)
+    # Convert both frames to RGB, combine with a gray gap column.
+    # The imagined side uses lighter background and lower thresholds.
+    rgb_r = _frame_to_rgb(real_frame, imagined=False)
+    rgb_i = _frame_to_rgb(imagined_frame, imagined=True)
 
     gap = 1
     total_rows = max(rows_r, rows_i)
