@@ -309,9 +309,11 @@ def main():
     # 7. Multiple epochs
     # -----------------------------------------------------------------------
 
+    num_epochs = 3
+
     print("MULTIPLE EPOCHS")
     print("-" * 64)
-    print("""
+    print(f"""
     PPO is on-policy: it collects a batch of experience, learns
     from it, then throws it away and collects fresh data. DQN
     (Lesson 05) solved data efficiency through experience
@@ -330,7 +332,7 @@ def main():
     per batch (better sample efficiency), but push the policy
     further from the collection policy (more staleness). K=3 to
     K=10 is typical; beyond that, the clip fires on most samples
-    and learning stalls. We use K=3.
+    and learning stalls. We use K={num_epochs}.
     """)
 
     # -----------------------------------------------------------------------
@@ -342,7 +344,6 @@ def main():
 
     num_iterations = 250
     steps_per_iter = 500
-    num_epochs = 3
     hidden_size = 64
     learning_rate_actor = 0.001
     learning_rate_critic = 0.003
