@@ -490,7 +490,14 @@ def main():
                 for c in range(cols_f):
                     canvas[r][offset + c] = rgb_frame[r][c]
             axes["env"].imshow(canvas, interpolation="nearest", aspect="equal")
-            _add_pixel_grid(axes["env"], rows_f, canvas_cols)
+            # Grid only over the 16x16 frame area, not the padding
+            for r in range(rows_f + 1):
+                axes["env"].axhline(r - 0.5, xmin=offset / canvas_cols,
+                                    xmax=(offset + cols_f) / canvas_cols,
+                                    color="#333333", linewidth=0.3, zorder=2)
+            for c in range(cols_f + 1):
+                axes["env"].axvline(offset + c - 0.5,
+                                    color="#333333", linewidth=0.3, zorder=2)
             axes["env"].set_xticks([])
             axes["env"].set_yticks([])
         else:
