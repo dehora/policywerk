@@ -54,124 +54,220 @@ def main():
     print()
 
     # -----------------------------------------------------------------------
-    # 1. From values to actions
+    # 1. The big shift
     # -----------------------------------------------------------------------
 
-    print("FROM VALUES TO ACTIONS")
+    print("THE BIG SHIFT")
     print("-" * 64)
     print("""
-    In Lesson 05, DQN learned Q-values for three discrete actions
-    (left, stay, right) and picked the one with the highest value.
-    That works when actions come from a short list. But what if
-    the action is a continuous torque—any real number between
-    -1 and +1?
+    Every lesson so far has followed the same pattern: learn a
+    value, use the value to pick actions. Bellman computed V(s).
+    TD learning estimated V(s) from experience. Q-learning
+    estimated Q(s, a). DQN approximated Q(s, a) with a neural
+    network. In every case, the agent asked "how good is this
+    state or action?" and then picked the action with the
+    highest value.
 
-    You cannot take argmax over an infinite range. There is no
-    table entry for torque = 0.372. A fundamentally different
-    approach is needed.
+    That pattern ends here.
 
-    PPO solves this by learning the policy directly. Instead of
-    learning values and deriving actions, the network outputs a
-    probability distribution over actions. For continuous control,
-    that distribution is a Gaussian (bell curve). The network
-    outputs the mean and standard deviation, and the agent samples
-    an action from the curve.
+    PPO does not learn values and derive a policy from them. It
+    learns the policy directly. The neural network IS the policy.
+    It takes the current state and outputs a probability
+    distribution over actions. The agent samples an action from
+    that distribution. Training adjusts the distribution so that
+    good actions become more probable and bad actions become less
+    probable.
 
-    This is the shift from value-based to policy-gradient methods.
-    DQN asks "how good is each action?" and picks the best. PPO
-    asks "what action should I probably take?" and samples from
-    the answer.
+    Side by side with DQN:
+
+      DQN:  network(state) -> [Q(left), Q(stay), Q(right)]  -> pick highest
+      PPO:  network(state) -> (mean=0.3, std=0.6)           -> sample 0.47
+
+    DQN's network outputs three numbers and the agent picks the
+    biggest. PPO's network outputs a bell curve and the agent
+    draws a random number from it. This is a fundamentally
+    different way to make decisions, and it is what makes
+    continuous actions possible—you cannot take argmax over an
+    infinite range, but you can sample from a bell curve centered
+    anywhere.
     """)
 
     # -----------------------------------------------------------------------
-    # 2. The policy as a bell curve
+    # 2. Revisiting Balance
+    # -----------------------------------------------------------------------
+
+    print("REVISITING BALANCE")
+    print("-" * 64)
+    print("""
+    In Lesson 02, Barto, Sutton, and Anderson (1983) solved the
+    inverted pendulum with an ACE/ASE actor-critic. The state was
+    discretized into 36 boxes (6 angle bins x 6 velocity bins).
+    The action was binary: push left or push right, full force.
+
+    PPO solves the same physics with none of those constraints.
+    The state is the raw angle and angular velocity—two
+    continuous numbers, not a box index. The action is a
+    continuous torque between -1 and +1—not a binary choice.
+    The network learns smooth, proportional control: a small
+    tilt gets a small correction, a large tilt gets a large one.
+
+      State:   (angle, angular velocity)—two continuous numbers
+      Action:  torque in [-1, +1]—any value, not just left/right
+      Reward:  +1 per step survived, 0 when the pole falls
+      Goal:    survive 500 steps
+
+    Same environment, same goal, but 34 years of progress:
+
+      L02 (1983): 2 discrete actions, 36 boxes, eligibility traces
+      L06 (2017): continuous torque, raw state, neural policy gradients
+    """)
+
+    # -----------------------------------------------------------------------
+    # 3. The simplest policy gradient
+    # -----------------------------------------------------------------------
+
+    print("THE SIMPLEST POLICY GRADIENT")
+    print("-" * 64)
+    print("""
+    The core idea of policy gradient methods fits in one sentence:
+    if an action worked well, adjust the network to make that
+    action more likely next time. If it worked badly, make it
+    less likely.
+
+    Concrete example. The pole is tilting right. The network
+    outputs a bell curve centered at torque = 0.1. The agent
+    samples torque = -0.3 from the tail of the curve. The pole
+    recovers. The reward is +1.
+
+    The update: shift the bell curve so that torque = -0.3
+    becomes more probable when the pole tilts right. The network
+    adjusts its weights, and the bell curve's center moves
+    toward -0.3.
+
+    Compare this to DQN's update rule. DQN asked "what is this
+    action worth?" and updated a value toward a target. PPO asks
+    "should I do this action more or less often?" and adjusts a
+    probability. There is no target in the DQN sense—there is
+    only the direction: more likely or less likely, and by how
+    much.
+
+    This is the policy gradient. Every algorithm from here onward
+    uses some version of it.
+    """)
+
+    # -----------------------------------------------------------------------
+    # 4. The policy as a bell curve
     # -----------------------------------------------------------------------
 
     print("THE POLICY AS A BELL CURVE")
     print("-" * 64)
     print("""
-    The actor network takes the current state (angle and angular
-    velocity) and outputs two numbers: the mean and log-standard-
-    deviation of a Gaussian distribution over torques.
+    The "bell curve" is a Gaussian distribution, defined by two
+    numbers: the mean (where the curve is centered) and the
+    standard deviation, or std (how wide the curve is).
 
-      Actor network:  state -> [mean, log_std]
-      Policy:         action ~ Gaussian(mean, exp(log_std))
+    The actor network takes the current state and outputs both:
+
+      Actor:  state -> [mean, log_std]
+      Policy: sample action from Gaussian(mean, exp(log_std))
+
+    The output is log_std rather than std directly because the
+    log can be any real number (positive or negative), while std
+    must be positive. Taking exp() of the output guarantees a
+    valid standard deviation.
 
     A wide bell curve (large std) means the agent is uncertain—
     it explores by sampling a broad range of torques. A narrow
     bell curve (small std) means the agent is confident—it
     applies nearly the same torque every time.
 
-    Training makes the bell curve narrower and shifts it toward
-    the right torque. Early in training, the agent swings wildly.
-    Late in training, it applies precise, controlled corrections.
+    The bell curve assigns a probability to every possible action.
+    The code uses the log of this probability (log_prob) because
+    logs are numerically more stable—the details are in the
+    Gaussian class. What matters for the policy gradient is that
+    log_prob tells the network "how likely was this action under
+    the current policy?" If the action was good, training
+    increases its log_prob. If bad, training decreases it.
 
-    The log of the probability of an action under the Gaussian:
-
-      log p(a) = -0.5 * ((a - mean) / std)^2 - log(std) - 0.5 * log(2pi)
-
-    This log-probability is the foundation of the policy gradient.
-    Actions that led to high advantage get their log-probability
-    increased; actions that led to low advantage get decreased.
+    Concrete example. The network outputs mean=0.3, std=0.6. The
+    agent samples torque=0.47 from the bell curve. This turned
+    out well—the pole recovered. Training shifts the mean toward
+    0.47 and might narrow the std, making the agent more likely
+    to apply similar torque in this state next time.
     """)
 
     # -----------------------------------------------------------------------
-    # 3. The surrogate objective
+    # 5. Why clipping
     # -----------------------------------------------------------------------
 
-    print("THE SURROGATE OBJECTIVE")
+    print("WHY CLIPPING")
     print("-" * 64)
     print("""
-    Why not simply do gradient ascent on the expected return?
-    Because large policy updates can be catastrophic. A policy
-    that was balancing well can be destroyed by a single oversized
-    gradient step.
+    The policy gradient from section 3 has a problem: if one good
+    action makes the network wildly more likely to repeat it, the
+    policy can collapse. A single lucky sample could shift the
+    entire bell curve to one side, destroying behavior that was
+    working elsewhere.
 
-    PPO constrains the update using a clipped surrogate objective.
-    The idea: compute the ratio of the new policy's probability
-    to the old policy's probability for each action taken:
+    PPO's solution is the clipped surrogate objective. After each
+    batch of experience, PPO computes a ratio for each action:
+    how much more (or less) likely is this action under the
+    updated policy compared to the policy that collected the data?
 
-      ratio = pi_new(a | s) / pi_old(a | s) = exp(log_prob_new - log_prob_old)
+      ratio = new_probability / old_probability
 
-    If the advantage is positive (good action), the objective
-    wants to increase the ratio—make this action more likely.
-    But the clip prevents it from going above 1 + epsilon:
+    A ratio of 1.0 means no change. A ratio of 1.5 means the
+    action is now 50% more likely.
+
+    The clip limits how far the ratio can go:
 
       L = min(ratio * A, clip(ratio, 1-eps, 1+eps) * A)
 
     Concrete example. The agent applied torque 0.3 when the pole
     was tilting right. This turned out well (advantage = +2.0).
-    The old policy gave this action probability ratio 1.0 (it was
-    the current policy). After the update, the new policy wants
-    to make this action more likely, pushing the ratio toward 1.5.
-    But with epsilon = 0.2, the clip caps it at 1.2. The gradient
-    from this sample is zero beyond that point.
+    After one gradient step, the new policy wants to make this
+    action more likely, pushing the ratio toward 1.5. But with
+    epsilon = 0.2, the clip caps it at 1.2. Beyond that point,
+    the gradient is zero—the update stops.
 
-    This is the "proximal" in PPO: the new policy stays close to
-    the old one. No single update can move the policy too far,
-    which prevents the catastrophic forgetting that plagues naive
-    policy gradient methods.
+    This is the "proximal" in PPO: the new policy stays close
+    to the old one. No single update can move the policy too
+    far.
     """)
 
     # -----------------------------------------------------------------------
-    # 4. Generalized Advantage Estimation
+    # 6. The critic and advantages
     # -----------------------------------------------------------------------
 
-    print("GENERALIZED ADVANTAGE ESTIMATION")
+    print("THE CRITIC AND ADVANTAGES")
     print("-" * 64)
     print("""
-    The advantage measures how much better an action was than
-    average. If the critic predicts value V(s) = 50 for a state,
-    and the agent gets a return of 70, the advantage is +20.
-    That action was much better than expected.
+    The policy gradient says "make good actions more likely." But
+    how does the agent know which actions were good? If the pole
+    survived 100 steps, all 100 actions contributed—but some
+    mattered more than others. Using raw rewards would make every
+    action in a good episode look good and every action in a bad
+    episode look bad.
 
-    But computing the return requires choosing between the same
-    tradeoff from Lesson 03: wait for the full episode (Monte
-    Carlo—unbiased but high variance) or bootstrap from the
-    critic's estimate (TD—biased but low variance).
+    The solution is the advantage: how much better was this action
+    than what was expected? A separate network—the critic—
+    estimates the expected value of each state. The advantage is:
 
-    GAE (Generalized Advantage Estimation) blends both using
-    lambda, the same parameter as TD(lambda):
+      advantage = what happened - what was expected
+
+    Positive advantage means "better than the critic predicted."
+    Negative means "worse." The policy gradient uses advantages
+    instead of raw rewards, so only actions that were genuinely
+    better (or worse) than usual get credit.
+
+    This is the same actor-critic idea from Lesson 02. The ACE
+    was the critic; the ASE was the actor. In PPO, both are
+    neural networks instead of weight vectors, but the split is
+    the same: the critic evaluates, the actor acts.
+
+    Computing advantages is the same TD-vs-MC tradeoff from
+    Lesson 03. GAE (Generalized Advantage Estimation) blends
+    both using lambda:
 
       delta_t = r_t + gamma * V(s_{t+1}) - V(s_t)
       A_t = delta_t + (gamma * lambda) * delta_{t+1} + ...
@@ -190,40 +286,43 @@ def main():
     With lambda=0 (pure TD): A_0 = delta_0 = 2.88.
     Only the one-step residual matters.
 
-    With lambda=0.95: A_0 = 2.88 + 0.94*(-0.11) + 0.89*(-0.10) = 2.69.
-    The positive delta_0 is partially offset by the negative
-    deltas that follow—the critic was already too optimistic
-    about V(s_1), so the advantage shrinks. This is GAE reducing
-    variance: one lucky step doesn't inflate the advantage as
-    much when subsequent steps bring the estimate back to earth.
+    With lambda=0.95: A_0 = 2.88 + 0.94*(-0.11) + 0.89*(-0.10)
+    = 2.69. The positive delta_0 is partially offset by the
+    negative deltas that follow—the critic was already too
+    optimistic about V(s_1), so the advantage shrinks. This is
+    GAE reducing variance: one lucky step doesn't inflate the
+    advantage as much when subsequent steps bring the estimate
+    back to earth.
 
-    Lambda = 0.95 is the standard choice. It leans toward longer
-    horizons while keeping variance manageable. With lambda = 1
-    on a complete episode, the advantage equals the discounted
-    Monte Carlo return minus the baseline. In PPO's truncated
-    batches, the final step still bootstraps from the critic's
-    value estimate, so it is never purely Monte Carlo in practice.
+    Lambda = 0.95 is the standard choice. With lambda = 1 on a
+    complete episode, the advantage equals the full Monte Carlo
+    return minus the baseline. In PPO's truncated batches, the
+    final step still bootstraps from the critic, so it is never
+    purely Monte Carlo in practice.
     """)
 
     # -----------------------------------------------------------------------
-    # 5. Multiple epochs
+    # 7. Multiple epochs
     # -----------------------------------------------------------------------
+
+    num_epochs = 3  # defined here for the narrative; used again in training
 
     print("MULTIPLE EPOCHS")
     print("-" * 64)
-    print("""
+    print(f"""
     PPO is on-policy: it collects a batch of experience, learns
     from it, then throws it away and collects fresh data. DQN
-    (Lesson 05) solved data efficiency through experience replay—
-    a buffer of past transitions, sampled repeatedly. PPO cannot
-    reuse old data because the policy has changed since it was
-    collected, making the old transitions off-policy.
+    (Lesson 05) solved data efficiency through experience
+    replay—a buffer of past transitions, sampled repeatedly.
+    PPO cannot reuse old data because the policy has changed
+    since it was collected, making the old transitions off-policy.
 
-    But PPO can reuse the current batch. After collecting T steps,
-    PPO runs K passes (epochs) of gradient descent over the same
-    data. The clipped surrogate is what makes this safe: even if
-    the policy drifts during the K passes, the clip prevents it
-    from moving too far from the policy that collected the data.
+    But PPO can reuse the current batch. After collecting T
+    steps, PPO runs K passes (epochs) of gradient descent over
+    the same data. The clipped surrogate is what makes this safe:
+    even if the policy drifts during the K passes, the clip
+    prevents it from moving too far from the policy that
+    collected the data.
 
     This is a direct tradeoff. More epochs extract more learning
     per batch (better sample efficiency), but push the policy
@@ -233,34 +332,7 @@ def main():
     """)
 
     # -----------------------------------------------------------------------
-    # 6. Revisiting Balance
-    # -----------------------------------------------------------------------
-
-    print("REVISITING BALANCE")
-    print("-" * 64)
-    print("""
-    In Lesson 02, Barto, Sutton, and Anderson (1983) solved the
-    inverted pendulum with an ACE/ASE actor-critic. The state was
-    discretized into 36 boxes (6 angle bins x 6 velocity bins).
-    The action was binary: push left or push right, full force.
-    Eligibility traces propagated credit backward through time.
-
-    PPO solves the same physics with none of those constraints.
-    The state is the raw angle and angular velocity—two
-    continuous numbers, not a box index. The action is a
-    continuous torque between -1 and +1—not a binary choice.
-    The network learns smooth, proportional control: a small
-    tilt gets a small correction, a large tilt gets a large one.
-
-    Same environment, same goal (keep the pole upright for 500
-    steps), but 34 years of algorithmic progress:
-
-      L02 (1983): 2 discrete actions, 36 boxes, eligibility traces
-      L06 (2017): continuous torque, raw state, neural policy gradients
-    """)
-
-    # -----------------------------------------------------------------------
-    # 6. Training
+    # 8. Training
     # -----------------------------------------------------------------------
 
     print("TRAINING")
@@ -334,7 +406,7 @@ def main():
     print()
 
     # -----------------------------------------------------------------------
-    # 7. What PPO learned
+    # 9. What PPO learned
     # -----------------------------------------------------------------------
 
     print("WHAT PPO LEARNED")
@@ -412,7 +484,7 @@ def main():
     print()
 
     # -----------------------------------------------------------------------
-    # 8. Animation
+    # 10. Animation
     # -----------------------------------------------------------------------
 
     print("GENERATING ARTIFACTS")

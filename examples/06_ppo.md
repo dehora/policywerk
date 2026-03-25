@@ -6,56 +6,78 @@ PPO learns the policy directly instead of deriving it from Q-values. The actor n
 uv run python lessons/06_ppo.py
 ```
 
-## From Values to Actions
+## The Big Shift
 
-DQN (Lesson 05) learned Q-values for three discrete actions and picked the highest. That works when actions come from a short list. But what if the action is a continuous torque—any real number between -1 and +1? You cannot take argmax over an infinite range.
+Every lesson so far has followed the same pattern: learn a value, use the value to pick actions. Bellman computed V(s). TD learning estimated V(s). Q-learning estimated Q(s, a). DQN approximated Q(s, a) with a neural network. In every case, the agent asked "how good is this state or action?" and picked the highest value.
 
-PPO solves this by outputting a probability distribution. For continuous control, that distribution is a Gaussian (bell curve). The network outputs the mean and standard deviation, and the agent samples an action from the curve.
+That pattern ends here. PPO does not learn values and derive a policy from them. It learns the policy directly. The neural network IS the policy.
+
+```
+DQN:  network(state) -> [Q(left), Q(stay), Q(right)]  -> pick highest
+PPO:  network(state) -> (mean=0.3, std=0.6)           -> sample 0.47
+```
+
+DQN's network outputs three numbers and the agent picks the biggest. PPO's network outputs a bell curve and the agent draws a random number from it. You cannot take argmax over an infinite range, but you can sample from a bell curve centered anywhere.
+
+## Revisiting Balance
+
+Lesson 02 solved the inverted pendulum with Barto, Sutton, and Anderson's 1983 ACE/ASE: 2 discrete actions, 36 boxes, eligibility traces. PPO uses the raw angle and velocity directly, applies continuous torque, and learns through neural policy gradients.
+
+```
+State:   (angle, angular velocity)—two continuous numbers
+Action:  torque in [-1, +1]—any value, not just left/right
+Reward:  +1 per step survived, 0 when the pole falls
+Goal:    survive 500 steps
+```
+
+Same environment, same goal, but 34 years of algorithmic progress.
+
+## The Simplest Policy Gradient
+
+The core idea fits in one sentence: if an action worked well, adjust the network to make that action more likely next time. If it worked badly, make it less likely.
+
+Concrete example: the pole is tilting right. The network outputs a bell curve centered at torque=0.1. The agent samples torque=-0.3. The pole recovers. The update: shift the bell curve so torque=-0.3 becomes more probable when the pole tilts right.
+
+Compare this to DQN's update. DQN asked "what is this action worth?" and updated a value toward a target. PPO asks "should I do this action more or less often?" and adjusts a probability. There is no target in the DQN sense—there is only the direction: more likely or less likely.
 
 ## The Policy as a Bell Curve
 
-The actor network takes the state (angle, angular velocity) and outputs two numbers: the mean and log-standard-deviation of a Gaussian over torques.
+The bell curve is a Gaussian distribution, defined by two numbers: the mean (where centered) and the standard deviation (how wide).
 
 ```
-Actor network:  state -> [mean, log_std]
-Policy:         action ~ Gaussian(mean, exp(log_std))
+Actor:  state -> [mean, log_std]
+Policy: sample action from Gaussian(mean, exp(log_std))
 ```
 
-A wide bell curve (large std) means exploration. A narrow bell curve means the agent is confident. Training makes the curve narrower and shifts it toward the right torque.
+The output is log_std rather than std directly because the log can be any real number, while std must be positive. Taking exp() of the output guarantees a valid standard deviation.
 
-The log of the probability under the Gaussian:
+A wide bell curve means the agent is uncertain—it explores. A narrow bell curve means it is confident—it applies nearly the same torque every time. Training makes the curve narrower and shifts it toward the right torque.
 
-```
-log p(a) = -0.5 * ((a - mean) / std)^2 - log(std) - 0.5 * log(2pi)
-```
+## Why Clipping
 
-Actions that led to high advantage get their log-probability increased; actions that led to low advantage get decreased. This is the policy gradient.
-
-## The Surrogate Objective
-
-Large policy updates can be catastrophic. PPO constrains the update using a clipped surrogate:
+The policy gradient has a problem: if one good action makes the network wildly more likely to repeat it, the policy can collapse. PPO's solution is the clipped surrogate. After each batch, compute a ratio for each action—how much more likely is this action under the new policy vs the old?
 
 ```
-ratio = pi_new(a | s) / pi_old(a | s) = exp(log_prob_new - log_prob_old)
+ratio = new_probability / old_probability
 L = min(ratio * A, clip(ratio, 1-eps, 1+eps) * A)
 ```
 
-If the advantage is positive (good action), the objective wants to increase the ratio. But the clip prevents it from going above 1 + epsilon (0.2). Beyond that point, the gradient is zero. This keeps the new policy close to the old one—the "proximal" in PPO.
+Concrete example: the agent applied torque 0.3 when tilting right (advantage=+2.0). After one gradient step, the ratio pushes toward 1.5. But with epsilon=0.2, the clip caps it at 1.2. Beyond that point, the gradient is zero. The new policy stays close to the old one—that is the "proximal" in PPO.
 
-## Generalized Advantage Estimation
+## The Critic and Advantages
 
-GAE blends TD and Monte Carlo advantage estimation using lambda, the same tradeoff from Lesson 03:
+The policy gradient says "make good actions more likely." But how does the agent know which actions were good? Using raw rewards would make every action in a good episode look good. The advantage solves this: how much better was this action than what was expected?
+
+A separate network—the critic—estimates the expected value of each state. Advantage = what happened - what was expected. This is the same actor-critic split from Lesson 02 (ACE was the critic, ASE was the actor), now with neural networks.
+
+GAE (Generalized Advantage Estimation) computes advantages using the same TD-vs-MC tradeoff from Lesson 03:
 
 ```
 delta_t = r_t + gamma * V(s_{t+1}) - V(s_t)
 A_t = delta_t + (gamma * lambda) * delta_{t+1} + ...
 ```
 
-Lambda = 0.95 leans toward longer horizons while keeping variance manageable.
-
-## Revisiting Balance
-
-Lesson 02 solved this with Barto, Sutton, and Anderson's 1983 ACE/ASE: 2 discrete actions, 36 boxes, eligibility traces. PPO uses the raw angle and velocity directly, applies continuous torque, and learns through neural policy gradients. Same physics, 34 years of algorithmic progress.
+With lambda=0.95, a lucky step is partially offset by what follows, reducing variance.
 
 ## Training Results
 
@@ -83,9 +105,11 @@ Average per 30 iterations:
   Iterations 210-239:  reward   473.0  std 0.655  entropy 0.994
 ```
 
-The reward (average episode length) climbs from ~53 to 473, with a dip at iterations 150-209 before recovering. The standard deviation drops from ~1.06 to ~0.53 by iteration 150, then increases slightly as the agent explores further refinements. Entropy tracks the same trend.
+The reward climbs from ~53 to 473, with a dip at iterations 150-209 before recovering. The std drops from ~1.06 to ~0.53 by iteration 150, then increases slightly as the agent explores refinements.
 
-The dip at iterations 150-209 is a common PPO pattern. The agent reaches near-optimal performance (reward ~426), then the policy std narrows enough that the advantages become noisier—the critic's estimates are calibrated for a wider exploration range. The recovery to 473 by iterations 210-239 shows the critic catching up. This is exactly the kind of instability that motivates the clipped surrogate: without the clip, this dip would be a collapse.
+The dip is a common PPO pattern. The agent reaches near-optimal performance (~426), then the policy std narrows enough that advantages become noisier. The recovery to 473 shows the critic catching up. Without the clip, this dip would be a collapse.
+
+The hidden activation is tanh instead of DQN's ReLU. Tanh's bounded output (-1 to +1) prevents activation explosion when inputs are continuous and potentially large.
 
 ## What the Network Learned
 
@@ -105,11 +129,9 @@ Policy at representative states:
   rotating right          torque=-0.831  std=0.849
 ```
 
-The agent survived the full 500 steps, keeping the pole within 0.16 radians of vertical with an average executed torque of 0.29. All reported torques are clamped to the environment's [-1, 1] action range.
+The agent survived 500 steps, keeping the pole within 0.16 radians of vertical. Tilting left produces strong positive torque, rotating right produces strong negative torque, and the "upright, still" bias (+0.438) reflects the pole's initial rightward tilt of 0.01 radians—the network learned to pre-compensate.
 
-The policy at representative states reveals the learned controller: tilting left produces strong positive torque (+0.903), rotating right produces strong negative torque (-0.831), and tilting right gets a small corrective nudge (-0.028). The "upright, still" bias (+0.438) reflects the pole's initial rightward tilt of 0.01 radians—the network learned to pre-compensate.
-
-Compare this to L02's binary push-left/push-right: PPO applies smooth, proportional corrections that keep the pole nearly still.
+Compare this to L02's binary push-left/push-right: PPO applies smooth, proportional corrections.
 
 ## Artifacts
 
@@ -117,7 +139,7 @@ Compare this to L02's binary push-left/push-right: PPO applies smooth, proportio
 
 ![PPO training animation](img/06_ppo_artifact.gif)
 
-Three phases: random policy (pole falls immediately), training progression (bell curve narrowing), and trained policy (pole stays balanced for 500 steps). The Gaussian distribution in the top-right pane shows the policy sharpening over training.
+Three phases: random policy (pole falls immediately), training progression (bell curve narrowing), trained policy (pole stays balanced for 500 steps).
 
 ### Trained Agent Snapshot
 
@@ -129,7 +151,7 @@ The trained pole nearly vertical, the narrow policy Gaussian, and the full train
 
 ![Reward and entropy](img/06_ppo_trace.png)
 
-Top: average reward per iteration climbing from ~50 to 400+. Bottom: policy entropy declining as the agent commits to a strategy, with the recovery visible around iteration 200.
+Top: average reward climbing from ~50 to 400+. Bottom: policy entropy declining as the agent commits to a strategy, with recovery visible around iteration 200.
 
 ## Next
 
