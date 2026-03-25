@@ -373,6 +373,14 @@ def draw_breakout_frame(
                 fontfamily="monospace")
 
 
+def _add_pixel_grid(ax: plt.Axes, rows: int, cols: int) -> None:
+    """Overlay a subtle grid so individual pixels are visible on dark backgrounds."""
+    for r in range(rows + 1):
+        ax.axhline(r - 0.5, color="#333333", linewidth=0.3, zorder=2)
+    for c in range(cols + 1):
+        ax.axvline(c - 0.5, color="#333333", linewidth=0.3, zorder=2)
+
+
 def draw_pixel_env(
     ax: plt.Axes,
     frame: Matrix,
@@ -380,12 +388,13 @@ def draw_pixel_env(
     """Display a pixel-grid environment (e.g. 16×16) as an image.
 
     frame: rows × cols matrix of floats (0.0 = empty, higher = objects).
-    Uses reversed grayscale: 0.0 = white (empty), 1.0 = black (agent).
     """
     ax.clear()
-    # interpolation="nearest" keeps pixels as sharp squares (no blurring)
+    rows = len(frame)
+    cols = len(frame[0]) if frame else 0
     ax.imshow(frame, cmap="gray", interpolation="nearest",
               vmin=0.0, vmax=1.0, aspect="equal")
+    _add_pixel_grid(ax, rows, cols)
     ax.set_xticks([])
     ax.set_yticks([])
 
@@ -458,12 +467,12 @@ def draw_real_vs_imagined(
         for c in range(cols_i):
             combined[r][cols_r + gap + c] = imagined_frame[r][c]
 
+    total_rows = max(rows_r, rows_i)
     ax.imshow(combined, cmap="gray", interpolation="nearest",
               vmin=0.0, vmax=1.0, aspect="equal")
+    _add_pixel_grid(ax, total_rows, combined_cols)
     ax.set_xticks([])
     ax.set_yticks([])
-
-    total_rows = max(rows_r, rows_i)
     ax.text(cols_r / 2, total_rows + 0.8, "Real", ha="center", fontsize=8, color=TEAL)
     ax.text(cols_r + gap + cols_i / 2, total_rows + 0.8, "Imagined", ha="center",
             fontsize=8, color=ORANGE)
