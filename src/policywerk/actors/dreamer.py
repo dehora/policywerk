@@ -85,18 +85,18 @@ def _scale_grads(grads: list[LayerGradients], factor: float) -> None:
 
 def dreamer(
     env,
-    num_iterations: int = 100,
-    steps_per_iter: int = 200,
-    world_model_epochs: int = 5,
-    imagination_horizon: int = 15,
-    num_imaginations: int = 16,
+    num_iterations: int = 60,
+    steps_per_iter: int = 100,
+    world_model_epochs: int = 3,
+    imagination_horizon: int = 10,
+    num_imaginations: int = 8,
     gamma: float = 0.99,
     lam: float = 0.95,
     learning_rate_wm: float = 0.001,
     learning_rate_actor: float = 0.0005,
     learning_rate_critic: float = 0.001,
     latent_dim: int = 32,
-    hidden_dim: int = 128,
+    hidden_dim: int = 64,
     seed: int = 42,
 ) -> tuple[dict, list[dict]]:
     """Train a Dreamer agent: learn a world model, then train in imagination.
