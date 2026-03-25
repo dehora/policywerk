@@ -14,7 +14,7 @@ The project follows seven landmark papers chronologically, each one building on 
 | 02 | Barto, Sutton & Anderson, "Neuronlike Adaptive Elements" | 1983 | ACE/ASE actor-critic | Balance | Done |
 | 03 | Sutton, "Learning to Predict by the Methods of Temporal Differences" | 1988 | TD(0) and TD(λ) | Random walk | Done |
 | 04 | Watkins, "Learning from Delayed Rewards" | 1989 | Q-learning | Cliff walking | Done |
-| 05 | Mnih et al., "Playing Atari with Deep Reinforcement Learning" | 2013 | DQN | Pixel gridworld | Done |
+| 05 | Mnih et al., "Playing Atari with Deep Reinforcement Learning" | 2013 | DQN | Mini Breakout | Done |
 | 06 | Schulman et al., "Proximal Policy Optimization Algorithms" | 2017 | PPO | Point-mass control | — |
 | 07 | Hafner et al., "Mastering Diverse Domains through World Models" | 2023 | DreamerV3 | Pixel point-mass | — |
 
@@ -69,7 +69,7 @@ The animations answer *how learning unfolds*, not just *what was learned*. For R
 | 02 | Chaotic balance attempts becoming controlled over episodes |
 | 03 | Value estimate bars shifting toward true values — TD vs Monte Carlo |
 | 04 | Greedy policy arrows settling into a cliff-edge route |
-| 05 | Q-value bars sharpening as the agent learns from pixels |
+| 05 | Random policy failing, reward curve climbing, trained agent clearing bricks |
 | 06 | Gaussian policy distribution smoothing over updates |
 | 07 | Real rollout vs imagined rollout, aligned then diverging |
 
