@@ -194,10 +194,11 @@ def main():
     increases its log_prob. If bad, training decreases it.
 
     Concrete example. The network outputs mean=0.3, std=0.6. The
-    agent samples torque=0.47 from the bell curve. This turned
-    out well—the pole recovered. Training shifts the mean toward
-    0.47 and might narrow the std, making the agent more likely
-    to apply similar torque in this state next time.
+    agent samples torque=0.47 from the bell curve. Later, the
+    advantage computation (section 6) determines this was a good
+    action. Training shifts the mean toward 0.47 and might narrow
+    the std, making the agent more likely to apply similar torque
+    in this state next time.
     """)
 
     # -----------------------------------------------------------------------

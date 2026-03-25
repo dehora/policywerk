@@ -194,8 +194,7 @@ def ppo(
     with Adam.
 
     Returns (actor_net, critic_net, history) where each history entry has:
-      iteration, avg_reward, episodes_completed, policy_loss, value_loss,
-      entropy, mean_std
+      iteration, avg_reward, episodes_completed, value_loss, entropy, mean_std
     """
     rng = create_rng(seed)
 
@@ -222,7 +221,6 @@ def ppo(
         # ---- Phase 1: Collect trajectory of T steps ----
         states: list[Vector] = []
         raw_actions: list[float] = []  # unclamped samples (for log_prob in update)
-        actions: list[float] = []      # clamped actions (what the env executed)
         rewards: list[float] = []
         log_probs_old: list[float] = []
         values: list[float] = []
@@ -259,7 +257,6 @@ def ppo(
             # Store transition data
             states.append(list(state.features))
             raw_actions.append(raw_action)
-            actions.append(action)
             rewards.append(reward)
             log_probs_old.append(lp)
             values.append(value)
