@@ -373,6 +373,32 @@ def draw_breakout_frame(
                 fontfamily="monospace")
 
 
+def _pixel_to_rgb(val: float) -> list[float]:
+    """Map a grayscale pixel value to RGB for display.
+
+    0.0 = dark background, ~0.7 = orange (target), ~1.0 = teal (agent).
+    Intermediate values from the decoder blend smoothly between colors,
+    so the reader sees orange blobs where the model thinks the target is
+    and teal blobs where the model thinks the agent is.
+    """
+    if val < 0.35:
+        t = val / 0.35
+        return [0.10 + 0.10 * t, 0.10 + 0.10 * t, 0.18 + 0.10 * t]
+    elif val < 0.85:
+        t = (val - 0.35) / 0.50
+        # Blend from dark to orange (ORANGE = #E8915C ≈ 0.91, 0.57, 0.36)
+        return [0.10 + 0.81 * t, 0.10 + 0.47 * t, 0.18 + 0.18 * t]
+    else:
+        t = (val - 0.85) / 0.15
+        # Blend from orange to teal (TEAL = #5CB8B2 ≈ 0.36, 0.72, 0.70)
+        return [0.91 - 0.55 * t, 0.57 + 0.15 * t, 0.36 + 0.34 * t]
+
+
+def _frame_to_rgb(frame: Matrix) -> list[list[list[float]]]:
+    """Convert a grayscale pixel frame to RGB using the project color scheme."""
+    return [[_pixel_to_rgb(val) for val in row] for row in frame]
+
+
 def _add_pixel_grid(ax: plt.Axes, rows: int, cols: int) -> None:
     """Overlay a subtle grid so individual pixels are visible on dark backgrounds."""
     for r in range(rows + 1):
@@ -385,15 +411,16 @@ def draw_pixel_env(
     ax: plt.Axes,
     frame: Matrix,
 ) -> None:
-    """Display a pixel-grid environment (e.g. 16×16) as an image.
+    """Display a pixel-grid environment (e.g. 16×16) as a color image.
 
-    frame: rows × cols matrix of floats (0.0 = empty, higher = objects).
+    frame: rows × cols matrix of floats (0.0 = empty, 0.7 = target, 1.0 = agent).
+    Colors: agent = teal, target = orange, empty = dark background.
     """
     ax.clear()
     rows = len(frame)
     cols = len(frame[0]) if frame else 0
-    ax.imshow(frame, cmap="gray", interpolation="nearest",
-              vmin=0.0, vmax=1.0, aspect="equal")
+    rgb = _frame_to_rgb(frame)
+    ax.imshow(rgb, interpolation="nearest", aspect="equal")
     _add_pixel_grid(ax, rows, cols)
     ax.set_xticks([])
     ax.set_yticks([])
@@ -455,21 +482,25 @@ def draw_real_vs_imagined(
     rows_i = len(imagined_frame)
     cols_i = len(imagined_frame[0]) if imagined_frame else 0
 
-    # Combine side by side with a 1-pixel gray gap as separator
+    # Convert both frames to RGB, combine with a gray gap column
+    rgb_r = _frame_to_rgb(real_frame)
+    rgb_i = _frame_to_rgb(imagined_frame)
+
     gap = 1
+    total_rows = max(rows_r, rows_i)
     combined_cols = cols_r + gap + cols_i
-    combined = [[0.5] * combined_cols for _ in range(max(rows_r, rows_i))]
+    gray_pixel = [0.4, 0.4, 0.4]
+    combined = [[list(gray_pixel) for _ in range(combined_cols)]
+                for _ in range(total_rows)]
 
     for r in range(rows_r):
         for c in range(cols_r):
-            combined[r][c] = real_frame[r][c]
+            combined[r][c] = rgb_r[r][c]
     for r in range(rows_i):
         for c in range(cols_i):
-            combined[r][cols_r + gap + c] = imagined_frame[r][c]
+            combined[r][cols_r + gap + c] = rgb_i[r][c]
 
-    total_rows = max(rows_r, rows_i)
-    ax.imshow(combined, cmap="gray", interpolation="nearest",
-              vmin=0.0, vmax=1.0, aspect="equal")
+    ax.imshow(combined, interpolation="nearest", aspect="equal")
     _add_pixel_grid(ax, total_rows, combined_cols)
     ax.set_xticks([])
     ax.set_yticks([])
