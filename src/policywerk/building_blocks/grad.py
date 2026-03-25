@@ -119,6 +119,36 @@ def backward(network, cache, loss_grad: Vector) -> list[LayerGradients]:
     return gradients
 
 
+def backward_with_input_grad(
+    network, cache, loss_grad: Vector,
+) -> tuple[list[LayerGradients], Vector]:
+    """Like backward(), but also returns the gradient w.r.t. the network's input.
+
+    Used when chaining backprop through multiple components—the input gradient
+    from one network becomes the loss gradient for the preceding component.
+    """
+    gradients = []
+    delta = loss_grad
+
+    for layer_idx in range(len(network.layers) - 1, -1, -1):
+        layer = network.layers[layer_idx]
+        layer_cache = cache.layer_caches[layer_idx]
+        activation_fn = network.activation_fns[layer_idx]
+        deriv_fn = _DERIVATIVES[activation_fn]
+
+        f_prime = vector.apply(deriv_fn, layer_cache.z)
+        delta = vector.elementwise(scalar.multiply, delta, f_prime)
+
+        weight_grads = matrix.outer(delta, layer_cache.inputs)
+        bias_grads = list(delta)
+        gradients.append(LayerGradients(weight_grads=weight_grads, bias_grads=bias_grads))
+
+        delta = matrix.mat_vec(matrix.transpose(layer.weights), delta)
+
+    gradients.reverse()
+    return gradients, delta
+
+
 def numerical_gradient_check(
     network,
     inputs: Vector,

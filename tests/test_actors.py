@@ -870,3 +870,74 @@ class TestPPO:
         assert survived is False
         assert "Fell" in label
 
+
+class TestDreamer:
+    """Tests for the Dreamer world model actor."""
+
+    _DREAMER_KWARGS = dict(
+        num_iterations=5,
+        steps_per_iter=50,
+        imagination_horizon=5,
+        num_imaginations=4,
+        world_model_epochs=2,
+        hidden_dim=32,
+        latent_dim=16,
+        seed=42,
+    )
+
+    def _make_env(self):
+        from policywerk.world.pixel_pointmass import PixelPointMass
+        return PixelPointMass(max_steps=50)
+
+    def test_dreamer_returns_expected_types(self):
+        """Should return (dict of networks, list of history dicts)."""
+        from policywerk.actors.dreamer import dreamer
+        networks, history = dreamer(self._make_env(), **self._DREAMER_KWARGS)
+        assert isinstance(networks, dict)
+        assert "encoder" in networks
+        assert "gru" in networks
+        assert "decoder" in networks
+        assert "actor" in networks
+        assert "critic" in networks
+        assert len(history) == self._DREAMER_KWARGS["num_iterations"]
+
+    def test_dreamer_history_has_expected_keys(self):
+        """Each history entry should have the expected keys."""
+        from policywerk.actors.dreamer import dreamer
+        _, history = dreamer(self._make_env(), **self._DREAMER_KWARGS)
+        expected = {"iteration", "avg_reward", "recon_loss", "reward_loss", "imagined_reward"}
+        for h in history:
+            assert set(h.keys()) == expected
+
+    def test_dreamer_deterministic_with_seed(self):
+        """Same seed should produce identical history."""
+        from policywerk.actors.dreamer import dreamer
+        _, hist1 = dreamer(self._make_env(), **self._DREAMER_KWARGS)
+        _, hist2 = dreamer(self._make_env(), **self._DREAMER_KWARGS)
+        for h1, h2 in zip(hist1, hist2):
+            assert h1["avg_reward"] == h2["avg_reward"]
+            assert h1["recon_loss"] == h2["recon_loss"]
+
+    def test_encoder_decoder_roundtrip(self):
+        """Encoding then decoding should produce output of correct shape."""
+        from policywerk.actors.dreamer import dreamer
+        from policywerk.building_blocks.network import network_forward
+        networks, _ = dreamer(self._make_env(), **self._DREAMER_KWARGS)
+        # Encode a pixel frame
+        pixels = [0.0] * 256
+        pixels[128] = 1.0  # agent at center
+        pixels[200] = 0.7  # target
+        z, _ = network_forward(networks["encoder"], pixels)
+        assert len(z) == self._DREAMER_KWARGS["latent_dim"]
+        # Decode back
+        recon, _ = network_forward(networks["decoder"], z)
+        assert len(recon) == 256
+
+    def test_dreamer_recon_loss_finite(self):
+        """Reconstruction loss should be finite throughout training."""
+        from policywerk.actors.dreamer import dreamer
+        import math
+        _, history = dreamer(self._make_env(), **self._DREAMER_KWARGS)
+        for h in history:
+            assert math.isfinite(h["recon_loss"]), f"recon_loss not finite: {h['recon_loss']}"
+
