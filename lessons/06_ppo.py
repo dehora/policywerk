@@ -515,7 +515,7 @@ def main():
             torque=torque,
             mean=0.0,
             std=1.0,
-            step_label=f"Random policy (step {rand_step})",
+            step_label=f"1/3  Random policy (step {rand_step})",
             phase="random",
             ep_length=rand_step,
         ))
@@ -528,7 +528,7 @@ def main():
             torque=0.0,
             mean=0.0,
             std=1.0,
-            step_label=f"Fell after {rand_step} steps",
+            step_label=f"1/3  Fell after {rand_step} steps",
             phase="random",
             ep_length=rand_step,
         ))
@@ -547,7 +547,7 @@ def main():
             torque=0.0,
             mean=0.0,
             std=h["mean_std"],
-            step_label=f"Training: iteration {idx}/{num_iterations}",
+            step_label=f"2/3  Training: iteration {idx}/{num_iterations}",
             phase="training",
             ep_length=int(h["avg_reward"]),
         ))
@@ -574,16 +574,21 @@ def main():
                     torque=executed,
                     mean=executed,
                     std=std,
-                    step_label=f"Trained policy (step {t_step})",
+                    step_label=f"3/3  Trained policy (step {t_step})",
                     phase="trained",
                     ep_length=t_step,
                 ))
-        end_label = f"Balanced for {t_step} steps!" if t_step >= 500 else f"Fell after {t_step} steps"
+        if t_step >= 500:
+            end_label = f"3/3  Balanced for {t_step} steps!"
+            hold_angle = 0.0  # show pole upright for the success frame
+        else:
+            end_label = f"3/3  Fell after {t_step} steps"
+            hold_angle = state.features[0]  # show where it fell
         for _ in range(12):
             snapshots.append(PPOSnapshot(
                 episode=num_iterations,
                 total_reward=float(t_step),
-                angle=state.features[0],
+                angle=hold_angle,
                 torque=0.0,
                 mean=executed,
                 std=std,
