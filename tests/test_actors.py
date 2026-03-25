@@ -600,3 +600,142 @@ class TestDQN:
         frame = greedy_poster_frame(net, stub, max_steps=5, min_score=2)
         # Should be step-5 frame, not step-0 (reset)
         assert frame == [[[5.0, 0.0, 0.0]]], f"Expected last frame from step 5, got {frame}"
+
+
+class TestPPO:
+    """Tests for the PPO actor."""
+
+    _PPO_KWARGS = dict(
+        num_iterations=30,
+        steps_per_iter=100,
+        num_epochs=3,
+        hidden_size=16,
+        seed=42,
+    )
+
+    def _make_env(self):
+        from policywerk.world.balance import Balance
+        return Balance()
+
+    # --- Helper tests ---
+
+    def test_gae_with_resets_matches_gae_no_dones(self):
+        """Without episode boundaries, should match returns.gae()."""
+        from policywerk.actors.ppo import _compute_gae_with_resets
+        from policywerk.building_blocks.returns import gae
+
+        rewards = [1.0, 0.5, -0.2, 0.8, 1.0]
+        values = [0.5, 0.6, 0.4, 0.7, 0.9]
+        dones = [False, False, False, False, False]
+        next_value = 0.8
+        gamma, lam = 0.99, 0.95
+
+        expected = gae(rewards, values, next_value, gamma, lam)
+        actual = _compute_gae_with_resets(rewards, values, dones, next_value, gamma, lam)
+
+        for i in range(len(rewards)):
+            assert abs(expected[i] - actual[i]) < 1e-10, (
+                f"Step {i}: expected {expected[i]}, got {actual[i]}"
+            )
+
+    def test_gae_with_resets_blocks_at_boundary(self):
+        """done=True should prevent advantage from propagating backward."""
+        from policywerk.actors.ppo import _compute_gae_with_resets
+
+        rewards = [1.0, 1.0, 1.0, 1.0]
+        values = [0.0, 0.0, 0.0, 0.0]
+        # Episode boundary at step 1 (done=True means step 1 is terminal)
+        dones = [False, True, False, False]
+        next_value = 0.0
+        gamma, lam = 0.99, 0.95
+
+        adv = _compute_gae_with_resets(rewards, values, dones, next_value, gamma, lam)
+
+        # Steps 2-3 form one segment, steps 0-1 form another.
+        # Step 1 is terminal (done=True), so no bootstrap from step 2.
+        # Advantage at step 1 should just be reward[1] + 0 - 0 = 1.0
+        assert abs(adv[1] - 1.0) < 1e-10, f"Terminal step advantage should be 1.0, got {adv[1]}"
+
+        # Step 0 should not include any advantage from steps 2-3
+        # adv[0] = reward[0] + gamma * values[1] * (1-done[0]) - values[0]
+        #        + gamma * lam * (1-done[0]) * adv[1]
+        #        = 1.0 + 0.99*0.0 - 0.0 + 0.99*0.95*1.0
+        #        = 1.0 + 0.9405 = 1.9405
+        expected_0 = 1.0 + 0.99 * 0.95 * 1.0
+        assert abs(adv[0] - expected_0) < 1e-10, f"Step 0: expected {expected_0}, got {adv[0]}"
+
+    def test_policy_gradient_numerical_check(self):
+        """Policy gradient should match finite-difference approximation."""
+        from policywerk.actors.ppo import _policy_gradient
+        import math
+
+        mean = 0.3
+        log_std = -0.5
+        action = 0.7
+        advantage = 1.5
+        log_prob_old = -1.2
+        clip_eps = 0.2
+        ent_coeff = 0.01
+
+        grad = _policy_gradient(mean, log_std, action, advantage, log_prob_old, clip_eps, ent_coeff)
+
+        # Compute loss for finite differences
+        def compute_loss(m, ls):
+            std = math.exp(max(-2.0, min(2.0, ls)))
+            diff = action - m
+            z = diff / std
+            lp_new = -0.5 * (z * z) - math.log(std) - 0.5 * math.log(2.0 * math.pi)
+            ratio = math.exp(lp_new - log_prob_old)
+            surr1 = ratio * advantage
+            clamped = max(1.0 - clip_eps, min(1.0 + clip_eps, ratio))
+            surr2 = clamped * advantage
+            surr = min(surr1, surr2)
+            entropy = 0.5 * (1.0 + math.log(2.0 * math.pi) + 2.0 * max(-2.0, min(2.0, ls)))
+            return -surr - ent_coeff * entropy
+
+        eps = 1e-5
+        # Numerical gradient w.r.t. mean
+        num_dmean = (compute_loss(mean + eps, log_std) - compute_loss(mean - eps, log_std)) / (2 * eps)
+        # Numerical gradient w.r.t. log_std
+        num_dlogstd = (compute_loss(mean, log_std + eps) - compute_loss(mean, log_std - eps)) / (2 * eps)
+
+        assert abs(grad[0] - num_dmean) < 1e-4, f"d_mean: analytical {grad[0]}, numerical {num_dmean}"
+        assert abs(grad[1] - num_dlogstd) < 1e-4, f"d_log_std: analytical {grad[1]}, numerical {num_dlogstd}"
+
+    # --- Training loop tests ---
+
+    def test_ppo_returns_networks_and_history(self):
+        """Return type should be (Network, Network, list[dict])."""
+        from policywerk.actors.ppo import ppo
+        from policywerk.building_blocks.network import Network
+        actor, critic, history = ppo(self._make_env(), **self._PPO_KWARGS)
+        assert isinstance(actor, Network)
+        assert isinstance(critic, Network)
+        assert isinstance(history, list)
+        assert len(history) == self._PPO_KWARGS["num_iterations"]
+
+    def test_ppo_history_has_expected_keys(self):
+        """Each history entry should have the expected keys."""
+        from policywerk.actors.ppo import ppo
+        _, _, history = ppo(self._make_env(), **self._PPO_KWARGS)
+        expected = {"iteration", "avg_reward", "episodes_completed",
+                    "policy_loss", "value_loss", "entropy", "mean_std"}
+        for h in history:
+            assert set(h.keys()) == expected, f"Missing keys: {expected - set(h.keys())}"
+
+    def test_ppo_deterministic_with_seed(self):
+        """Same seed should produce identical history."""
+        from policywerk.actors.ppo import ppo
+        _, _, hist1 = ppo(self._make_env(), **self._PPO_KWARGS)
+        _, _, hist2 = ppo(self._make_env(), **self._PPO_KWARGS)
+        for h1, h2 in zip(hist1, hist2):
+            assert h1["avg_reward"] == h2["avg_reward"]
+            assert h1["entropy"] == h2["entropy"]
+
+    def test_ppo_entropy_is_tracked(self):
+        """Entropy should be a positive finite value throughout training."""
+        from policywerk.actors.ppo import ppo
+        _, _, history = ppo(self._make_env(), **self._PPO_KWARGS)
+        for h in history:
+            assert h["entropy"] > 0, "Entropy should be positive"
+            assert h["entropy"] < 100, "Entropy should be finite"
