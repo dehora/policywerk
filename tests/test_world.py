@@ -5,6 +5,7 @@ from policywerk.world.gridworld import GridWorld
 from policywerk.world.cliffworld import CliffWorld
 from policywerk.world.balance import Balance
 from policywerk.world.catcher import Catcher
+from policywerk.world.breakout import Breakout, ROWS, COLS, BRICK, BALL, PADDLE
 from policywerk.world.pointmass import PointMass
 from policywerk.world.pixel_pointmass import PixelPointMass
 
@@ -270,6 +271,89 @@ class TestCatcher:
 
     def test_num_actions(self):
         assert Catcher().num_actions() == 4
+
+
+class TestBreakout:
+    def test_reset(self):
+        env = Breakout()
+        state = env.reset()
+        assert len(state.features) == ROWS * COLS  # 80
+        assert state.label == "p2,b3,4"
+
+    def test_render_frame(self):
+        env = Breakout()
+        env.reset()
+        frame = env.render_frame()
+        assert len(frame) == ROWS
+        assert len(frame[0]) == COLS
+        # Ball at (3, 4)
+        assert frame[3][4] == BALL
+        # Paddle at row 9, cols 2-4
+        assert frame[9][2] == PADDLE
+        assert frame[9][3] == PADDLE
+        assert frame[9][4] == PADDLE
+        # Bricks at rows 0-1, cols 1-6
+        assert frame[0][1] == BRICK
+        assert frame[1][6] == BRICK
+
+    def test_ball_bounces_off_wall(self):
+        env = Breakout()
+        env.reset()
+        # Ball at (3,4) moving right. It should hit the right wall
+        # and reverse dc. Step with stay action until dc flips.
+        initial_dc = env._ball_dc
+        for _ in range(20):
+            env.step(1)
+            if env._ball_dc != initial_dc:
+                break
+        assert env._ball_dc == -initial_dc
+
+    def test_paddle_catches_ball(self):
+        """Moving paddle to intercept should bounce the ball."""
+        env = Breakout()
+        env.reset()
+        # Ball starts at (3,4) moving down-right.
+        # Move paddle right to intercept.
+        bounced = False
+        for _ in range(50):
+            _, reward, done = env.step(2)  # move right
+            if env._ball_dr == -1 and env._ball_r < ROWS - 2:
+                bounced = True
+                break
+            if done:
+                break
+        assert bounced, "Ball should have bounced off paddle"
+
+    def test_brick_destroyed_gives_reward(self):
+        """Hitting a brick should give +1.0 reward."""
+        env = Breakout()
+        env.reset()
+        initial_bricks = len(env._bricks)
+        got_brick_reward = False
+        for _ in range(100):
+            _, reward, done = env.step(2)  # keep moving right
+            if reward == 1.0:
+                got_brick_reward = True
+                break
+            if done:
+                break
+        assert got_brick_reward, "Should get +1.0 for hitting a brick"
+        assert len(env._bricks) < initial_bricks
+
+    def test_miss_ends_episode(self):
+        """Ball passing the paddle should end with -1.0."""
+        env = Breakout()
+        env.reset()
+        # Move paddle left while ball goes right — guaranteed miss
+        for _ in range(20):
+            _, reward, done = env.step(0)  # move left
+            if done:
+                assert reward == -1.0, f"Miss should give -1.0, got {reward}"
+                break
+        assert done, "Ball should have missed the paddle"
+
+    def test_num_actions(self):
+        assert Breakout().num_actions() == 3
 
 
 class TestPointMass:

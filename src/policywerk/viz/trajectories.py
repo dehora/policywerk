@@ -340,6 +340,29 @@ def draw_pole(
     ax.axis("off")
 
 
+def draw_breakout_frame(
+    ax: plt.Axes,
+    frame_rgb: list[list[list[float]]],
+    score: int | None = None,
+) -> None:
+    """Display a Breakout color frame.
+
+    frame_rgb: rows × cols × 3 RGB array (0.0-1.0 per channel).
+    score: if set, displayed as white text at the top of the frame.
+    """
+    ax.clear()
+    ax.imshow(frame_rgb, interpolation="nearest", aspect="equal")
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+    if score is not None:
+        cols = len(frame_rgb[0]) if frame_rgb else 0
+        ax.text(cols - 1, 0, str(score),
+                ha="center", va="center", fontsize=12,
+                fontweight="bold", color="white",
+                fontfamily="monospace")
+
+
 def draw_pixel_env(
     ax: plt.Axes,
     frame: Matrix,

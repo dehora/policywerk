@@ -280,10 +280,10 @@ class TestRandom:
 class TestProgress:
     def test_progress_bar(self):
         buf = io.StringIO()
-        progress_bar(epoch=5, total=10, loss=0.1234, stream=buf)
+        progress_bar(step=5, total=10, info="loss=0.1234", stream=buf)
         output = buf.getvalue()
         assert "5/10" in output
-        assert "0.1234" in output
+        assert "loss=0.1234" in output
 
 
 class TestSpinner:

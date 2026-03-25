@@ -32,18 +32,25 @@ def _is_tty(stream) -> bool:
 
 
 def progress_bar(
-    epoch: int,
+    step: int,
     total: int,
-    loss: float,
+    info: str = "",
     width: int = 30,
     stream=sys.stderr,
 ) -> None:
-    """Display a training progress bar that updates in place."""
-    fraction = scalar.multiply(float(epoch), scalar.inverse(float(total)))
+    """Display a training progress bar that updates in place.
+
+    step: current step (1-indexed).
+    total: total number of steps.
+    info: caller-formatted status string (e.g. "reward=0.94", "loss=0.003").
+    """
+    fraction = scalar.multiply(float(step), scalar.inverse(float(total)))
     filled = int(scalar.multiply(fraction, float(width)))
     bar = "\u2588" * filled + "\u2591" * (width - filled)
     pct = int(scalar.multiply(fraction, 100.0))
-    line = f"\r  Training: epoch {epoch}/{total}  loss={loss:.4f}  [{bar}] {pct}%"
+    info_part = f"  {info}" if info else ""
+    pad = len(str(total))
+    line = f"\r    Training: {step:{pad}d}/{total}{info_part}  [{bar}] {pct:3d}%"
     stream.write(line)
     stream.flush()
 

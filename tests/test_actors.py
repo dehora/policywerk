@@ -13,6 +13,7 @@ from policywerk.actors.q_learner import q_learning, sarsa, extract_greedy_policy
 from policywerk.world.cliffworld import CliffWorld
 from policywerk.building_blocks.value_functions import TabularV
 from policywerk.primitives.random import create_rng
+from policywerk.primitives.activations import relu, identity
 from policywerk.primitives import vector
 
 
@@ -398,3 +399,79 @@ class TestQLearner:
         assert len(shared) > 0, "Should have overlapping states"
         diffs = sum(1 for k in shared if ql_vals[k] != sa_vals[k])
         assert diffs > 0, "Q-learning and SARSA values should differ"
+
+
+class TestDQN:
+    """Tests for the DQN actor."""
+
+    # Use minimal config for test speed
+    _DQN_KWARGS = dict(
+        num_episodes=50,
+        hidden_size=16,
+        batch_size=8,
+        replay_capacity=500,
+        min_replay_size=50,
+        train_every=4,
+        target_update_freq=10,
+        seed=42,
+    )
+
+    def _make_env(self):
+        from policywerk.world.breakout import Breakout
+        return Breakout(max_steps=50)
+
+    def test_dqn_returns_network_and_history(self):
+        """Return type should be (Network, list[dict])."""
+        from policywerk.actors.dqn import dqn
+        from policywerk.building_blocks.network import Network
+        net, history = dqn(self._make_env(), **self._DQN_KWARGS)
+        assert isinstance(net, Network)
+        assert isinstance(history, list)
+        assert len(history) == self._DQN_KWARGS["num_episodes"]
+
+    def test_dqn_history_has_expected_keys(self):
+        """Each history entry should have the expected keys."""
+        from policywerk.actors.dqn import dqn
+        _, history = dqn(self._make_env(), **self._DQN_KWARGS)
+        expected_keys = {"episode", "total_reward", "steps", "epsilon", "avg_loss", "avg_q"}
+        for h in history:
+            assert set(h.keys()) == expected_keys, f"Missing keys: {expected_keys - set(h.keys())}"
+
+    def test_dqn_epsilon_decays(self):
+        """Epsilon should decrease over training."""
+        from policywerk.actors.dqn import dqn
+        _, history = dqn(self._make_env(), **self._DQN_KWARGS)
+        assert history[0]["epsilon"] > history[-1]["epsilon"]
+
+    def test_dqn_deterministic_with_seed(self):
+        """Same seed should produce identical history."""
+        from policywerk.actors.dqn import dqn
+        _, hist1 = dqn(self._make_env(), **self._DQN_KWARGS)
+        _, hist2 = dqn(self._make_env(), **self._DQN_KWARGS)
+        for h1, h2 in zip(hist1, hist2):
+            assert h1["total_reward"] == h2["total_reward"]
+            assert h1["steps"] == h2["steps"]
+
+    def test_copy_network_is_independent(self):
+        """Modifying a copy should not affect the original."""
+        from policywerk.actors.dqn import _copy_network
+        from policywerk.building_blocks.network import create_network, network_forward
+        rng = create_rng(42)
+        net = create_network(rng, [4, 8, 2], [relu, identity])
+        copy = _copy_network(net)
+        # Modify copy's weights
+        copy.layers[0].weights[0][0] = 999.0
+        # Original should be unchanged
+        assert net.layers[0].weights[0][0] != 999.0
+
+    def test_dqn_trains_without_error(self):
+        """DQN should complete training and produce loss values."""
+        from policywerk.actors.dqn import dqn
+        env = self._make_env()
+        _, history = dqn(env, **self._DQN_KWARGS)
+        # After min_replay_size is reached, training should produce losses
+        has_loss = any(h["avg_loss"] > 0 for h in history)
+        assert has_loss, "Training should produce non-zero losses"
+        # Q-values should be non-zero after training
+        late_q = history[-1]["avg_q"]
+        assert late_q != 0.0, "Q-values should be non-zero after training"

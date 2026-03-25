@@ -1,11 +1,11 @@
 """Level 2: Pixel gridworld (Catcher).
 
-16x16 binary grid. The agent navigates to collect reward items
-and avoid hazards. Instead of knowing its grid coordinates, the agent
-sees only a 16x16 image. It must figure out where it is and where
-items are directly from the pixels.
+Grid-based environment where the agent navigates to collect reward
+items and avoid hazards. Instead of knowing its grid coordinates,
+the agent sees only a pixel image. It must figure out where it is
+and where items are directly from the pixels.
 
-State.features: flattened 256 floats (the pixel grid)
+State.features: flattened floats (grid_size × grid_size pixels)
   0.0 = empty, 0.3 = hazard, 0.7 = reward item, 1.0 = agent
   Different brightness levels encode different objects. The neural
   network learns to distinguish them.
@@ -29,7 +29,12 @@ AGENT = 1.0
 
 
 class Catcher(Environment):
-    """16x16 pixel gridworld with collectible rewards and hazards."""
+    """Pixel gridworld with collectible rewards and hazards.
+
+    grid_size controls the observation dimensions. Default 16 (16×16 = 256
+    pixel inputs). Smaller grids (e.g. 8×8 = 64 inputs) are easier to learn
+    with small networks in pure Python.
+    """
 
     def __init__(
         self,
@@ -37,11 +42,13 @@ class Catcher(Environment):
         num_rewards: int = 3,
         num_hazards: int = 2,
         max_steps: int = 200,
+        grid_size: int = SIZE,
     ):
         self._rng = create_rng(seed)
         self._num_rewards = num_rewards
         self._num_hazards = num_hazards
         self._max_steps = max_steps
+        self._grid_size = grid_size
         self._agent_pos = (0, 0)
         self._reward_positions: list[tuple[int, int]] = []
         self._hazard_positions: list[tuple[int, int]] = []
@@ -51,9 +58,10 @@ class Catcher(Environment):
     def reset(self) -> State:
         self._step_count = 0
         self._collected = 0
+        gs = self._grid_size
 
         # Place agent at center
-        self._agent_pos = (SIZE // 2, SIZE // 2)
+        self._agent_pos = (gs // 2, gs // 2)
 
         # Place reward items and hazards at random positions
         occupied = {self._agent_pos}
@@ -74,12 +82,13 @@ class Catcher(Environment):
 
     def step(self, action: int) -> tuple[State, float, bool]:
         r, c = self._agent_pos
+        gs = self._grid_size
         # N, E, S, W
         dr = [-1, 0, 1, 0]
         dc = [0, 1, 0, -1]
 
-        nr = max(0, min(SIZE - 1, r + dr[action]))
-        nc = max(0, min(SIZE - 1, c + dc[action]))
+        nr = max(0, min(gs - 1, r + dr[action]))
+        nc = max(0, min(gs - 1, c + dc[action]))
         self._agent_pos = (nr, nc)
         self._step_count += 1
 
@@ -107,8 +116,9 @@ class Catcher(Environment):
         return 4
 
     def render_frame(self) -> Matrix:
-        """Return the current state as a 16x16 pixel grid."""
-        frame = [[EMPTY] * SIZE for _ in range(SIZE)]
+        """Return the current state as a grid_size × grid_size pixel grid."""
+        gs = self._grid_size
+        frame = [[EMPTY] * gs for _ in range(gs)]
         for r, c in self._reward_positions:
             frame[r][c] = REWARD_ITEM
         for r, c in self._hazard_positions:
@@ -129,8 +139,9 @@ class Catcher(Environment):
 
     def _random_free_pos(self, occupied: set[tuple[int, int]]) -> tuple[int, int]:
         """Find a random unoccupied position."""
+        gs = self._grid_size
         while True:
-            r = self._rng.randint(0, SIZE - 1)
-            c = self._rng.randint(0, SIZE - 1)
+            r = self._rng.randint(0, gs - 1)
+            c = self._rng.randint(0, gs - 1)
             if (r, c) not in occupied:
                 return (r, c)

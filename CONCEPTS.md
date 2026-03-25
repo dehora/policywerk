@@ -1,6 +1,6 @@
 # Concepts
 
-Six ideas that underpin everything in this project. If you understand these, you can follow any of the seven lessons. If any of them are unfamiliar, read the relevant section before diving into the code.
+Seven ideas that underpin everything in this project. If you understand these, you can follow any of the seven lessons. If any of them are unfamiliar, read the relevant section before diving into the code.
 
 Each concept is also explained in the source code where it's implemented — links are provided at the end of each section.
 
@@ -42,9 +42,32 @@ There are two kinds:
 
 - **Q(s, a) — Action value**: "how good is taking action *a* in state *s*?" Used by Q-learning and DQN. Q is more directly useful than V because it tells you which action to pick: just take the one with the highest Q-value.
 
-In the first four lessons, values are stored in Python dicts — one entry per state (or state-action pair). This works for small environments (grids, chains) where every state can be enumerated. For larger environments (pixel observations in L05+), a neural network replaces the dict and generalizes to states never seen before.
+In the first four lessons, values are stored in Python dicts — one entry per state (or state-action pair). This works for small environments (grids, chains) where every state can be enumerated. For larger environments (pixel observations in L05+), a neural network replaces the dict — see Function Approximation below.
 
 > Code: [`src/policywerk/building_blocks/value_functions.py`](src/policywerk/building_blocks/value_functions.py)
+
+---
+
+## Function Approximation
+
+In Lessons 01–04, Q-values live in a table: one entry per state-action pair, stored in a Python dict. The agent visits state "2,3", takes action East, and looks up `Q[("2,3", East)]`. This works when there are dozens or hundreds of states. It fails when the state is an image.
+
+An 8×10 pixel grid has 80 values that change every step as the ball moves. The agent will almost never see the exact same pixel pattern twice. A table that has never seen this exact frame has no Q-value for it and cannot generalize from similar frames.
+
+Function approximation replaces the table with a parameterized model — in this project, a neural network. Instead of looking up Q-values in a dict, the agent runs a forward pass:
+
+```
+Table:   Q[("2,3", East)] -> float           (one entry, one state)
+Network: forward([0.0, 0.0, ..., 0.7, ..., 1.0]) -> [Q_left, Q_stay, Q_right]  (all actions at once)
+```
+
+The network's weights are shared across all states. Two pixel patterns that are similar (ball shifted one pixel, paddle in the same place) produce similar Q-values because they activate similar patterns in the hidden layer. This is generalization — the ability to make reasonable predictions about states the agent has never visited.
+
+Training the network uses the same TD error as tabular Q-learning. The difference is how the update is applied. In the table, you adjust one entry. In the network, backpropagation traces the error through every layer and nudges every weight. A single training step changes the Q-values for all states simultaneously.
+
+This power comes with a cost: neural networks can be unstable when combined with RL's bootstrapping (learning from your own predictions). DQN (L05) stabilizes training with three ideas: experience replay (break temporal correlation by sampling random mini-batches from a buffer of past transitions), a target network (use a frozen copy of the network for TD targets, updated periodically), and epsilon decay (shift gradually from random exploration to greedy exploitation).
+
+> Code: [`src/policywerk/actors/dqn.py`](src/policywerk/actors/dqn.py), [`src/policywerk/building_blocks/network.py`](src/policywerk/building_blocks/network.py), [`src/policywerk/building_blocks/replay_buffer.py`](src/policywerk/building_blocks/replay_buffer.py)
 
 ---
 
@@ -162,13 +185,17 @@ Quick reference for terms that appear throughout the code.
 | **batch** | A group of training examples processed together in one update |
 | **bootstrap** | Using the agent's own estimate as a stand-in for unknown future rewards |
 | **critic** | The component that evaluates states or actions (the value function). Guides the actor |
+| **DQN** | Deep Q-Network — Q-learning with a neural network instead of a table. Uses experience replay, a target network, and epsilon decay to stabilize training (L05) |
 | **discount factor (γ)** | How much to devalue future rewards. γ=0.9 means 10 steps away is worth ~0.35× |
 | **done** | Whether the episode has ended (goal reached, failure, or time limit) |
 | **episode** | One complete run from start to terminal state |
+| **epsilon decay** | Gradually reducing the exploration rate over training. Start random (epsilon=1.0), end mostly greedy (epsilon=0.1). Lets the agent explore early and exploit later |
 | **epoch** | One pass through the entire training dataset |
+| **experience replay** | Storing transitions in a buffer and training on random samples rather than the most recent experience. Breaks the correlation between consecutive frames that would otherwise destabilize training |
 | **exploit** | Choose the action the agent currently believes is best |
 | **explore** | Try an action that might not be best, to discover new information |
 | **features** | The numbers the agent observes — coordinates, sensor values, or pixels |
+| **function approximation** | Using a parameterized model (e.g. a neural network) to approximate a function (e.g. Q-values) that is too large to store in a table |
 | **gradient** | How much the loss changes when a weight changes slightly. Points uphill |
 | **horizon** | How many steps into the future the agent considers |
 | **learning rate (α)** | How big a step to take when updating weights. Too large = unstable, too small = slow |
@@ -181,6 +208,7 @@ Quick reference for terms that appear throughout the code.
 | **reward** | A number the environment gives after each action — the training signal |
 | **SARSA** | On-policy TD control — updates Q(s,a) using the Q-value of the action actually taken next. Name comes from (S,A,R,S',A') |
 | **state** | What the agent observes at one moment (grid position, sensor readings, pixels) |
+| **target network** | A frozen copy of the online network used to compute stable TD targets. Updated periodically (e.g. every 20 episodes) rather than after every gradient step |
 | **TD error** | The prediction error in temporal-difference learning: reward + gamma * V(s') - V(s). Drives all TD updates |
 | **terminal** | A state where the episode ends (goal, failure, or absorbing state) |
 | **trajectory** | A sequence of (state, action, reward) tuples from one episode |
