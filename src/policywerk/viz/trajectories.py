@@ -463,6 +463,7 @@ def draw_real_vs_imagined(
     ax.set_xticks([])
     ax.set_yticks([])
 
-    ax.text(cols_r / 2, -1.5, "Real", ha="center", fontsize=8, color=TEAL)
-    ax.text(cols_r + gap + cols_i / 2, -1.5, "Imagined", ha="center",
+    total_rows = max(rows_r, rows_i)
+    ax.text(cols_r / 2, total_rows + 0.8, "Real", ha="center", fontsize=8, color=TEAL)
+    ax.text(cols_r + gap + cols_i / 2, total_rows + 0.8, "Imagined", ha="center",
             fontsize=8, color=ORANGE)
