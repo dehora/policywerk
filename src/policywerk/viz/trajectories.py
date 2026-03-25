@@ -377,19 +377,18 @@ def _pixel_to_rgb(val: float) -> list[float]:
     """Map a grayscale pixel value to RGB for display.
 
     0.0 = dark background, ~0.7 = orange (target), ~1.0 = teal (agent).
-    Intermediate values from the decoder blend smoothly between colors,
-    so the reader sees orange blobs where the model thinks the target is
-    and teal blobs where the model thinks the agent is.
+    The agent threshold is set at 0.75 (not 0.85) so decoder outputs
+    in the 0.6-0.8 range still appear as teal on the reconstructed side.
     """
-    if val < 0.35:
-        t = val / 0.35
+    if val < 0.25:
+        t = val / 0.25
         return [0.10 + 0.10 * t, 0.10 + 0.10 * t, 0.18 + 0.10 * t]
-    elif val < 0.85:
-        t = (val - 0.35) / 0.50
+    elif val < 0.55:
+        t = (val - 0.25) / 0.30
         # Blend from dark to orange (ORANGE = #E8915C ≈ 0.91, 0.57, 0.36)
         return [0.10 + 0.81 * t, 0.10 + 0.47 * t, 0.18 + 0.18 * t]
     else:
-        t = (val - 0.85) / 0.15
+        t = min((val - 0.55) / 0.45, 1.0)
         # Blend from orange to teal (TEAL = #5CB8B2 ≈ 0.36, 0.72, 0.70)
         return [0.91 - 0.55 * t, 0.57 + 0.15 * t, 0.36 + 0.34 * t]
 
@@ -504,6 +503,6 @@ def draw_real_vs_imagined(
     _add_pixel_grid(ax, total_rows, combined_cols)
     ax.set_xticks([])
     ax.set_yticks([])
-    ax.text(cols_r / 2, total_rows + 0.8, "Real", ha="center", fontsize=8, color=TEAL)
+    ax.text(cols_r / 2, total_rows + 0.8, "Real", ha="center", fontsize=8, color=DARK_GRAY)
     ax.text(cols_r + gap + cols_i / 2, total_rows + 0.8, "Imagined", ha="center",
-            fontsize=8, color=ORANGE)
+            fontsize=8, color=DARK_GRAY)
