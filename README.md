@@ -28,7 +28,7 @@ Most RL tutorials start with `import gymnasium`. This project starts with `1.0 +
 
 Every operation is composed from scalar arithmetic up through vectors, matrices, activations, environments, value functions, policies, and finally complete agents. Nothing is hidden behind a library call. The goal is to understand what the frameworks do, not how to call them.
 
-Each lesson introduces one new source of complexity:
+Each lesson introduces one new source of complexity. Lessons 01–04 use tables and scalar weights. Lessons 05–07 use neural networks built from the same primitives—the transition from tabular to neural RL happens at the L04/L05 boundary.
 
 ```
 L01 (Bellman)        → Planning: exact solutions with a known model
