@@ -389,7 +389,7 @@ def _pixel_to_rgb(val: float, imagined: bool = False) -> list[float]:
     """
     # ORANGE = #E8915C (0.91, 0.57, 0.36), TEAL = #5CB8B2 (0.36, 0.72, 0.70)
     if imagined:
-        bg = [0.15, 0.15, 0.22]
+        bg = [0.20, 0.20, 0.28]
         lo = 0.10           # lower threshold—decoder outputs are faint
         orange_hi = 0.55    # decoder target outputs ~0.3-0.5
     else:
@@ -426,7 +426,7 @@ def _frame_to_rgb(frame: Matrix, imagined: bool = False) -> list[list[list[float
     # Imagined side: find the two most active pixels
     rows = len(frame)
     cols = len(frame[0]) if frame else 0
-    bg = [0.15, 0.15, 0.22]
+    bg = [0.20, 0.20, 0.28]
 
     # Collect all pixel values with positions
     pixels = []
@@ -571,5 +571,5 @@ def draw_real_vs_imagined(
     ax.set_xticks([])
     ax.set_yticks([])
     ax.text(cols_r / 2, total_rows + 0.8, "Real", ha="center", fontsize=8, color=DARK_GRAY)
-    ax.text(cols_r + gap + cols_i / 2, total_rows + 0.8, "Imagined", ha="center",
+    ax.text(cols_r + gap + cols_i / 2, total_rows + 0.8, "Reconstructed", ha="center",
             fontsize=8, color=DARK_GRAY)

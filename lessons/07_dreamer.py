@@ -489,6 +489,7 @@ def main():
         axes["algo"].axis("off")
         if snap.phase == "random":
             axes["algo"].text(0.5, 0.5, "Before training\n(random actions)\n\n"
+                              "No world model yet—\nthe right side is empty\n\n"
                               f"Reward: {snap.total_reward:+.1f}",
                               transform=axes["algo"].transAxes,
                               ha="center", va="center", fontsize=10, color=DARK_GRAY)
