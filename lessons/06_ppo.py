@@ -63,7 +63,7 @@ def main():
     In Lesson 05, DQN learned Q-values for three discrete actions
     (left, stay, right) and picked the one with the highest value.
     That works when actions come from a short list. But what if
-    the action is a continuous torque — any real number between
+    the action is a continuous torque—any real number between
     -1 and +1?
 
     You cannot take argmax over an infinite range. There is no
@@ -99,7 +99,7 @@ def main():
 
     A wide bell curve (large std) means the agent is uncertain —
     it explores by sampling a broad range of torques. A narrow
-    bell curve (small std) means the agent is confident — it
+    bell curve (small std) means the agent is confident—it
     applies nearly the same torque every time.
 
     Training makes the bell curve narrower and shifts it toward
@@ -134,7 +134,7 @@ def main():
       ratio = pi_new(a | s) / pi_old(a | s) = exp(log_prob_new - log_prob_old)
 
     If the advantage is positive (good action), the objective
-    wants to increase the ratio — make this action more likely.
+    wants to increase the ratio—make this action more likely.
     But the clip prevents it from going above 1 + epsilon:
 
       L = min(ratio * A, clip(ratio, 1-eps, 1+eps) * A)
@@ -167,8 +167,8 @@ def main():
 
     But computing the return requires choosing between the same
     tradeoff from Lesson 03: wait for the full episode (Monte
-    Carlo — unbiased but high variance) or bootstrap from the
-    critic's estimate (TD — biased but low variance).
+    Carlo—unbiased but high variance) or bootstrap from the
+    critic's estimate (TD—biased but low variance).
 
     GAE (Generalized Advantage Estimation) blends both using
     lambda, the same parameter as TD(lambda):
@@ -192,7 +192,7 @@ def main():
 
     With lambda=0.95: A_0 = 2.88 + 0.94*(-0.11) + 0.89*(-0.10) = 2.69.
     The positive delta_0 is partially offset by the negative
-    deltas that follow — the critic was already too optimistic
+    deltas that follow—the critic was already too optimistic
     about V(s_1), so the advantage shrinks. This is GAE reducing
     variance: one lucky step doesn't inflate the advantage as
     much when subsequent steps bring the estimate back to earth.
@@ -244,9 +244,9 @@ def main():
     Eligibility traces propagated credit backward through time.
 
     PPO solves the same physics with none of those constraints.
-    The state is the raw angle and angular velocity — two
+    The state is the raw angle and angular velocity—two
     continuous numbers, not a box index. The action is a
-    continuous torque between -1 and +1 — not a binary choice.
+    continuous torque between -1 and +1—not a binary choice.
     The network learns smooth, proportional control: a small
     tilt gets a small correction, a large tilt gets a large one.
 
@@ -340,11 +340,11 @@ def main():
     print("""
     With the trained policy, the agent plays greedily: at each
     step it uses the mean of the Gaussian (no sampling noise).
-    This is the deterministic policy — the best single action
+    This is the deterministic policy—the best single action
     the network has learned for each state.
     """)
 
-    # Greedy evaluation — use clamped torque (what the environment actually executes)
+    # Greedy evaluation—use clamped torque (what the environment actually executes)
     eval_env = Balance()
     state = eval_env.reset()
     eval_steps = 0
@@ -372,7 +372,7 @@ def main():
     print(f"      Avg |torque|:    {avg_torque:.4f}")
     print()
 
-    # Policy at a few representative states — show clamped torque
+    # Policy at a few representative states—show clamped torque
     print("    Policy at representative states:")
     test_states = [
         (0.0, 0.0, "upright, still"),
@@ -390,7 +390,7 @@ def main():
     print()
 
     if eval_steps >= 500:
-        survival_msg = f"The agent survived {eval_steps} steps — the maximum."
+        survival_msg = f"The agent survived {eval_steps} steps—the maximum."
     else:
         survival_msg = f"The agent survived {eval_steps} of 500 steps."
     print(f"""    {survival_msg} It kept
@@ -404,7 +404,7 @@ def main():
     (push left). When tilting left, apply positive torque (push
     right). When rotating right, apply strong negative torque to
     counteract the momentum. The "upright, still" torque is not
-    zero — the network learned to pre-compensate for the pole's
+    zero—the network learned to pre-compensate for the pole's
     initial rightward tilt of 0.01 radians.
     """)
     print()

@@ -1,7 +1,7 @@
 """Level 1: Network container.
 
 A sequential collection of dense layers. Passes input through each layer in
-sequence — each layer's output becomes the next layer's input. Intermediate
+sequence—each layer's output becomes the next layer's input. Intermediate
 values are cached for backprop.
 """
 

@@ -208,10 +208,10 @@ class TestLosses:
         assert losses.mse([1.0, 2.0], [3.0, 4.0]) == 4.0
 
     def test_huber(self):
-        # Small errors — should behave like 0.5 * MSE
+        # Small errors—should behave like 0.5 * MSE
         h = losses.huber([1.0], [1.5], delta=1.0)
         assert abs(h - 0.125) < 1e-10
-        # Large errors — should be linear
+        # Large errors—should be linear
         h = losses.huber([1.0], [10.0], delta=1.0)
         assert h < losses.mse([1.0], [10.0])
 
@@ -365,7 +365,7 @@ class TestSpinner:
 
 class TestScalarLog:
     def test_log_zero_guarded(self):
-        """log(0) should not raise — it's guarded to a small positive value."""
+        """log(0) should not raise—it's guarded to a small positive value."""
         result = scalar.log(0.0)
         assert result < 0  # log of a tiny positive number is very negative
 

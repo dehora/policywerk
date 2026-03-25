@@ -10,7 +10,7 @@ import time
 
 from policywerk.primitives import scalar
 
-# Braille spinner characters — smooth rotation effect in the terminal
+# Braille spinner characters—smooth rotation effect in the terminal
 _BRAILLE = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 
 # ASCII fallback when the stream can't encode braille
@@ -80,7 +80,7 @@ class Spinner:
 
     def __enter__(self):
         self._stop.clear()
-        # Only animate on TTY streams — non-TTY (pipes, files) get
+        # Only animate on TTY streams—non-TTY (pipes, files) get
         # a single clean "done." line with no spinner frames.
         if self._tty:
             self._thread = threading.Thread(target=self._spin, daemon=True)
@@ -94,7 +94,7 @@ class Spinner:
         status = "failed." if exc_type is not None else "done."
         done_text = f"    {self._message}... {status}"
         if self._tty:
-            # Overwrite the spinner line — pad with spaces to clear
+            # Overwrite the spinner line—pad with spaces to clear
             # any residual characters from the spinning text
             padding = " " * 10
             self._stream.write(f"\r{done_text}{padding}\n")

@@ -113,7 +113,7 @@ class Breakout(Environment):
         if (next_r, next_c) in self._bricks:
             self._bricks.remove((next_r, next_c))
             self._ball_dr = -self._ball_dr
-            # Don't move into the brick cell — bounce back
+            # Don't move into the brick cell—bounce back
             next_r = self._ball_r
             self._score += 1
             reward = 1.0
@@ -134,7 +134,7 @@ class Breakout(Environment):
                 next_r = ROWS - 2
                 self._ball_dr = -self._ball_dr
             else:
-                # Miss — ball passed the paddle
+                # Miss—ball passed the paddle
                 self._ball_r = next_r
                 self._ball_c = next_c
                 self._done = True

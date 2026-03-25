@@ -5,7 +5,7 @@ perfect predictions; larger values mean worse predictions. The
 network's goal during training is to make the loss as small as
 possible.
 
-Each loss includes its derivative — how the loss changes when
+Each loss includes its derivative—how the loss changes when
 each prediction moves slightly. This is what the network uses
 to figure out which direction to adjust its weights.
 """
@@ -18,7 +18,7 @@ Vector = list[float]
 
 
 def mse(predicted: Vector, actual: Vector) -> float:
-    """Mean squared error — average of (predicted - actual)² for each element.
+    """Mean squared error—average of (predicted - actual)² for each element.
 
     Penalizes large errors heavily (because of squaring).
     The most common loss for regression tasks.
@@ -31,7 +31,7 @@ def mse(predicted: Vector, actual: Vector) -> float:
 def mse_derivative(predicted: Vector, actual: Vector) -> Vector:
     """How much the MSE changes when each prediction moves slightly.
 
-    Points in the direction that would increase the error — the
+    Points in the direction that would increase the error—the
     optimizer moves weights in the opposite direction to reduce it.
     """
     n = len(predicted)
@@ -41,7 +41,7 @@ def mse_derivative(predicted: Vector, actual: Vector) -> Vector:
 
 
 def cross_entropy(predicted: Vector, actual: Vector) -> float:
-    """Cross-entropy — measures how surprised the model is by the actual answer.
+    """Cross-entropy—measures how surprised the model is by the actual answer.
 
     Lower when predictions match reality. Used when the output
     represents probabilities (e.g. after softmax).
@@ -59,7 +59,7 @@ def cross_entropy_derivative(predicted: Vector, actual: Vector) -> Vector:
 
 
 def huber(predicted: Vector, actual: Vector, delta: float = 1.0) -> float:
-    """Huber loss — quadratic for small errors, linear for large ones.
+    """Huber loss—quadratic for small errors, linear for large ones.
 
     Combines the best of MSE (accurate for small errors) and absolute
     error (doesn't explode for large errors). Used by DQN to prevent
@@ -90,7 +90,7 @@ def huber_derivative(predicted: Vector, actual: Vector, delta: float = 1.0) -> V
         if abs_diff <= delta:
             grads.append(scalar.multiply(diff, scalar.inverse(n)))
         else:
-            # Clip the gradient to delta — this is why Huber prevents explosion
+            # Clip the gradient to delta—this is why Huber prevents explosion
             grads.append(scalar.multiply(scalar.multiply(delta, scalar.sign(diff)),
                                          scalar.inverse(n)))
     return grads
@@ -122,7 +122,7 @@ def twohot_encode(x: float, num_bins: int, lo: float, hi: float) -> Vector:
     the two nearest bins, with weights that interpolate linearly.
 
     Example: if bins are [0, 1, 2, 3] and x=1.7, the result is
-    [0, 0.3, 0.7, 0] — weight split between bins 1 and 2.
+    [0, 0.3, 0.7, 0]—weight split between bins 1 and 2.
     """
     bin_width = scalar.multiply(scalar.subtract(hi, lo), scalar.inverse(num_bins - 1))
     # Which bin does x fall into?
@@ -142,7 +142,7 @@ def twohot_encode(x: float, num_bins: int, lo: float, hi: float) -> Vector:
 def twohot_decode(probs: Vector, lo: float, hi: float) -> float:
     """Decode a bin distribution back to a scalar value.
 
-    Takes the weighted average of bin centers — the expected value
+    Takes the weighted average of bin centers—the expected value
     under the distribution.
     """
     num_bins = len(probs)

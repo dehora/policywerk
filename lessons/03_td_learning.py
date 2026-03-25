@@ -468,11 +468,11 @@ def main():
         axes["algo"].set_ylim(0, 1.0)
         axes["algo"].set_title(f"Estimates vs True (RMS={snap.rms:.3f})", fontsize=10)
 
-        # Bottom: RMS error trace — only show completed episodes
+        # Bottom: RMS error trace—only show completed episodes
         # (don't advance the trace during mid-episode step frames)
         n = min(snap.episode_num, len(real_rms))
         if snap.outcome is not None:
-            # This is an outcome frame — include this episode's RMS
+            # This is an outcome frame—include this episode's RMS
             n = min(snap.episode_num + 1, len(real_rms))
         update_trace_axes(axes["trace"], real_rms[:n],
                           label="RMS error", color=TEAL)

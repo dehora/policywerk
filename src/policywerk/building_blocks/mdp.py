@@ -1,8 +1,8 @@
 """Level 1: MDP framework.
 
 The Markov Decision Process is the formal foundation of reinforcement
-learning. Every RL algorithm in this project — from Bellman's 1957
-value iteration to DreamerV3's 2023 world model — operates within
+learning. Every RL algorithm in this project—from Bellman's 1957
+value iteration to DreamerV3's 2023 world model—operates within
 this framework.
 
 The idea is simple: an agent lives in an environment. At each moment,
@@ -17,7 +17,7 @@ episode ends.
 The "Markov" part means the future depends only on the current state,
 not on the history of how the agent got there. The grid cell you're
 standing on matters; the path you took to reach it doesn't. This
-simplification is what makes RL tractable — the agent only needs to
+simplification is what makes RL tractable—the agent only needs to
 learn a value for each state, not for every possible history.
 
 The key design decision in this module is the separation between two
@@ -25,15 +25,15 @@ kinds of environments:
 
   Environment: the agent can only interact by calling step(). It
     observes states and rewards but has no access to the environment's
-    internal rules. This is how most RL works — learning from experience.
+    internal rules. This is how most RL works—learning from experience.
 
   StochasticMDP: the agent can also query transition_probs() to ask
     "if I take action A from state S, what are all the possible outcomes
     and their probabilities?" This is only possible when the model is
     fully known, and it's what Bellman's value iteration (L01) requires.
 
-Everything above this module — value functions, policies, actors,
-lessons — depends on these interfaces.
+Everything above this module—value functions, policies, actors,
+lessons—depends on these interfaces.
 """
 
 from abc import ABC, abstractmethod
@@ -46,7 +46,7 @@ Vector = list[float]
 class State:
     """A state in the environment.
 
-    features: The numbers the agent sees — grid coordinates, sensor readings,
+    features: The numbers the agent sees—grid coordinates, sensor readings,
               or pixel values depending on the environment.
     label: human-readable identifier (e.g. grid position, box index).
     """
@@ -84,7 +84,7 @@ class Environment(ABC):
     """Base environment protocol.
 
     Every environment must implement reset() and step().
-    The agent interacts through this interface only — it never accesses
+    The agent interacts through this interface only—it never accesses
     the environment's internal state directly.
     """
 
@@ -111,7 +111,7 @@ class StochasticMDP(Environment):
     methods that need the full model (e.g. value iteration).
 
     The name refers to having known transition probabilities, not random
-    outcomes — even deterministic environments use this when planning
+    outcomes—even deterministic environments use this when planning
     algorithms need to query 'what would happen if?'
     """
 

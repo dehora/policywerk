@@ -13,12 +13,12 @@ How animation works:
      captures each redraw, and writes them as a GIF.
 
 Each frame redraws from scratch (clear + redraw) rather than
-updating individual elements — simpler and sufficient for our
+updating individual elements—simpler and sufficient for our
 frame rates.
 """
 
 import matplotlib
-# Non-interactive backend — renders to files, not to a window.
+# Non-interactive backend—renders to files, not to a window.
 # Required when running on servers or generating files without a display.
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -26,7 +26,7 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.gridspec import GridSpec
 from dataclasses import dataclass, field
 
-# House style — consistent across all seven lessons.
+# House style—consistent across all seven lessons.
 # TEAL: primary data (agent, current estimates, learned values)
 # ORANGE: secondary/reference data (true values, targets, comparisons)
 # LIGHT_GRAY: de-emphasized or background elements
@@ -35,7 +35,7 @@ TEAL = "#5CB8B2"
 ORANGE = "#E8915C"
 LIGHT_GRAY = "#E0E0E0"
 DARK_GRAY = "#4A4A4A"
-# Dots per inch — controls image resolution.
+# Dots per inch—controls image resolution.
 # 150 is a good balance between quality and file size.
 DPI = 150
 
@@ -48,9 +48,9 @@ def create_lesson_figure(
     """Create the standard three-pane lesson layout.
 
     Returns (fig, axes_dict) where axes_dict has keys:
-      "env"   — top-left, environment / trajectory view
-      "algo"  — top-right, algorithm-specific internal view
-      "trace" — bottom, spanning full width, training trace
+      "env"  —top-left, environment / trajectory view
+      "algo" —top-right, algorithm-specific internal view
+      "trace"—bottom, spanning full width, training trace
 
     figsize is in inches (matplotlib convention).
     """
@@ -88,7 +88,7 @@ class FrameSnapshot:
 class FrameRecorder:
     """Accumulates training snapshots at configurable intervals.
 
-    The training loop decides when to record — the recorder doesn't
+    The training loop decides when to record—the recorder doesn't
     inject itself into the loop.
 
     Usage:
@@ -154,12 +154,12 @@ def save_animation(
         writer = FFMpegWriter(fps=fps)
     else:
         # PillowWriter uses the Pillow library (a matplotlib dependency)
-        # to write GIF files — no external tools needed.
+        # to write GIF files—no external tools needed.
         writer = PillowWriter(fps=fps)
 
     anim.save(path, writer=writer, dpi=DPI)
 
-    # Export a PDF storyboard — one page per frame, useful for review
+    # Export a PDF storyboard—one page per frame, useful for review
     # and for embedding individual frames in documentation.
     if pdf:
         from matplotlib.backends.backend_pdf import PdfPages
@@ -180,7 +180,7 @@ def save_poster(
 ) -> None:
     """Save a single representative frame as a static image.
 
-    Like a movie poster — a thumbnail that represents the animation.
+    Like a movie poster—a thumbnail that represents the animation.
     """
     update_fn(frame_index)
     fig.savefig(path, dpi=DPI, bbox_inches="tight")  # tight crops whitespace

@@ -1,6 +1,6 @@
 """Level 3: Bellman's dynamic programming algorithms (1957).
 
-Value iteration and policy iteration — two ways to find the optimal
+Value iteration and policy iteration—two ways to find the optimal
 policy when the environment's rules are fully known. Both require
 a StochasticMDP (an environment that can answer "what would happen
 if I took action A from state S?") and both converge to the same
@@ -16,8 +16,8 @@ Policy iteration takes a different approach: start with any policy
 evaluation), then improve it by switching each state to its best
 action (policy improvement). Repeat until the policy stops changing.
 
-The Bellman equation — the recursive relationship between a state's
-value and its successors' values — is the mathematical foundation
+The Bellman equation—the recursive relationship between a state's
+value and its successors' values—is the mathematical foundation
 of both algorithms:
 
     V(s) = max_a Σ_s' P(s'|s,a) × [R(s,a,s') + γ × V(s')]
@@ -44,8 +44,8 @@ def value_iteration(
 
     Args:
         env: environment with known transition dynamics.
-        gamma: discount factor — how much to value future rewards.
-        theta: convergence threshold — stop when changes are this small.
+        gamma: discount factor—how much to value future rewards.
+        theta: convergence threshold—stop when changes are this small.
 
     Returns:
         (V, history) where V is the converged value function and

@@ -2,7 +2,7 @@
 
 A value function is how the agent remembers what it has learned.
 After thousands of episodes of experience, the agent doesn't
-remember individual episodes — it distills everything into a
+remember individual episodes—it distills everything into a
 single number per state (or per state-action pair) that answers:
 "how much total future reward can I expect from here?"
 
@@ -14,15 +14,15 @@ lookups.
 
 There are two kinds:
 
-  V(s) — State value: "how good is this state, assuming I follow
+  V(s)—State value: "how good is this state, assuming I follow
     my current policy from here?" Used by TD learning and critics.
 
-  Q(s, a) — Action value: "how good is taking action a in state s?"
+  Q(s, a)—Action value: "how good is taking action a in state s?"
     Used by Q-learning and DQN. Q is more directly useful than V
     because it tells you which action to pick: just take the one
     with the highest Q-value.
 
-In this module, values are stored in Python dicts — one entry per
+In this module, values are stored in Python dicts—one entry per
 state (or state-action pair). This works for small environments
 (grids, chains) where every state can be enumerated. For larger
 environments (pixel observations in L05+), a neural network
@@ -31,7 +31,7 @@ replaces the dict and generalizes to states never seen before.
 
 
 class TabularV:
-    """State value function V(s) — how good is this state?
+    """State value function V(s)—how good is this state?
 
     Maps each state to the agent's estimate of total future reward from
     that point.
@@ -50,7 +50,7 @@ class TabularV:
     def update(self, state_label: str, delta: float) -> None:
         """Add delta to current value: V(s) += delta.
 
-        delta: amount to add (not TD error — just a number to adjust the value by).
+        delta: amount to add (not TD error—just a number to adjust the value by).
         """
         self._values[state_label] = self.get(state_label) + delta
 
@@ -60,7 +60,7 @@ class TabularV:
     def max_change(self, other: "TabularV") -> float:
         """Maximum absolute difference between two value functions.
 
-        Used to check convergence — when the biggest change is tiny,
+        Used to check convergence—when the biggest change is tiny,
         the values have stabilized.
         """
         max_diff = 0.0
@@ -73,7 +73,7 @@ class TabularV:
 
 
 class TabularQ:
-    """Action-value function Q(s,a) — how good is this action in this state?
+    """Action-value function Q(s,a)—how good is this action in this state?
 
     Maps each (state, action) pair to an estimated value.
     """
@@ -91,7 +91,7 @@ class TabularQ:
     def update(self, state_label: str, action: int, delta: float) -> None:
         """Add delta to current value: Q(s,a) += delta.
 
-        delta: amount to add (not TD error — just a number to adjust the value by).
+        delta: amount to add (not TD error—just a number to adjust the value by).
         """
         key = (state_label, action)
         self._values[key] = self._values.get(key, self._default) + delta

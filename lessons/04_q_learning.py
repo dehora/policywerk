@@ -1,7 +1,7 @@
 """Lesson 4: Q-Learning (Watkins, 1989).
 
 In 1989, Chris Watkins showed how an agent could learn the optimal
-policy while exploring — without needing a model of the environment
+policy while exploring—without needing a model of the environment
 and without being constrained to follow its current best guess.
 This is Q-learning, and it extends TD learning from prediction
 (Lesson 03) to control.

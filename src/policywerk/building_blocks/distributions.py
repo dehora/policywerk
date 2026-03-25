@@ -17,7 +17,7 @@ Vector = list[float]
 class Categorical:
     """Categorical distribution parameterized by logits.
 
-    Logits are raw unnormalized scores — higher means more likely.
+    Logits are raw unnormalized scores—higher means more likely.
     Softmax converts them to actual probabilities, then supports
     sampling, log-probability computation, and entropy.
     """

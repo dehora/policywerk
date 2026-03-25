@@ -5,7 +5,7 @@ for the final outcome. Instead of asking "what actually happened?"
 (Monte Carlo), TD asks "what do I now predict will happen?" and
 updates the old prediction toward the new one.
 
-This is prediction only — the agent follows a fixed random policy
+This is prediction only—the agent follows a fixed random policy
 (equal probability of left and right) and learns the value of each
 state. The random walk environment has known true values, so we can
 measure exactly how accurate the predictions are.
@@ -27,7 +27,7 @@ Three methods are implemented:
     outcome) but high variance (different episodes from the same
     state can give very different returns).
 
-The TD error — r + gamma * V(s') - V(s) — is the same "surprise
+The TD error—r + gamma * V(s') - V(s)—is the same "surprise
 signal" that drove the ACE critic in Lesson 02. This lesson
 isolates it and shows why it works.
 """
@@ -70,7 +70,7 @@ def td_zero(
     seed: int = 42,
     init_value: float = 0.5,
 ) -> tuple[TabularV, list[dict]]:
-    """Learn state values using TD(0) — single-step bootstrapping.
+    """Learn state values using TD(0)—single-step bootstrapping.
 
     After each step (s, r, s'), update:
       V(s) += alpha * [r + gamma * V(s') - V(s)]
@@ -226,7 +226,7 @@ def monte_carlo(
     timestep, then update only the first occurrence of each state:
       V(s) += alpha * [G_t - V(s)]
 
-    Waits for the episode to end before updating — no bootstrapping.
+    Waits for the episode to end before updating—no bootstrapping.
 
     Note: this lesson uses gamma=1.0 and the random walk's true
     values assume gamma=1.0. Using other gamma values would require

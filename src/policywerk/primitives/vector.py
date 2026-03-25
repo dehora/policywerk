@@ -1,6 +1,6 @@
 """Level 0: Vector operations.
 
-Operations on lists of floats — dot products, element-wise ops,
+Operations on lists of floats—dot products, element-wise ops,
 scaling. Built from scalar operations.
 
 A vector is just a list of numbers. These operations let us work
@@ -17,7 +17,7 @@ def dot(a: Vector, b: Vector) -> float:
 
     Measures how similar two vectors are, or how much one
     points in the direction of the other. This is the most
-    important operation in neural networks — every neuron
+    important operation in neural networks—every neuron
     computes a dot product of its weights and inputs.
 
     Example: dot([1, 2, 3], [4, 5, 6]) = 1*4 + 2*5 + 3*6 = 32
@@ -58,7 +58,7 @@ def apply(fn, v: Vector) -> Vector:
 
 
 def magnitude(v: Vector) -> float:
-    """Length of a vector — the Euclidean norm (Pythagorean distance from origin)."""
+    """Length of a vector—the Euclidean norm (Pythagorean distance from origin)."""
     return scalar.power(dot(v, v), 0.5)
 
 

@@ -1,7 +1,7 @@
 """Level 2: Point-mass continuous control.
 
 A point mass in 2D space must reach a target position.
-Physics: simple Newtonian — force → acceleration → velocity → position,
+Physics: simple Newtonian—force → acceleration → velocity → position,
 with damping to prevent oscillation.
 
 State: (x, y, x_dot, y_dot, target_x, target_y)
@@ -42,11 +42,11 @@ class PointMass(Environment):
         self,
         target: tuple[float, float] = (0.8, 0.8),
         force_scale: float = 0.5,  # strength multiplier for the agent's force
-        damping: float = 0.95,  # friction — velocity loses 5% per step, prevents oscillation
+        damping: float = 0.95,  # friction—velocity loses 5% per step, prevents oscillation
         dt: float = 0.1,
         reach_threshold: float = 0.1,  # how close to target counts as 'reached'
         max_steps: int = 200,
-        bounds: float = 2.0,  # play area — agent can't leave [-bounds, bounds]
+        bounds: float = 2.0,  # play area—agent can't leave [-bounds, bounds]
     ):
         self._target = target
         self._force_scale = force_scale
@@ -81,7 +81,7 @@ class PointMass(Environment):
         """Continuous action: apply (force_x, force_y) directly.
 
         Discrete step() maps action numbers to compass directions.
-        step_continuous() takes an arbitrary force vector — used by
+        step_continuous() takes an arbitrary force vector—used by
         continuous-action algorithms like PPO.
         """
         fx = scalar.clamp(force[0], -1.0, 1.0) * self._force_scale

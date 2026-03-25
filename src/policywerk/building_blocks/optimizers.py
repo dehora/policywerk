@@ -1,6 +1,6 @@
 """Level 1: Optimizers.
 
-Parameter update rules — SGD, SGD with momentum, and Adam.
+Parameter update rules—SGD, SGD with momentum, and Adam.
 Takes gradients and adjusts weights to minimize loss.
 """
 
@@ -19,7 +19,7 @@ def sgd_update(network, gradients: list[LayerGradients], learning_rate: float):
     The negative sign is key: we move each weight in the opposite direction of
     its gradient, toward lower loss.
 
-    learning_rate: How big a step to take — too large and training overshoots,
+    learning_rate: How big a step to take—too large and training overshoots,
     too small and it's slow.
     """
     for layer, grads in zip(network.layers, gradients):
@@ -42,7 +42,7 @@ def sgd_momentum_update(
 ) -> list[LayerGradients]:
     """Update weights using SGD with momentum. Returns updated velocities.
 
-    Like a ball rolling downhill — builds up speed in consistent directions,
+    Like a ball rolling downhill—builds up speed in consistent directions,
     smoothing out noisy zig-zagging.
 
     Note: velocities reuses the LayerGradients dataclass for convenience —
@@ -141,14 +141,14 @@ def adam_update(
             )
 
         # Bias correction: in the first few updates, the averages are biased toward
-        # zero because they started at zero — this correction compensates.
+        # zero because they started at zero—this correction compensates.
         bc1 = scalar.inverse(scalar.subtract(1.0, scalar.power(beta1, state.t)))
         bc2 = scalar.inverse(scalar.subtract(1.0, scalar.power(beta2, state.t)))
 
         # Apply updates: w -= lr * m_hat / (sqrt(v_hat) + eps)
         # Divide by sqrt(variance) to normalize: parameters with consistently large
         # gradients take smaller steps, parameters with small gradients take larger
-        # steps — automatic per-parameter learning rate.
+        # steps—automatic per-parameter learning rate.
         for r in range(len(layer.weights)):
             for c in range(len(layer.weights[0])):
                 m_hat = scalar.multiply(state.m_weights[r][c], bc1)

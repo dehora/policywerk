@@ -1,9 +1,9 @@
 """Level 2: Simplified 1D balance environment.
 
-Imagine balancing a broomstick on your fingertip — the agent can only
+Imagine balancing a broomstick on your fingertip—the agent can only
 push left or right and must prevent the pole from tipping over.
 
-A pole hinged at a point — the agent applies left or right torque
+A pole hinged at a point—the agent applies left or right torque
 to keep it upright. Simpler than full cart-pole: no cart position,
 just angle and angular velocity.
 
@@ -83,7 +83,7 @@ class Balance(Environment):
 
     def _apply_torque(self, torque: float) -> tuple[State, float, bool]:
         """Shared physics for both discrete and continuous actions."""
-        # Gravity pulls the pole down — the further it tilts, the harder
+        # Gravity pulls the pole down—the further it tilts, the harder
         # gravity pulls. The agent's torque pushes against gravity.
         angular_accel = (self._gravity / self._length) * math.sin(self._angle) + torque
         self._vel += angular_accel * self._dt
@@ -102,7 +102,7 @@ class Balance(Environment):
         """Apply a continuous torque in [-1, 1], scaled by torque_magnitude.
 
         Discrete step() snaps to full left/right. step_continuous()
-        allows any torque — used by PPO (L06) for smooth control.
+        allows any torque—used by PPO (L06) for smooth control.
         """
         from policywerk.primitives import scalar
         clamped = scalar.clamp(torque, -1.0, 1.0)

@@ -1,6 +1,6 @@
 """Level 0: Matrix operations.
 
-Operations on lists of lists of floats — matrix-vector multiply,
+Operations on lists of lists of floats—matrix-vector multiply,
 transpose, outer product. Built from vector operations.
 
 A matrix is a grid of numbers (rows × columns). These operations
@@ -31,7 +31,7 @@ def mat_mat(A: Matrix, B: Matrix) -> Matrix:
 
 
 def transpose(M: Matrix) -> Matrix:
-    """Flip rows and columns — row 0 becomes column 0, etc."""
+    """Flip rows and columns—row 0 becomes column 0, etc."""
     if not M:
         return []
     rows, cols = len(M), len(M[0])

@@ -457,7 +457,7 @@ def main():
             score=rand_env.score(),
         ))
     # Hold on "Game Over" for a few frames
-    game_over_label = "Game Over — random policy" if rand_total < 0 else "Cleared — random policy"
+    game_over_label = "Game Over—random policy" if rand_total < 0 else "Cleared—random policy"
     for _ in range(8):
         snapshots.append(DQNSnapshot(
             episode=0,
@@ -530,7 +530,7 @@ def main():
         if g_env.bricks_remaining() == 0:
             end_label = f"Cleared! score={g_env.score()}"
         else:
-            end_label = f"Game Over — score {g_env.score()}/12"
+            end_label = f"Game Over—score {g_env.score()}/12"
         for _ in range(12):
             snapshots.append(DQNSnapshot(
                 episode=num_episodes,

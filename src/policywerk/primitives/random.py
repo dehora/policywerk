@@ -4,7 +4,7 @@ Seeded RNG wrappers for reproducible training and exploration.
 All randomness in the project flows through this module.
 
 Using a seed means the same seed always produces the same sequence
-of random numbers — making experiments reproducible. If something
+of random numbers—making experiments reproducible. If something
 works with seed 42, it will always work with seed 42.
 """
 

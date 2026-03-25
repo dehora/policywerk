@@ -1,6 +1,6 @@
 # Lesson 1: The Bellman Equation (Bellman, 1957)
 
-In 1957, Richard Bellman formalized how to make optimal decisions in sequential problems. This lesson implements his two dynamic programming algorithms — value iteration and policy iteration — on a small gridworld, and animates the process of value propagation.
+In 1957, Richard Bellman formalized how to make optimal decisions in sequential problems. This lesson implements his two dynamic programming algorithms—value iteration and policy iteration—on a small gridworld, and animates the process of value propagation.
 
 ```
 uv run python lessons/01_bellman.py
@@ -25,7 +25,7 @@ The step cost of -0.04 encourages the agent to reach the goal quickly rather tha
 
 Value iteration answers "how good is each state?" by assigning a number to every cell. This number is called V (the value) and it represents how much total future reward the agent can expect from that cell, assuming it plays optimally from there.
 
-At the start, all values are zero — the agent knows nothing. Then it sweeps through every cell, updating each one:
+At the start, all values are zero—the agent knows nothing. Then it sweeps through every cell, updating each one:
 
 > "Try all four actions. For each action, look at the immediate reward and the value of wherever that action leads. Multiply the future value by gamma (0.9) because one step of distance makes it worth a bit less. Keep the best score."
 
@@ -61,9 +61,9 @@ Sweep-by-sweep convergence (max value change):
   Sweep  9:  0.000000  [........................................]
 ```
 
-With synchronous updates, information travels exactly one cell per sweep — each state reads the previous sweep's values. The start cell is 8 steps from the goal, so it takes 8 sweeps for goal information to reach it. Sweep 9 confirms nothing changed — convergence.
+With synchronous updates, information travels exactly one cell per sweep—each state reads the previous sweep's values. The start cell is 8 steps from the goal, so it takes 8 sweeps for goal information to reach it. Sweep 9 confirms nothing changed—convergence.
 
-The max change decays by exactly gamma (0.9) each sweep. This is because the step cost cancels in the difference: on sweep 2, cell (0,2) changes from -0.04 (its old step-cost value) to +0.86 (= -0.04 + 0.9 x 1.0), a *change* of 0.90 — not the new value 0.86. Each wavefront cell's old and new values both include the same step cost, so the difference is purely the discounted goal reward propagating one step further.
+The max change decays by exactly gamma (0.9) each sweep. This is because the step cost cancels in the difference: on sweep 2, cell (0,2) changes from -0.04 (its old step-cost value) to +0.86 (= -0.04 + 0.9 x 1.0), a *change* of 0.90—not the new value 0.86. Each wavefront cell's old and new values both include the same step cost, so the difference is purely the discounted goal reward propagating one step further.
 
 ### Final State Values
 
@@ -75,9 +75,9 @@ The max change decays by exactly gamma (0.9) each sweep. This is because the ste
 +0.270  +0.344  +0.427  +0.519  +0.621
 ```
 
-The highest values are near the goal (top-right). The lowest are at the start (bottom-left), furthest away. Values decrease smoothly with distance — each step away from the goal costs roughly a factor of gamma (0.9).
+The highest values are near the goal (top-right). The lowest are at the start (bottom-left), furthest away. Values decrease smoothly with distance—each step away from the goal costs roughly a factor of gamma (0.9).
 
-The start cell has value +0.270. The optimal path is 8 steps long — the +1 goal reward arrives at step 8 and is discounted by gamma^7 (0.9^7 = 0.478), but seven step costs of -0.04 along the way reduce the total further.
+The start cell has value +0.270. The optimal path is 8 steps long—the +1 goal reward arrives at step 8 and is discounted by gamma^7 (0.9^7 = 0.478), but seven step costs of -0.04 along the way reduce the total further.
 
 ### Optimal Policy
 
@@ -89,7 +89,7 @@ The start cell has value +0.270. The optimal path is 8 steps long — the +1 goa
   ^      ^      ^      ^      ^
 ```
 
-Starting at S (bottom-left), follow the arrows: up, up, up, up to the top row, then right, right, right, right to the goal. Eight steps — the shortest path. The wall and pit are naturally avoided because their neighbors have lower values.
+Starting at S (bottom-left), follow the arrows: up, up, up, up to the top row, then right, right, right, right to the goal. Eight steps—the shortest path. The wall and pit are naturally avoided because their neighbors have lower values.
 
 ## Policy Iteration
 

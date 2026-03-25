@@ -1,6 +1,6 @@
 # policywerk
 
-Reinforcement learning from scratch, built piece by piece from scalar operations up to complete RL architectures. Pure Python, no frameworks — just `math` and lists.
+Reinforcement learning from scratch, built piece by piece from scalar operations up to complete RL architectures. Pure Python, no frameworks—just `math` and lists.
 
 This is the RL counterpart to [modelwerk](https://github.com/dehora/modelwerk). Same philosophy: understand the machinery by building it yourself. If you're looking for a Stable Baselines tutorial, this isn't it. If you want to know what those frameworks are doing under the hood, read on.
 
@@ -16,11 +16,11 @@ The project follows seven landmark papers chronologically, each one building on 
 | 04 | Watkins, "Learning from Delayed Rewards" | 1989 | Q-learning | Cliff walking | Done |
 | 05 | Mnih et al., "Playing Atari with Deep Reinforcement Learning" | 2013 | DQN | Mini Breakout | Done |
 | 06 | Schulman et al., "Proximal Policy Optimization Algorithms" | 2017 | PPO | Balance (continuous) | Done |
-| 07 | Hafner et al., "Mastering Diverse Domains through World Models" | 2023 | DreamerV3 | Pixel point-mass | — |
+| 07 | Hafner et al., "Mastering Diverse Domains through World Models" | 2023 | DreamerV3 | Pixel point-mass | -- |
 
 ## Concepts
 
-Seven ideas underpin everything in this project — the MDP framework, value functions, exploration vs exploitation, discounted returns, credit assignment, backpropagation, and function approximation. If any are unfamiliar, read [CONCEPTS.md](CONCEPTS.md) before diving into the code.
+Seven ideas underpin everything in this project—the MDP framework, value functions, exploration vs exploitation, discounted returns, credit assignment, backpropagation, and function approximation. If any are unfamiliar, read [CONCEPTS.md](CONCEPTS.md) before diving into the code.
 
 ## Why
 
@@ -48,7 +48,7 @@ L07 (DreamerV3)      → World models: learn the dynamics, train in imagination
 
 ## Artifacts
 
-Each lesson produces an animated visualization as its primary artifact — not a static plot, but a short animation that shows how learning unfolds. Every animation uses the same three-pane layout:
+Each lesson produces an animated visualization as its primary artifact—not a static plot, but a short animation that shows how learning unfolds. Every animation uses the same three-pane layout:
 
 ```
 ┌─────────────────┬─────────────────┐
@@ -67,7 +67,7 @@ The animations answer *how learning unfolds*, not just *what was learned*. For R
 |--------|--------------------------|
 | 01 | Value heatmap rippling backward through the grid, sweep by sweep |
 | 02 | Chaotic balance attempts becoming controlled over episodes |
-| 03 | Value estimate bars shifting toward true values — TD vs Monte Carlo |
+| 03 | Value estimate bars shifting toward true values—TD vs Monte Carlo |
 | 04 | Greedy policy arrows settling into a cliff-edge route |
 | 05 | Random policy failing, reward curve climbing, trained agent clearing bricks |
 | 06 | Gaussian policy distribution smoothing over updates |
@@ -92,7 +92,7 @@ Animations are saved to `output/` as GIFs. A poster frame (PNG) and training tra
 ```
 src/policywerk/
   primitives/         L0: Scalar, vector, matrix ops, activations, losses
-    scalar.py           Addition, multiplication, exp, log, abs, sign — the atoms
+    scalar.py           Addition, multiplication, exp, log, abs, sign—the atoms
     vector.py           Dot product, element-wise ops, argmax, concat
     matrix.py           Matrix multiply, transpose, outer product, 3D tensors
     activations.py      Sigmoid, tanh, ReLU, ELU, softmax, layer norm + derivatives
@@ -138,7 +138,7 @@ src/policywerk/
   data/               Episode collection and training metrics
   viz/                Animated visualizations (matplotlib)
 
-lessons/              Runnable scripts — one per paper
+lessons/              Runnable scripts—one per paper
 examples/             Captured lesson outputs
 papers/               Reference PDFs
 tests/                Unit tests
@@ -146,7 +146,7 @@ tests/                Unit tests
 
 ## Rules
 
-- **Python standard library only** — no numpy, torch, tensorflow, or any ML/data framework
-- **matplotlib is the sole exception** — allowed for visualization only
-- **Compositional layering** — each level imports only from levels below (primitives → building blocks → world → actors)
+- **Python standard library only**—no numpy, torch, tensorflow, or any ML/data framework
+- **matplotlib is the sole exception**—allowed for visualization only
+- **Compositional layering**—each level imports only from levels below (primitives → building blocks → world → actors)
 - All randomness goes through `random.py` with explicit seeds

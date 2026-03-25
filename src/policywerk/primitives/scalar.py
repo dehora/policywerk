@@ -1,6 +1,6 @@
 """Level 0: Scalar operations.
 
-The most basic building blocks — named wrappers around arithmetic
+The most basic building blocks—named wrappers around arithmetic
 so that every operation in the system has an explicit identity.
 Everything above this level is built from these.
 """
@@ -34,17 +34,17 @@ def inverse(a: float) -> float:
 
 
 def exp(x: float) -> float:
-    """Raise e (≈2.718) to the power x — grows very fast.
+    """Raise e (≈2.718) to the power x—grows very fast.
 
     Used throughout for sigmoid, softmax, and probability computations.
-    Clamped to avoid overflow — exp(710) is already beyond float64.
+    Clamped to avoid overflow—exp(710) is already beyond float64.
     """
     x = max(-500.0, min(500.0, x))
     return math.exp(x)
 
 
 def log(x: float) -> float:
-    """Natural logarithm — the inverse of exp. log(exp(x)) = x.
+    """Natural logarithm—the inverse of exp. log(exp(x)) = x.
 
     Compresses large numbers and expands small ones. Used for
     log-probabilities and loss functions. Guarded against log(0).
@@ -69,7 +69,7 @@ def clamp(x: float, lo: float, hi: float) -> float:
 
 
 def abs_val(x: float) -> float:
-    """Absolute value — distance from zero, always non-negative."""
+    """Absolute value—distance from zero, always non-negative."""
     return -x if x < 0 else x
 
 

@@ -1,7 +1,7 @@
 """Level 1: Experience replay buffer.
 
 Circular buffer that stores transitions and serves random mini-batches.
-Breaks temporal correlation in training data — the key insight of DQN.
+Breaks temporal correlation in training data—the key insight of DQN.
 
 If the network trains on consecutive experiences, it sees correlated data
 and may learn spurious patterns. Random sampling mixes experiences from

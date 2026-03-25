@@ -38,7 +38,7 @@ class CliffWorld(Environment):
     COLS = _COLS
     START = _START
     GOAL = _GOAL
-    # List, not set — `in` is a linear scan of 10 elements on every step.
+    # List, not set—`in` is a linear scan of 10 elements on every step.
     # A set would be O(1) in production code, but for 10 cells the
     # difference is negligible and the list preserves insertion order
     # for iteration in viz code.
@@ -61,7 +61,7 @@ class CliffWorld(Environment):
         nc = max(0, min(_COLS - 1, nc))
 
         # Cliff: -100 and back to start.
-        # The agent isn't eliminated — it's sent back to the start, which is
+        # The agent isn't eliminated—it's sent back to the start, which is
         # costly because it has to walk all the way again.
         if (nr, nc) in self.CLIFF:
             self._pos = _START
@@ -69,7 +69,7 @@ class CliffWorld(Environment):
 
         self._pos = (nr, nc)
 
-        # Goal — the agent isn't rewarded for reaching the goal; it's trying
+        # Goal—the agent isn't rewarded for reaching the goal; it's trying
         # to stop accumulating step penalties (-1 per step).
         if self._pos == _GOAL:
             return self._make_state(self._pos), 0.0, True

@@ -8,7 +8,7 @@ real-vs-imagined split-screen for world models.
 import math
 
 import matplotlib
-matplotlib.use("Agg")  # non-interactive backend — renders to files
+matplotlib.use("Agg")  # non-interactive backend—renders to files
 import matplotlib.pyplot as plt
 
 from policywerk.viz.animate import TEAL, ORANGE, LIGHT_GRAY, DARK_GRAY
@@ -185,7 +185,7 @@ def draw_chain(
     labels: state names in order (left to right).
     values: optional value estimates for each state (shown as color fill).
     path: optional list of state labels visited this episode (drawn as line).
-    outcome: "left" or "right" — which terminal was reached.
+    outcome: "left" or "right"—which terminal was reached.
     agent_label: if set, draw an agent marker above this state node.
     caption: optional text displayed below the chain explaining the task.
     """

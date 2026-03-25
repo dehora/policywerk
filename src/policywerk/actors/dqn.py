@@ -3,7 +3,7 @@
 Mnih et al. (2013), 'Playing Atari with Deep Reinforcement Learning.'
 
 Q-learning (L04) stores one value per state-action pair in a table.
-That works when the state space is small and discrete — 48 cells on
+That works when the state space is small and discrete—48 cells on
 the cliff world. But when the agent sees pixels, the table approach
 breaks: each observation is effectively unique, and the table cannot
 generalize across similar-looking states.
@@ -49,7 +49,7 @@ Matrix = list[list[float]]
 def _copy_network(source: Network) -> Network:
     """Deep copy a network's weights and biases.
 
-    The target network needs to be an independent copy — modifying
+    The target network needs to be an independent copy—modifying
     the online network's weights during training must not change
     the target network's predictions.
     """
@@ -91,7 +91,7 @@ def dqn(
       Table:   Q[(label, action)] -> float
       Network: forward(state.features) -> [Q(s,0), Q(s,1), ..., Q(s,n)]
 
-    The network generalizes across states — similar pixel patterns
+    The network generalizes across states—similar pixel patterns
     produce similar Q-values, unlike a table where each state is
     independent.
 

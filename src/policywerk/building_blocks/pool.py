@@ -1,6 +1,6 @@
 """Level 1: Pooling layers.
 
-Shrink the image by summarizing small regions — keeps important information
+Shrink the image by summarizing small regions—keeps important information
 while reducing the amount of data. Max and average pooling for spatial
 downsampling.
 """
@@ -15,7 +15,7 @@ Tensor3D = list[list[list[float]]]
 
 @dataclass
 class MaxPoolCache:
-    """Saved during forward pass for backprop — which input was the max."""
+    """Saved during forward pass for backprop—which input was the max."""
     in_channels: int
     in_height: int
     in_width: int
@@ -25,7 +25,7 @@ class MaxPoolCache:
 
 @dataclass
 class AvgPoolCache:
-    """Saved during forward pass for backprop — input dimensions needed to reconstruct gradient shape."""
+    """Saved during forward pass for backprop—input dimensions needed to reconstruct gradient shape."""
     in_channels: int
     in_height: int
     in_width: int
@@ -36,7 +36,7 @@ def max_pool_forward(
     pool_size: int = 2,   # size of the window to summarize (e.g. 2x2)
     stride: int = 2,      # how far to move the window each step (usually same as pool_size)
 ) -> tuple[Tensor3D, MaxPoolCache]:
-    """Max pooling forward pass — take the maximum in each window."""
+    """Max pooling forward pass—take the maximum in each window."""
     channels = len(inputs)
     in_h = len(inputs[0])
     in_w = len(inputs[0][0])
@@ -71,7 +71,7 @@ def max_pool_forward(
 def max_pool_backward(
     output_grad: Tensor3D, cache: MaxPoolCache,
 ) -> Tensor3D:
-    """Max pooling backward — gradient flows only to the max element."""
+    """Max pooling backward—gradient flows only to the max element."""
     input_grad = tensor3d_zeros(cache.in_channels, cache.in_height, cache.in_width)
     for ch, out_r, out_c, in_r, in_c in cache.max_indices:
         input_grad[ch][in_r][in_c] = scalar.add(
@@ -113,7 +113,7 @@ def avg_pool_backward(
     output_grad: Tensor3D, cache: AvgPoolCache,
     pool_size: int = 2, stride: int = 2,
 ) -> Tensor3D:
-    """Average pooling backward — distribute gradient equally."""
+    """Average pooling backward—distribute gradient equally."""
     area = float(pool_size * pool_size)
     out_h = len(output_grad[0])
     out_w = len(output_grad[0][0])

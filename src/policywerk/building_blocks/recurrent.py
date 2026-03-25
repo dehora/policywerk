@@ -27,7 +27,7 @@ Matrix = list[list[float]]
 
 @dataclass
 class GRULayer:
-    """GRU parameters — three sets of weights for update, reset, and candidate."""
+    """GRU parameters—three sets of weights for update, reset, and candidate."""
     W_z: Matrix    # update gate weights (hidden_size, hidden_size + input_size)
     b_z: Vector    # update gate biases
     W_r: Matrix    # reset gate weights

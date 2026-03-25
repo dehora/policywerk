@@ -5,7 +5,7 @@ grouped bar charts for value comparisons, Q-value displays.
 """
 
 import matplotlib
-matplotlib.use("Agg")  # non-interactive backend — renders to files
+matplotlib.use("Agg")  # non-interactive backend—renders to files
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
@@ -34,7 +34,7 @@ def draw_value_heatmap(
 
     values: rows × cols matrix of floats.
     skip_cells: set of (row, col) tuples where value text should be
-        suppressed — used for cells that will get an overlay marker
+        suppressed—used for cells that will get an overlay marker
         (walls, pits, goals) to prevent text collision.
     """
     ax.clear()
@@ -103,7 +103,7 @@ def draw_grid_overlay(
     pits: list[tuple[int, int]] | None = None,
     goals: list[tuple[int, int]] | None = None,
 ) -> None:
-    """Mark special cells on a grid — walls, pits, goals."""
+    """Mark special cells on a grid—walls, pits, goals."""
     import matplotlib.patheffects as pe
     walls = walls or []
     pits = pits or []
@@ -163,7 +163,7 @@ def draw_q_bars(
 ) -> None:
     """Bar chart of Q-values (action scores) for the current state.
 
-    The best action is highlighted in teal — this is the one
+    The best action is highlighted in teal—this is the one
     the agent would choose.
     """
     ax.clear()

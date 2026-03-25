@@ -51,7 +51,7 @@ Step 2: D -> E, reward=0
   V(D) += 0.1 * 0.05 = 0.005 -> V(D) = 0.505
 ```
 
-The +1 reward rippled one step further back. Information propagates backward one step per episode — the same "ripple" as Lesson 01, but learned from experience.
+The +1 reward rippled one step further back. Information propagates backward one step per episode—the same "ripple" as Lesson 01, but learned from experience.
 
 ## Monte Carlo: Waiting for the Truth
 
@@ -68,7 +68,7 @@ V(D) += 0.1 * (1 - 0.5) = 0.05 -> 0.55
 V(E) += 0.1 * (1 - 0.5) = 0.05 -> 0.55
 ```
 
-MC waits for the outcome, then updates the first visit of each state at once. Unbiased but high-variance — the target can be either 0 or 1 from episode to episode, so repeated pulls in different directions make V(C) noisy instead of settling smoothly.
+MC waits for the outcome, then updates the first visit of each state at once. Unbiased but high-variance—the target can be either 0 or 1 from episode to episode, so repeated pulls in different directions make V(C) noisy instead of settling smoothly.
 
 ## Training Results
 

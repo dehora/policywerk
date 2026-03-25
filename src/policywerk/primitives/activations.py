@@ -1,7 +1,7 @@
 """Level 0: Activation functions and normalization.
 
 Non-linear functions applied after a neuron's weighted sum.
-Without these, stacking layers would be pointless — multiple
+Without these, stacking layers would be pointless—multiple
 linear transformations collapse into one. Activations introduce
 curves and thresholds that let networks learn complex patterns.
 
@@ -19,12 +19,12 @@ Vector = list[float]
 
 
 def step(x: float) -> float:
-    """Return 1 if x >= 0, else 0 — the binary threshold activation."""
+    """Return 1 if x >= 0, else 0—the binary threshold activation."""
     return 1.0 if x >= 0 else 0.0
 
 
 def sigmoid(x: float) -> float:
-    """Squash x into (0, 1) — used to represent probabilities.
+    """Squash x into (0, 1)—used to represent probabilities.
 
     Large positive x → near 1, large negative x → near 0,
     x = 0 → exactly 0.5. Formula: 1 / (1 + e^(-x))
@@ -39,7 +39,7 @@ def sigmoid_derivative(x: float) -> float:
 
 
 def tanh_(x: float) -> float:
-    """Squash x into (-1, 1) — like sigmoid but centered at zero.
+    """Squash x into (-1, 1)—like sigmoid but centered at zero.
 
     Trailing underscore avoids shadowing math.tanh.
     Formula: (e^x - e^(-x)) / (e^x + e^(-x))
@@ -54,7 +54,7 @@ def tanh_derivative(x: float) -> float:
 
 
 def relu(x: float) -> float:
-    """Return x if positive, else 0 — the rectified linear unit.
+    """Return x if positive, else 0—the rectified linear unit.
 
     Simple and effective: lets positive signals through unchanged,
     blocks negative ones entirely.
@@ -101,7 +101,7 @@ def elu_derivative(x: float, alpha: float = 1.0) -> float:
 
 
 def softplus(x: float) -> float:
-    """log(1 + exp(x)) — a smooth approximation of ReLU.
+    """log(1 + exp(x))—a smooth approximation of ReLU.
 
     Always positive, approaches x for large x. Clamped to
     avoid computing exp of large numbers.
@@ -117,7 +117,7 @@ def softplus_derivative(x: float) -> float:
 
 
 def identity(x: float) -> float:
-    """Pass-through — no transformation. Used for output layers."""
+    """Pass-through—no transformation. Used for output layers."""
     return x
 
 

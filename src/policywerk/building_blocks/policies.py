@@ -1,6 +1,6 @@
 """Level 1: Action selection policies.
 
-A policy is the agent's decision-making strategy — given what it
+A policy is the agent's decision-making strategy—given what it
 knows about the current state, which action should it take?
 
 The fundamental dilemma is exploration vs exploitation. If the agent
@@ -12,7 +12,7 @@ already knows are bad. Every RL algorithm must resolve this tension.
 This problem doesn't exist in supervised learning, where correct
 answers are given. In RL, the agent must discover good actions
 through trial and error, which means it must sometimes deliberately
-choose actions it believes are suboptimal — just to find out if
+choose actions it believes are suboptimal—just to find out if
 it's wrong.
 
 The strategies here represent different points on the spectrum:
@@ -21,10 +21,10 @@ The strategies here represent different points on the spectrum:
     Fast once you know the right answer, but can't discover it.
 
   epsilon_greedy: usually pick the best action, but with probability
-    epsilon pick a random one. The simplest solution — blunt but
+    epsilon pick a random one. The simplest solution—blunt but
     effective. Most tabular RL methods use this (L04 Q-learning).
 
-  softmax_policy: convert action values to probabilities — higher
+  softmax_policy: convert action values to probabilities—higher
     values get higher probability, but every action has a chance.
     Temperature controls how peaked the distribution is: high
     temperature ≈ random, low temperature ≈ greedy. Smoother than
@@ -37,7 +37,7 @@ The strategies here represent different points on the spectrum:
 
 In L06, the policy itself becomes a neural network, and the agent
 learns the policy directly rather than deriving it from Q-values.
-That's a fundamental shift — from "learn values, derive actions"
+That's a fundamental shift—from "learn values, derive actions"
 to "learn actions directly."
 """
 
@@ -64,7 +64,7 @@ def epsilon_greedy(rng: _random.Random, q_values: Vector, epsilon: float) -> int
 
 def softmax_policy(rng: _random.Random, q_values: Vector = None, temperature: float = 1.0,
                    *, preferences: Vector = None) -> int:
-    """Convert action scores into probabilities — higher-scored actions are more
+    """Convert action scores into probabilities—higher-scored actions are more
     likely to be chosen, but not guaranteed.
 
     Higher temperature → more uniform (exploratory).

@@ -141,7 +141,7 @@ class Catcher(Environment):
 
     def _make_state(self) -> State:
         # The agent's observation is the raw pixel grid flattened into a
-        # list — no direct access to position coordinates.
+        # list—no direct access to position coordinates.
         frame = self.render_frame()
         features = []
         for row in frame:

@@ -17,7 +17,7 @@ taken next:
 
   Q(s, a) += alpha * [r + gamma * Q(s', a_next) - Q(s, a)]
 
-The difference is one word — "max" vs "actual" — but it changes
+The difference is one word—"max" vs "actual"—but it changes
 what the agent learns. On the cliff walking environment:
 
   Q-learning finds the risky optimal path along the cliff edge

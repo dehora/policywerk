@@ -56,7 +56,7 @@ class TestGridWorld:
     def test_goal_terminal(self):
         env = GridWorld()
         env.reset()
-        # Navigate to goal at (0,4) — move north 4 times, east 4 times
+        # Navigate to goal at (0,4)—move north 4 times, east 4 times
         for _ in range(4):
             env.step(0)  # N
         for _ in range(3):
@@ -71,7 +71,7 @@ class TestGridWorld:
         env.step(0)  # to (3,0)
         env.step(0)  # to (2,0)
         env.step(0)  # to (1,0)
-        # Try to go east into wall at (1,1) — should stay at (1,0)
+        # Try to go east into wall at (1,1)—should stay at (1,0)
         s, _, _ = env.step(1)
         assert s.label == "1,0"
 
@@ -141,7 +141,7 @@ class TestGridWorld:
             env.step(1)  # E
         s, r, done = env.step(1)  # into goal
         assert done and r == 1.0
-        # Now step again from the terminal state — should stay put
+        # Now step again from the terminal state—should stay put
         s2, r2, done2 = env.step(1)
         assert done2
         assert r2 == 0.0  # absorbing: no further reward
@@ -193,7 +193,7 @@ class TestBalance:
     def test_survives_with_control(self):
         env = Balance()
         env.reset()
-        # Alternate actions — crude balancing
+        # Alternate actions—crude balancing
         done = False
         steps = 0
         for _ in range(50):
@@ -352,7 +352,7 @@ class TestBreakout:
         """Ball passing the paddle should end with -1.0."""
         env = Breakout()
         env.reset()
-        # Move paddle left while ball goes right — guaranteed miss
+        # Move paddle left while ball goes right—guaranteed miss
         for _ in range(20):
             _, reward, done = env.step(0)  # move left
             if done:
@@ -370,7 +370,7 @@ class TestBreakout:
             if done:
                 break
         assert done
-        # Step again — should be a no-op
+        # Step again—should be a no-op
         s, r, d = env.step(1)
         assert d is True
         assert r == 0.0

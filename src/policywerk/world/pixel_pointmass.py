@@ -1,7 +1,7 @@
 """Level 2: Pixel-observed point-mass.
 
 This class reuses PointMass for physics and just changes how the agent
-perceives the state — pixels instead of coordinates.
+perceives the state—pixels instead of coordinates.
 
 Wraps the PointMass environment with 16x16 pixel observations.
 The agent and target are rendered as small markers on a grayscale grid.

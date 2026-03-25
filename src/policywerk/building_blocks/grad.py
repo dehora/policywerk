@@ -3,7 +3,7 @@
 Backpropagation is the algorithm that makes neural network training
 possible. Before Rumelhart, Hinton, and Williams published it in
 1986, there was no efficient way to train networks with hidden
-layers — you could build them, but you couldn't teach them.
+layers—you could build them, but you couldn't teach them.
 
 The problem backpropagation solves is credit assignment in a network:
 when the output is wrong, which weights are responsible? A network
@@ -40,7 +40,7 @@ Concretely, at each layer the backward pass computes:
     db       = delta
     pass_back = transpose(weights) × delta
 
-This module also includes numerical gradient checking — a slow but
+This module also includes numerical gradient checking—a slow but
 reliable way to verify that the analytical gradients from backprop
 are correct, by wiggling each weight and measuring the effect.
 """
@@ -61,7 +61,7 @@ Vector = list[float]
 Matrix = list[list[float]]
 
 
-# Maps each activation function to its derivative — during backprop, we need
+# Maps each activation function to its derivative—during backprop, we need
 # the derivative of whatever activation was used in the forward pass.
 _DERIVATIVES = {
     sigmoid: sigmoid_derivative,
@@ -90,7 +90,7 @@ def backward(network, cache, loss_grad: Vector) -> list[LayerGradients]:
     (4) pass the error signal to the previous layer through the transposed weights.
     """
     gradients = []
-    # delta is the error signal flowing backward — starts as 'how wrong was the output?'
+    # delta is the error signal flowing backward—starts as 'how wrong was the output?'
     delta = loss_grad
 
     for layer_idx in range(len(network.layers) - 1, -1, -1):

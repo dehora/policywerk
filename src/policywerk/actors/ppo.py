@@ -4,7 +4,7 @@ Schulman et al. (2017), 'Proximal Policy Optimization Algorithms.'
 
 DQN (L05) learned Q-values and derived actions by taking the argmax.
 That works for discrete actions (left, stay, right) but breaks when
-actions are continuous — there is no finite set to take the max over.
+actions are continuous—there is no finite set to take the max over.
 
 PPO takes a different approach: instead of learning values and
 deriving a policy, it learns the policy directly. The actor network
@@ -13,7 +13,7 @@ curve for continuous control), and the agent samples from it. The
 critic network estimates state values for computing advantages.
 
 The key insight is the clipped surrogate objective. Naive policy
-gradient can make catastrophically large updates — one bad step
+gradient can make catastrophically large updates—one bad step
 can destroy a good policy. PPO constrains the update: the ratio
 of new to old action probability cannot deviate too far from 1.
 If the ratio tries to move outside [1 - epsilon, 1 + epsilon],
@@ -102,7 +102,7 @@ def _policy_gradient(
 
     where ratio = exp(log_prob_new - log_prob_old).
 
-    Returns [dL/d_mean, dL/d_log_std] — the gradient of the loss
+    Returns [dL/d_mean, dL/d_log_std]—the gradient of the loss
     with respect to the actor network's two outputs. This vector
     feeds into backward() as the loss_grad argument.
     """
@@ -131,7 +131,7 @@ def _policy_gradient(
     surr2 = scalar.multiply(clamped_ratio, advantage)
     # min(surr1, surr2): when the clipped term is the min, its gradient
     # is zero (the clip kills it). This is correct for both positive and
-    # negative advantages — no special casing needed.
+    # negative advantages—no special casing needed.
     use_clipped = surr2 < surr1
 
     # Gradient of log_prob w.r.t. mean and log_std
@@ -166,7 +166,7 @@ def _policy_gradient(
     )
 
     # When log_std is clamped (saturated at bounds), the derivative
-    # through the clamp is zero — no gradient should flow.
+    # through the clamp is zero—no gradient should flow.
     if not log_std_active:
         dl_dlogstd = 0.0
 

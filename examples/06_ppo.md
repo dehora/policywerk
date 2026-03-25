@@ -8,7 +8,7 @@ uv run python lessons/06_ppo.py
 
 ## From Values to Actions
 
-DQN (Lesson 05) learned Q-values for three discrete actions and picked the highest. That works when actions come from a short list. But what if the action is a continuous torque — any real number between -1 and +1? You cannot take argmax over an infinite range.
+DQN (Lesson 05) learned Q-values for three discrete actions and picked the highest. That works when actions come from a short list. But what if the action is a continuous torque—any real number between -1 and +1? You cannot take argmax over an infinite range.
 
 PPO solves this by outputting a probability distribution. For continuous control, that distribution is a Gaussian (bell curve). The network outputs the mean and standard deviation, and the agent samples an action from the curve.
 
@@ -40,7 +40,7 @@ ratio = pi_new(a | s) / pi_old(a | s) = exp(log_prob_new - log_prob_old)
 L = min(ratio * A, clip(ratio, 1-eps, 1+eps) * A)
 ```
 
-If the advantage is positive (good action), the objective wants to increase the ratio. But the clip prevents it from going above 1 + epsilon (0.2). Beyond that point, the gradient is zero. This keeps the new policy close to the old one — the "proximal" in PPO.
+If the advantage is positive (good action), the objective wants to increase the ratio. But the clip prevents it from going above 1 + epsilon (0.2). Beyond that point, the gradient is zero. This keeps the new policy close to the old one—the "proximal" in PPO.
 
 ## Generalized Advantage Estimation
 
@@ -85,7 +85,7 @@ Average per 30 iterations:
 
 The reward (average episode length) climbs from ~53 to 473, with a dip at iterations 150-209 before recovering. The standard deviation drops from ~1.06 to ~0.53 by iteration 150, then increases slightly as the agent explores further refinements. Entropy tracks the same trend.
 
-The dip at iterations 150-209 is a common PPO pattern. The agent reaches near-optimal performance (reward ~426), then the policy std narrows enough that the advantages become noisier — the critic's estimates are calibrated for a wider exploration range. The recovery to 473 by iterations 210-239 shows the critic catching up. This is exactly the kind of instability that motivates the clipped surrogate: without the clip, this dip would be a collapse.
+The dip at iterations 150-209 is a common PPO pattern. The agent reaches near-optimal performance (reward ~426), then the policy std narrows enough that the advantages become noisier—the critic's estimates are calibrated for a wider exploration range. The recovery to 473 by iterations 210-239 shows the critic catching up. This is exactly the kind of instability that motivates the clipped surrogate: without the clip, this dip would be a collapse.
 
 ## What the Network Learned
 
@@ -107,7 +107,7 @@ Policy at representative states:
 
 The agent survived the full 500 steps, keeping the pole within 0.16 radians of vertical with an average executed torque of 0.29. All reported torques are clamped to the environment's [-1, 1] action range.
 
-The policy at representative states reveals the learned controller: tilting left produces strong positive torque (+0.903), rotating right produces strong negative torque (-0.831), and tilting right gets a small corrective nudge (-0.028). The "upright, still" bias (+0.438) reflects the pole's initial rightward tilt of 0.01 radians — the network learned to pre-compensate.
+The policy at representative states reveals the learned controller: tilting left produces strong positive torque (+0.903), rotating right produces strong negative torque (-0.831), and tilting right gets a small corrective nudge (-0.028). The "upright, still" bias (+0.438) reflects the pole's initial rightward tilt of 0.01 radians—the network learned to pre-compensate.
 
 Compare this to L02's binary push-left/push-right: PPO applies smooth, proportional corrections that keep the pole nearly still.
 
@@ -133,4 +133,4 @@ Top: average reward per iteration climbing from ~50 to 400+. Bottom: policy entr
 
 ## Next
 
-PPO learns from real experience only. Every training step requires actually running the environment. In Lesson 07, DreamerV3 learns a model of the environment and trains the policy in imagination — real data trains the world model, imagined data trains the policy.
+PPO learns from real experience only. Every training step requires actually running the environment. In Lesson 07, DreamerV3 learns a model of the environment and trains the policy in imagination—real data trains the world model, imagined data trains the policy.

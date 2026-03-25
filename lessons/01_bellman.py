@@ -2,7 +2,7 @@
 
 In 1957, Richard Bellman formalized how to make optimal decisions
 in sequential problems. This lesson implements his two dynamic
-programming algorithms — value iteration and policy iteration —
+programming algorithms—value iteration and policy iteration —
 on a small gridworld, and animates the process of value propagation.
 
 Run: uv run python lessons/01_bellman.py
@@ -26,7 +26,7 @@ import matplotlib.pyplot as plt
 
 
 # ---------------------------------------------------------------------------
-# Animation snapshot — extends FrameSnapshot with per-sweep data
+# Animation snapshot—extends FrameSnapshot with per-sweep data
 # ---------------------------------------------------------------------------
 
 @dataclass
@@ -145,7 +145,7 @@ def main():
     it represents how much total future reward the agent can expect
     from that cell, assuming it plays optimally from there.
 
-    At the start, all values are zero — the agent knows nothing.
+    At the start, all values are zero—the agent knows nothing.
     Then it sweeps through every cell, updating each one:
 
       "Try all four actions. For each action, look at the immediate
@@ -170,7 +170,7 @@ def main():
     Gradually, information about rewards "ripples" backward through
     the grid until every cell knows how good it is.
 
-    Note: in this grid, each action has exactly one outcome — move
+    Note: in this grid, each action has exactly one outcome—move
     East and you always land one cell to the right. The formula
     above uses "expected value" language because later lessons will
     have environments where outcomes are uncertain.
@@ -192,15 +192,15 @@ def main():
     print()
 
     print(f"""    With synchronous updates, information travels exactly one cell
-    per sweep — each state reads the previous sweep's values:
+    per sweep—each state reads the previous sweep's values:
 
-      Sweep 1: cells next to the goal or pit update — they can see
+      Sweep 1: cells next to the goal or pit update—they can see
                the reward directly.
       Sweep 2: their neighbors update, using sweep 1's values.
       Sweep 3-7: the wave continues one step per sweep, reaching
                the far corners of the grid.
       Sweep 8: the last cell updates, values nearly stable.
-      Sweep 9: verification — nothing changes, confirming convergence.
+      Sweep 9: verification—nothing changes, confirming convergence.
 
     The start cell (bottom-left) is 8 steps from the goal, so
     it takes 8 sweeps for goal information to reach it.
@@ -217,7 +217,7 @@ def main():
     away. Values decrease smoothly with distance.
 
     The start cell has value +0.270. The optimal path is 8 steps
-    long — the +1 goal reward arrives at step 8 and is discounted
+    long—the +1 goal reward arrives at step 8 and is discounted
     by gamma^7 (0.9^7 = 0.478), but seven step costs of -0.04
     along the way reduce the total further. The green-to-red
     gradient in the animation reflects this: distance from the
@@ -232,11 +232,11 @@ def main():
 
     print("""    Starting at S (bottom-left), follow the arrows: up, up, up,
     up to the top row, then right, right, right, right to the goal.
-    Eight steps — the shortest path. The wall and pit are naturally
+    Eight steps—the shortest path. The wall and pit are naturally
     avoided because their neighbors have lower values.
 
     The arrows point toward higher-valued states. The agent does not
-    need to "see" the goal — it just follows the gradient uphill.
+    need to "see" the goal—it just follows the gradient uphill.
     """)
 
     # -----------------------------------------------------------------------
@@ -385,7 +385,7 @@ def main():
 
     fig, axes = create_lesson_figure(
         "Lesson 01: Value Iteration",
-        subtitle="Bellman (1957) — reward ripples backward through the grid",
+        subtitle="Bellman (1957)—reward ripples backward through the grid",
     )
     # Build real convergence data from history only (no fake initial/hold frames)
     real_changes = [h["max_change"] for h in history]
@@ -401,7 +401,7 @@ def main():
         if snap.policy:
             draw_policy_arrows(axes["env"], snap.policy, 5, 5)
         sweep_label = "Initial" if snap.sweep == 0 else f"Sweep {snap.sweep}"
-        axes["env"].set_title(f"State Values — {sweep_label}", fontsize=10)
+        axes["env"].set_title(f"State Values—{sweep_label}", fontsize=10)
 
         axes["algo"].clear()
         axes["algo"].axis("off")

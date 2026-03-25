@@ -1,6 +1,6 @@
 """Level 1: Fully-connected (dense) layer.
 
-Every input connects to every output — each output neuron sees all inputs.
+Every input connects to every output—each output neuron sees all inputs.
 A collection of neurons represented as a weight matrix and bias vector.
 Forward pass returns output and cache for backprop.
 """
@@ -24,7 +24,7 @@ class DenseLayer:
 class DenseCache:
     """Values saved during forward pass, needed for backprop.
 
-    Saved because backpropagation needs them later — knowing what the inputs
+    Saved because backpropagation needs them later—knowing what the inputs
     and pre-activation values were at each layer is how we compute how to
     adjust the weights.
     """

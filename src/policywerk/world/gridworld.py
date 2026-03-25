@@ -72,7 +72,7 @@ class GridWorld(StochasticMDP):
         return self._make_state(self._pos)
 
     def step(self, action: int) -> tuple[State, float, bool]:
-        # Terminal states are absorbing — consistent with transition_probs()
+        # Terminal states are absorbing—consistent with transition_probs()
         if self._grid[self._pos[0]][self._pos[1]] in (GOAL, PIT):
             return self._make_state(self._pos), 0.0, True
 
@@ -103,7 +103,7 @@ class GridWorld(StochasticMDP):
         """All non-wall states, including terminal (goal/pit) states.
 
         Terminal states are included because dynamic programming algorithms
-        need to know about them — their value is defined (goal=+1, pit=-1)
+        need to know about them—their value is defined (goal=+1, pit=-1)
         and they must appear in the state space for value iteration to work.
         """
         result = []
@@ -119,7 +119,7 @@ class GridWorld(StochasticMDP):
         """Deterministic: one outcome with probability 1.0.
 
         step() moves the agent. transition_probs() answers the same question
-        hypothetically — used by planning algorithms that reason about all
+        hypothetically—used by planning algorithms that reason about all
         possibilities.
 
         Terminal states (goal/pit) are absorbing: any action from a terminal
@@ -127,7 +127,7 @@ class GridWorld(StochasticMDP):
         """
         r, c = self._parse_label(state.label)
 
-        # Terminal states are absorbing — no escape, no further reward
+        # Terminal states are absorbing—no escape, no further reward
         if self._grid[r][c] in (GOAL, PIT):
             return [(self._make_state((r, c)), 1.0, 0.0)]
 

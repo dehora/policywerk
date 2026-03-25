@@ -4,7 +4,7 @@ Credit assignment is the hard problem of reinforcement learning.
 When the agent finally reaches the goal after 50 steps, which of
 those steps actually mattered? Was it step 3 (turning right at
 the fork) or step 47 (moving forward into the goal)? In supervised
-learning, every input has a clear label — you always know what the
+learning, every input has a clear label—you always know what the
 right answer was. In RL, rewards can arrive long after the decisions
 that caused them.
 
@@ -13,13 +13,13 @@ recently visited states. Every time the agent visits a state, that
 state's trace increases. Every time step, all traces decay by a
 factor of gamma × lambda. When the agent receives a reward (or
 learns something new), it updates every state in proportion to
-its current trace — recent states get large updates, distant
+its current trace—recent states get large updates, distant
 states get small ones.
 
 The two parameters control the reach of credit assignment:
 
   gamma (discount factor): how much to value future vs present.
-    Also used in return computation — it appears throughout RL.
+    Also used in return computation—it appears throughout RL.
 
   lambda (trace decay): how far back to spread credit.
     lambda=0: only the most recent state gets credit (like TD(0)).
@@ -51,8 +51,8 @@ class EligibilityTrace:
 
     def __init__(self, gamma: float, lam: float):
         """
-        gamma: discount factor — how much to care about future versus present.
-        lam: trace decay rate — how far back to spread credit.
+        gamma: discount factor—how much to care about future versus present.
+        lam: trace decay rate—how far back to spread credit.
         """
         self._traces: dict[str, float] = {}
         self._gamma = gamma
@@ -62,14 +62,14 @@ class EligibilityTrace:
         return self._traces.get(state_label, 0.0)
 
     def visit(self, state_label: str) -> None:
-        """Mark a state as visited — accumulating trace.
+        """Mark a state as visited—accumulating trace.
 
         The trace grows each revisit, stacking credit.
         """
         self._traces[state_label] = scalar.add(self.get(state_label), 1.0)
 
     def replace(self, state_label: str) -> None:
-        """Mark a state as visited — replacing trace (resets to 1, doesn't stack)."""
+        """Mark a state as visited—replacing trace (resets to 1, doesn't stack)."""
         self._traces[state_label] = 1.0
 
     def decay(self) -> None:

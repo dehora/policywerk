@@ -3,7 +3,7 @@
 The "return" in RL (nothing to do with Python's return statement) is
 the total reward an agent collects from the current moment until the
 episode ends. It's the number the agent is ultimately trying to
-maximize — not the immediate reward from one step, but the cumulative
+maximize—not the immediate reward from one step, but the cumulative
 payoff of an entire sequence of decisions.
 
 The complication is that future rewards are uncertain and distant.
@@ -18,7 +18,7 @@ The fundamental tradeoff in return estimation:
 
   Monte Carlo (discount_return): wait until the episode ends, then
     add up all the actual rewards with discounting. This gives the
-    true return — no guessing — but it's noisy. Two episodes from
+    true return—no guessing—but it's noisy. Two episodes from
     the same state can give very different returns due to randomness.
 
   TD(0) / bootstrapping (n_step_return with n=1): don't wait. After
@@ -36,7 +36,7 @@ The fundamental tradeoff in return estimation:
     average?) with the same lambda-controlled tradeoff. Used by
     PPO (L06).
 
-This spectrum — from "wait and see" to "guess and go" — is one
+This spectrum—from "wait and see" to "guess and go"—is one
 of the central ideas in reinforcement learning. Every algorithm
 in this project sits somewhere on it.
 """
@@ -52,7 +52,7 @@ def discount_return(rewards: Vector, gamma: float) -> float:
     Uses all rewards in the sequence. Accurate on average but noisy —
     needs many episodes for a stable estimate.
 
-    gamma: discount factor — how much to devalue future rewards.
+    gamma: discount factor—how much to devalue future rewards.
            gamma=0.9 means a reward 10 steps away is worth about 0.35
            of its face value.
     """
@@ -88,8 +88,8 @@ def lambda_return(rewards: Vector, values: Vector, next_value: float,
 
     The 1-step return from step k is: r_k + gamma * V(s_{k+1}).
 
-    lambda=0: pure 1-step TD — bootstrap from the next state immediately.
-    lambda=1: full Monte Carlo-like — use all actual rewards, bootstrap
+    lambda=0: pure 1-step TD—bootstrap from the next state immediately.
+    lambda=1: full Monte Carlo-like—use all actual rewards, bootstrap
               only from next_value at the end.
     Values in between blend short and long n-step returns.
     """
@@ -118,7 +118,7 @@ def gae(rewards: Vector, values: Vector, next_value: float,
         gamma: float, lam: float) -> Vector:
     """Generalized Advantage Estimation (Schulman et al., 2016).
 
-    Computes the advantage at each timestep — how much better was this action
+    Computes the advantage at each timestep—how much better was this action
     than average? Positive = better than expected, negative = worse.
 
       δ_t = r_t + γV(s_{t+1}) - V(s_t)

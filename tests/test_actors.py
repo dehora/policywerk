@@ -21,13 +21,13 @@ class TestBellman:
     def test_value_iteration_converges(self):
         env = GridWorld()
         V, history = value_iteration(env, gamma=0.9, theta=0.001)
-        # Should converge — last sweep's max_change is below theta
+        # Should converge—last sweep's max_change is below theta
         assert history[-1]["max_change"] < 0.001
         # Should take multiple sweeps (not trivial)
         assert len(history) > 3
 
     def test_value_iteration_terminal_values(self):
-        """Terminal states should retain default value (0.0) — they're not updated."""
+        """Terminal states should retain default value (0.0)—they're not updated."""
         env = GridWorld()
         V, _ = value_iteration(env, gamma=0.9)
         assert V.get("0,4") == 0.0  # goal
@@ -37,16 +37,16 @@ class TestBellman:
         """States adjacent to the goal should have positive values."""
         env = GridWorld()
         V, _ = value_iteration(env, gamma=0.9)
-        # (0,3) is directly west of goal — should be high value
+        # (0,3) is directly west of goal—should be high value
         assert V.get("0,3") > 0.5
-        # (1,4) is directly south of goal — should be positive
+        # (1,4) is directly south of goal—should be positive
         assert V.get("1,4") > 0.0
 
     def test_value_iteration_pit_neighbors_low(self):
         """States adjacent to the pit should have lower values."""
         env = GridWorld()
         V, _ = value_iteration(env, gamma=0.9)
-        # (1,4) is east of pit — might be low or positive depending on other paths
+        # (1,4) is east of pit—might be low or positive depending on other paths
         # But start (4,0) should be lower than goal neighbor
         assert V.get("4,0") < V.get("0,3")
 
@@ -55,7 +55,7 @@ class TestBellman:
         env = GridWorld()
         V, _ = value_iteration(env, gamma=0.9)
         policy = extract_policy(env, V, gamma=0.9)
-        # (0,3) is west of goal at (0,4) — policy should be East (action 1)
+        # (0,3) is west of goal at (0,4)—policy should be East (action 1)
         assert policy["0,3"] == 1  # East toward goal
 
     def test_policy_iteration_converges(self):

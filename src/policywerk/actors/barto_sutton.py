@@ -1,6 +1,6 @@
 """Level 3: Barto/Sutton/Anderson actor-critic (1983).
 
-The first actor-critic architecture — two single neurons that learn
+The first actor-critic architecture—two single neurons that learn
 to balance a pole through trial and error alone. Unlike Bellman's
 value iteration (L01), the agent has no access to the environment's
 rules. It must discover good behavior by acting, observing rewards,
@@ -9,8 +9,8 @@ and adjusting.
 The architecture has two components:
 
   ACE (Adaptive Critic Element): predicts how good the current state
-    is (the value function). It produces a TD error signal — "this
-    turned out better or worse than I predicted" — which drives
+    is (the value function). It produces a TD error signal—"this
+    turned out better or worse than I predicted"—which drives
     learning in both components.
 
   ASE (Adaptive Search Element): selects actions. It outputs a
@@ -40,7 +40,7 @@ Vector = list[float]
 
 @dataclass
 class ACE:
-    """Adaptive Critic Element — predicts state value.
+    """Adaptive Critic Element—predicts state value.
 
     weights: one weight per state box, v[i]. The prediction for a
         state is simply v[box_index] (since input is one-hot).
@@ -56,7 +56,7 @@ class ACE:
 
 @dataclass
 class ASE:
-    """Adaptive Search Element — selects actions.
+    """Adaptive Search Element—selects actions.
 
     weights: one weight per state box, w[i]. Positive weights favor
         action 1 (right), negative favor action 0 (left).
@@ -126,7 +126,7 @@ def select_action(ase: ASE, x: Vector, rng: _random.Random,
     exploration, and thresholds: >= 0 means action 1 (right),
     < 0 means action 0 (left).
 
-    The noise is deliberate — without it, the ASE would always pick
+    The noise is deliberate—without it, the ASE would always pick
     the same action for the same state and could never discover
     better alternatives.
     """
@@ -140,7 +140,7 @@ def select_action(ase: ASE, x: Vector, rng: _random.Random,
 
 def compute_td_error(ace: ACE, x: Vector,
                      reward: float, gamma: float, done: bool) -> float:
-    """Compute the TD error — the critic's surprise signal.
+    """Compute the TD error—the critic's surprise signal.
 
     TD error = reward + gamma * prediction(current) - prediction(previous)
 
@@ -259,7 +259,7 @@ def train_episode(env, ace: ACE, ase: ASE, rng: _random.Random,
         # Paper's convention: r=0 during balance, r=-1 on failure.
         # On max-step timeout (success), we treat it as truncation:
         # keep the bootstrap term (done=False for learning) because
-        # the episode didn't truly end — the agent was still balancing.
+        # the episode didn't truly end—the agent was still balancing.
         failed = done and env_reward == 0.0
         reward = -1.0 if failed else 0.0
         # For learning: only use terminal (no-bootstrap) path on actual failure
