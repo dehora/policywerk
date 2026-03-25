@@ -464,6 +464,12 @@ class TestDQN:
         # Original should be unchanged
         assert net.layers[0].weights[0][0] != 999.0
 
+    def test_linear_epsilon_zero_decay(self):
+        """decay_episodes=0 should immediately return end epsilon."""
+        from policywerk.actors.dqn import _linear_epsilon
+        assert _linear_epsilon(0, start=1.0, end=0.1, decay_episodes=0) == 0.1
+        assert _linear_epsilon(100, start=1.0, end=0.1, decay_episodes=0) == 0.1
+
     def test_dqn_trains_without_error(self):
         """DQN should complete training and produce loss values."""
         from policywerk.actors.dqn import dqn

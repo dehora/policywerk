@@ -285,6 +285,18 @@ class TestProgress:
         assert "5/10" in output
         assert "loss=0.1234" in output
 
+    def test_progress_bar_no_info(self):
+        buf = io.StringIO()
+        progress_bar(step=3, total=10, stream=buf)
+        output = buf.getvalue()
+        assert "3/10" in output
+
+    def test_progress_done(self):
+        from policywerk.primitives.progress import progress_done
+        buf = io.StringIO()
+        progress_done(stream=buf)
+        assert buf.getvalue() == "\n"
+
 
 class TestSpinner:
     def test_spinner_done_message(self):
@@ -324,3 +336,70 @@ class TestSpinner:
         lines = [l for l in output.split("\n") if l.strip()]
         assert len(lines) == 1
         assert "done." in lines[0]
+
+    def test_spinner_tty_shows_spinner_and_padding(self):
+        """TTY streams should show spinner frames and padding on done."""
+        import time
+
+        class FakeTTY(io.StringIO):
+            def isatty(self):
+                return True
+
+        buf = FakeTTY()
+        with Spinner("Working", stream=buf):
+            time.sleep(0.3)
+        output = buf.getvalue()
+        assert "\r" in output, "TTY output should contain carriage returns"
+        assert "done." in output
+
+    def test_spinner_ascii_fallback(self):
+        """Streams that can't encode braille should get ASCII spinner chars."""
+        from policywerk.primitives.progress import _spinner_chars
+
+        class AsciiStream:
+            encoding = "ascii"
+
+        chars = _spinner_chars(AsciiStream())
+        assert chars == "|/-\\"
+
+
+class TestScalarLog:
+    def test_log_zero_guarded(self):
+        """log(0) should not raise — it's guarded to a small positive value."""
+        result = scalar.log(0.0)
+        assert result < 0  # log of a tiny positive number is very negative
+
+    def test_log_negative_guarded(self):
+        result = scalar.log(-1.0)
+        assert result < 0
+
+
+class TestCrossEntropy:
+    def test_cross_entropy_basic(self):
+        result = losses.cross_entropy([0.9, 0.1], [1.0, 0.0])
+        assert result > 0.0
+
+    def test_cross_entropy_perfect(self):
+        """Near-perfect predictions should give near-zero loss."""
+        result = losses.cross_entropy([0.999, 0.001], [1.0, 0.0])
+        assert result < 0.01
+
+
+class TestVectorMagnitude:
+    def test_magnitude(self):
+        assert abs(vector.magnitude([3.0, 4.0]) - 5.0) < 1e-10
+
+
+class TestMatrixTransposeEmpty:
+    def test_transpose_empty(self):
+        assert matrix.transpose([]) == []
+
+
+class TestActivationEdgeCases:
+    def test_softplus_large_input(self):
+        """softplus(x) ≈ x for large x (clamped path)."""
+        assert abs(activations.softplus(25.0) - 25.0) < 1e-10
+
+    def test_softplus_derivative(self):
+        result = activations.softplus_derivative(0.0)
+        assert abs(result - 0.5) < 1e-10

@@ -586,6 +586,97 @@ class TestGaussianPolicy:
             assert lo <= action <= hi
 
 
+class TestSoftmaxPolicyError:
+    def test_softmax_no_args_raises(self):
+        import pytest
+        rng = create_rng(42)
+        with pytest.raises(TypeError, match="requires q_values"):
+            softmax_policy(rng, temperature=1.0)
+
+
+class TestMetricLog:
+    def test_empty_mean(self):
+        from policywerk.data.logging import MetricLog
+        m = MetricLog(name="test")
+        assert m.mean == 0.0
+
+    def test_empty_recent_mean(self):
+        from policywerk.data.logging import MetricLog
+        m = MetricLog(name="test")
+        assert m.recent_mean() == 0.0
+
+    def test_record_and_last(self):
+        from policywerk.data.logging import MetricLog
+        m = MetricLog(name="test")
+        m.record(3.0)
+        m.record(5.0)
+        assert m.last == 5.0
+        assert m.mean == 4.0
+
+    def test_empty_last(self):
+        from policywerk.data.logging import MetricLog
+        m = MetricLog(name="test")
+        assert m.last == 0.0
+
+
+class TestTrainingLog:
+    def test_get_missing_metric(self):
+        from policywerk.data.logging import TrainingLog
+        log = TrainingLog()
+        m = log.get("nonexistent")
+        assert m.name == "nonexistent"
+        assert m.last == 0.0
+
+    def test_record_and_summary(self):
+        from policywerk.data.logging import TrainingLog
+        log = TrainingLog()
+        log.record("loss", 0.5)
+        log.record("loss", 0.3)
+        s = log.summary()
+        assert "loss=" in s
+
+
+class TestGradUnknownLoss:
+    def test_unknown_loss_raises(self):
+        import pytest
+        from policywerk.building_blocks.grad import _get_loss_derivative
+        with pytest.raises(ValueError, match="Unknown loss"):
+            _get_loss_derivative(lambda x, y: 0.0)
+
+
+class TestGradHuberCheck:
+    def test_gradient_check_huber(self):
+        """numerical_gradient_check should work with Huber loss."""
+        from policywerk.building_blocks.grad import numerical_gradient_check
+        from policywerk.building_blocks.network import create_network
+        from policywerk.primitives.losses import huber
+        rng = create_rng(42)
+        net = create_network(rng, [3, 4, 2], [activations.sigmoid, activations.identity])
+        max_error = numerical_gradient_check(
+            net, [1.0, 0.5, -0.5], [1.0, 0.0], huber
+        )
+        assert max_error < 1e-4
+
+
+class TestEpisodeTotalReward:
+    def test_episode_total_reward(self):
+        from policywerk.building_blocks.mdp import Episode, Transition, State
+        s = State(features=[0.0], label="s")
+        ep = Episode()
+        ep.add(Transition(s, 0, 1.5, s, False))
+        ep.add(Transition(s, 0, 2.5, s, True))
+        assert ep.total_reward == 4.0
+
+
+class TestCategoricalLogProb:
+    def test_log_prob(self):
+        import math
+        cat = Categorical(logits=[0.0, 0.0, 0.0])
+        # Uniform over 3: each prob = 1/3, log_prob ≈ -1.0986
+        lp = cat.log_prob(0)
+        assert abs(lp - math.log(1.0 / 3.0)) < 0.01
+
+
 class TestTracesExtended:
     def test_replace_trace(self):
         trace = EligibilityTrace(gamma=0.9, lam=0.8)

@@ -77,8 +77,8 @@ def main():
     Tabular Q-learning cannot scale to problems where the state is
     an image, a sensor reading, or anything with continuous
     dimensions. The cliff world had 48 states. Breakout's 8x10
-    grid has 80 pixels, each taking multiple values. The state
-    space is astronomically larger than any table could cover.
+    grid has 80 pixels plus 2 velocity values (82 inputs total).
+    The state space is astronomically larger than any table could cover.
 
     The solution is function approximation: instead of storing every
     Q-value in a table, use a neural network to approximate the
@@ -110,11 +110,16 @@ def main():
 
       Network forward: network(pixels) -> [Q(s, left), Q(s, stay), Q(s, right)]
 
-    The network takes 80 pixel values as input, passes them through
-    a hidden layer of 32 neurons with ReLU activation, and outputs
-    3 numbers: one Q-value per action. The agent still picks the
-    action with the highest Q-value, same as before. What changes
-    is how those values are produced.
+    The network takes 82 values as input: 80 pixel values from
+    the grid plus 2 ball velocity components (vertical and
+    horizontal direction). It passes them through a hidden layer
+    of 32 neurons with ReLU activation, and outputs 3 numbers:
+    one Q-value per action. The velocity is necessary because a
+    single frame is ambiguous: the same pixel layout can occur
+    with the ball moving up or down, and the correct action
+    differs. Without velocity, the observation is not Markov.
+    The agent picks the action with the highest Q-value, same
+    as before. What changes is how those values are produced.
 
     The table memorizes. The network interpolates. Two frames with
     the ball one pixel apart share most of their weights and produce
@@ -142,7 +147,7 @@ def main():
     updating one table entry, a single training step adjusts all
     the weights, changing the Q-values for every state at once.
 
-    Architecture:  80 inputs -> 32 hidden (ReLU) -> 3 outputs
+    Architecture:  82 inputs -> 32 hidden (ReLU) -> 3 outputs
     Loss:          Huber (quadratic for small errors, linear for large)
     Optimizer:     Adam (adaptive learning rates per weight)
     """)
@@ -220,13 +225,19 @@ def main():
       row 8: . . . . . . . .
       row 9: . . . = = = . .   paddle, width 3
 
-    The agent sees the grid as a flat list of {ROWS * COLS} numbers.
-    Each pixel is a float:
+    The agent sees the grid as a flat list of {ROWS * COLS} pixel
+    values plus 2 ball velocity components ({ROWS * COLS + 2} inputs
+    total). Each pixel is a float:
 
       0.0 = empty (black)
       0.5 = brick (red for row 0, orange for row 1)
       0.7 = ball  (white)
       1.0 = paddle (blue)
+
+    The velocity values (+1 or -1 for vertical and horizontal
+    direction) make the observation Markov: a single frame alone
+    is ambiguous because the same pixel layout can occur with
+    the ball moving up or down.
 
     The ball moves one cell per step, bouncing off walls, bricks,
     and the paddle. Hitting a brick destroys it (+1.0 reward) and
@@ -237,7 +248,7 @@ def main():
     Actions: left(0), stay(1), right(2). The paddle moves one cell
     per step, clamped to the grid edges. The agent must learn to
     track the ball, position the paddle to intercept it, and angle
-    bounces toward remaining bricks, all from 80 pixel values.
+    bounces toward remaining bricks, all from 82 input values.
     """)
 
     # -----------------------------------------------------------------------
@@ -275,7 +286,7 @@ def main():
     min_replay_size = 100
 
     print(f"    Training {num_episodes} episodes")
-    print(f"    Network: {ROWS * COLS} -> {hidden_size} (relu) -> 3 (identity)")
+    print(f"    Network: {ROWS * COLS + 2} -> {hidden_size} (relu) -> 3 (identity)")
     print(f"    Batch size: {batch_size}, train every {train_every} steps")
     print(f"    Replay buffer: {replay_capacity} capacity, min {min_replay_size}")
     print(f"    Target network updated every {target_update_freq} episodes")
@@ -376,7 +387,7 @@ def main():
         print(f"      {name:5s}: {q:.4f}{marker}")
     print()
 
-    print(f"""    The network learned to play Breakout from 80 pixels. It
+    print(f"""    The network learned to play Breakout from 82 inputs. It
     destroyed {eval_bricks_hit} of 12 bricks in {eval_steps} steps, earning a
     reward of {eval_total:.2f}. Compare this to the random policy, which
     missed the ball within 6 steps and scored nothing.
@@ -397,7 +408,7 @@ def main():
 
     The network does not understand Breakout. It has no concept
     of ball trajectory, paddle interception, or brick layout. It
-    has a function from 80 numbers to 3 numbers, shaped by
+    has a function from 82 numbers to 3 numbers, shaped by
     thousands of gradient updates, that happens to produce
     useful behavior. That is function approximation: not
     understanding, but interpolation that works.
@@ -462,10 +473,9 @@ def main():
     # --- Phase 2: Training curve summary ---
     # A few frames showing the reward curve growing, with the initial
     # board state as a static backdrop.
-    init_frame = Breakout(max_steps=200).reset() and Breakout(max_steps=200)
-    init_frame_env = Breakout(max_steps=200)
-    init_frame_env.reset()
-    static_frame = init_frame_env.render_color_frame()
+    reset_frame_env = Breakout(max_steps=200)
+    reset_frame_env.reset()
+    static_frame = reset_frame_env.render_color_frame()
 
     sample_episodes = sorted(set(
         list(range(0, num_episodes, max(1, num_episodes // 15))) +
@@ -485,6 +495,22 @@ def main():
             step_label=f"Training: episode {ep_idx}/{num_episodes}",
             score=0,
         ))
+
+    # --- Capture a mid-game frame from the greedy rollout for the poster ---
+    poster_env = Breakout(max_steps=200)
+    poster_state = poster_env.reset()
+    poster_frame = poster_env.render_color_frame()  # fallback
+    for _ps in range(200):
+        pq, _ = network_forward(net, poster_state.features)
+        pa = pq.index(max(pq))
+        poster_state, pr, pd = poster_env.step(pa)
+        # Pick a frame where some bricks have been hit but the game is still going
+        if poster_env._score >= 2 and not pd:
+            poster_frame = poster_env.render_color_frame()
+            break
+        if pd:
+            poster_frame = poster_env.render_color_frame()
+            break
 
     # --- Phase 3: Trained policy replay (looped twice) ---
     for _loop in range(2):
@@ -614,7 +640,7 @@ def main():
     )
 
     def update_poster(frame_idx):
-        draw_breakout_frame(axes2["env"], static_frame)
+        draw_breakout_frame(axes2["env"], poster_frame)
         axes2["env"].set_title("Trained Agent (greedy)", fontsize=10)
 
         draw_q_bars(axes2["algo"], list(start_q), action_names)
@@ -681,7 +707,7 @@ def main():
     print("  DQN replaced the table with a neural network. Three")
     print("  stabilization ideas (experience replay, target networks,")
     print("  epsilon decay) made it trainable. The agent learned to play")
-    print("  Breakout from raw pixels: 80 numbers in, 3 Q-values out,")
+    print("  Breakout from raw pixels and velocity: 82 numbers in, 3 Q-values out,")
     print("  thousands of gradient steps in between.")
     print()
     print("  But DQN still has a limitation. It learns values and derives")

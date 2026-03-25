@@ -1,9 +1,10 @@
 """Level 2: Mini Breakout.
 
 8×10 pixel grid. The agent controls a paddle at the bottom and must
-bounce a ball into bricks at the top. The agent sees only the pixel
-grid — it must learn ball trajectory, paddle positioning, and brick
-layout from raw pixel values.
+bounce a ball into bricks at the top. The agent sees the pixel grid
+(80 values) plus ball velocity (2 values, vertical and horizontal
+direction). Velocity is included because a single frame is ambiguous:
+the same pixel layout can occur with different ball directions.
 
 Layout:
   row 0: . B B B B B B .
@@ -213,6 +214,11 @@ class Breakout(Environment):
         features: list[float] = []
         for row in frame:
             features.extend(row)
+        # Append ball velocity so the observation is Markov: the same
+        # pixel frame can occur with different ball directions, and
+        # without velocity the agent cannot distinguish them.
+        features.append(float(self._ball_dr))
+        features.append(float(self._ball_dc))
         return State(
             features=features,
             label=f"p{self._paddle_col},b{self._ball_r},{self._ball_c}",

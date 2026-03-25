@@ -277,8 +277,16 @@ class TestBreakout:
     def test_reset(self):
         env = Breakout()
         state = env.reset()
-        assert len(state.features) == ROWS * COLS  # 80
+        assert len(state.features) == ROWS * COLS + 2  # 80 pixels + 2 velocity
         assert state.label == "p2,b3,4"
+
+    def test_features_include_velocity(self):
+        """State features should end with ball velocity (dr, dc)."""
+        env = Breakout()
+        state = env.reset()
+        # Ball starts moving down-right: dr=1, dc=1
+        assert state.features[-2] == 1.0  # ball_dr
+        assert state.features[-1] == 1.0  # ball_dc
 
     def test_render_frame(self):
         env = Breakout()
@@ -352,8 +360,149 @@ class TestBreakout:
                 break
         assert done, "Ball should have missed the paddle"
 
+    def test_step_after_done_is_noop(self):
+        """Stepping after the episode ends should return 0 reward and done=True."""
+        env = Breakout(max_steps=200)
+        env.reset()
+        # Force a miss to end the episode
+        for _ in range(20):
+            _, reward, done = env.step(0)
+            if done:
+                break
+        assert done
+        # Step again — should be a no-op
+        s, r, d = env.step(1)
+        assert d is True
+        assert r == 0.0
+
+    def test_all_bricks_cleared(self):
+        """Clearing all bricks should end the episode with +1 reward."""
+        env = Breakout(max_steps=2000)
+        env.reset()
+        # Remove all but one brick manually, then let the ball hit it
+        target = next(iter(env._bricks))
+        env._bricks = {target}
+        # Position ball adjacent to the brick, moving toward it
+        env._ball_r = target[0] + 1
+        env._ball_c = target[1]
+        env._ball_dr = -1
+        env._ball_dc = 0
+        _, reward, done = env.step(1)  # stay
+        assert reward == 1.0
+        assert done is True
+
+    def test_render_color_frame(self):
+        """render_color_frame should return an RGB grid."""
+        env = Breakout()
+        env.reset()
+        frame = env.render_color_frame()
+        assert len(frame) == ROWS
+        assert len(frame[0]) == COLS
+        # Each pixel should be [r, g, b]
+        assert len(frame[0][0]) == 3
+        # Ball at (3,4) should be white [1.0, 1.0, 1.0]
+        assert frame[3][4] == [1.0, 1.0, 1.0]
+        # Paddle at row 9, col 2 should be blue
+        assert frame[9][2] == [0.3, 0.5, 0.9]
+        # Brick at row 0, col 1 should be red
+        assert frame[0][1] == [0.9, 0.2, 0.2]
+        # Brick at row 1, col 1 should be orange
+        assert frame[1][1] == [0.9, 0.6, 0.2]
+
+    def test_max_steps_ends_episode(self):
+        """Reaching max_steps should end the episode."""
+        env = Breakout(max_steps=5)
+        env.reset()
+        done = False
+        for _ in range(10):
+            _, _, done = env.step(1)
+            if done:
+                break
+        assert done
+
+    def test_left_wall_bounce(self):
+        """Ball should bounce off the left wall."""
+        env = Breakout(max_steps=200)
+        env.reset()
+        env._ball_c = 0
+        env._ball_dc = -1
+        env._ball_dr = 1
+        env._ball_r = 5
+        env.step(1)
+        assert env._ball_dc == 1  # reversed
+
+    def test_top_wall_bounce(self):
+        """Ball should bounce off the top wall."""
+        env = Breakout(max_steps=200)
+        env.reset()
+        # Clear bricks so ball can reach the top
+        env._bricks.clear()
+        env._ball_r = 0
+        env._ball_dr = -1
+        env._ball_dc = 1
+        env.step(1)
+        assert env._ball_dr == 1  # reversed
+
     def test_num_actions(self):
         assert Breakout().num_actions() == 3
+
+
+class TestCatcherCapacity:
+    def test_grid_too_small_raises(self):
+        """Grid that cannot fit all objects should raise ValueError."""
+        import pytest
+        with pytest.raises(ValueError, match="cannot fit"):
+            Catcher(grid_size=2, num_rewards=3, num_hazards=2)
+
+    def test_exact_capacity_ok(self):
+        """Grid with exactly enough cells should not raise."""
+        # 2x2 = 4 cells, 1 agent + 2 rewards + 1 hazard = 4
+        env = Catcher(grid_size=2, num_rewards=2, num_hazards=1, max_steps=5)
+        state = env.reset()
+        assert len(state.features) == 4
+
+
+class TestCatcherExtended:
+    def test_hazard_ends_episode(self):
+        """Stepping onto a hazard should give -1.0 and end."""
+        env = Catcher(seed=42, num_rewards=0, num_hazards=1, max_steps=500)
+        state = env.reset()
+        # Find the hazard position
+        hazard_pos = list(env._hazard_positions)[0]
+        # Teleport the agent next to the hazard
+        hr, hc = hazard_pos
+        env._agent_pos = (hr, hc - 1) if hc > 0 else (hr, hc + 1)
+        # Step toward the hazard
+        action = 1 if hc > env._agent_pos[1] else 3  # east or west
+        _, reward, done = env.step(action)
+        assert reward == -1.0
+        assert done
+
+    def test_max_steps_ends_episode(self):
+        """Reaching max_steps without collecting should end with 0 reward."""
+        env = Catcher(seed=42, num_rewards=1, num_hazards=0, max_steps=3)
+        env.reset()
+        # Just stay in place
+        done = False
+        final_reward = 0.0
+        for _ in range(10):
+            _, final_reward, done = env.step(0)
+            if done:
+                break
+        assert done
+
+    def test_partial_collection(self):
+        """Collecting one of multiple rewards should not end the episode."""
+        env = Catcher(seed=42, num_rewards=3, num_hazards=0, max_steps=500)
+        env.reset()
+        # Find first reward and teleport next to it
+        first_reward = list(env._reward_positions)[0]
+        rr, rc = first_reward
+        env._agent_pos = (rr, rc - 1) if rc > 0 else (rr, rc + 1)
+        action = 1 if rc > env._agent_pos[1] else 3
+        _, reward, done = env.step(action)
+        assert reward == 1.0
+        assert not done  # still more rewards to collect
 
 
 class TestPointMass:
@@ -412,6 +561,14 @@ class TestPixelPointMass:
         env.reset()
         s, r, done = env.step_continuous([1.0, 0.0])
         assert len(s.features) == 256
+
+    def test_discrete_step(self):
+        """Discrete step should move agent and return pixel state."""
+        env = PixelPointMass()
+        env.reset()
+        s, r, done = env.step(2)  # East
+        assert len(s.features) == 256
+        assert isinstance(r, float)
 
     def test_num_actions(self):
         assert PixelPointMass().num_actions() == 9

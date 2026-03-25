@@ -44,6 +44,14 @@ class Catcher(Environment):
         max_steps: int = 200,
         grid_size: int = SIZE,
     ):
+        total_objects = 1 + num_rewards + num_hazards  # agent + items
+        capacity = grid_size * grid_size
+        if total_objects > capacity:
+            raise ValueError(
+                f"Grid {grid_size}x{grid_size} ({capacity} cells) cannot fit "
+                f"{total_objects} objects (1 agent + {num_rewards} rewards + "
+                f"{num_hazards} hazards)"
+            )
         self._rng = create_rng(seed)
         self._num_rewards = num_rewards
         self._num_hazards = num_hazards
