@@ -97,7 +97,7 @@ def main():
       Actor network:  state -> [mean, log_std]
       Policy:         action ~ Gaussian(mean, exp(log_std))
 
-    A wide bell curve (large std) means the agent is uncertain —
+    A wide bell curve (large std) means the agent is uncertain—
     it explores by sampling a broad range of torques. A narrow
     bell curve (small std) means the agent is confident—it
     applies nearly the same torque every time.
@@ -214,7 +214,7 @@ def main():
     print("""
     PPO is on-policy: it collects a batch of experience, learns
     from it, then throws it away and collects fresh data. DQN
-    (Lesson 05) solved data efficiency through experience replay —
+    (Lesson 05) solved data efficiency through experience replay—
     a buffer of past transitions, sampled repeatedly. PPO cannot
     reuse old data because the policy has changed since it was
     collected, making the old transitions off-policy.
@@ -577,9 +577,14 @@ def main():
         figsize=(12, 7),
     )
 
-    # Use a mid-evaluation frame for the poster
-    poster_angle = eval_angles[len(eval_angles) // 4] if eval_angles else 0.0
-    poster_torque = eval_torques[len(eval_torques) // 4] if eval_torques else 0.0
+    # Pick the frame where the pole is most upright (smallest |angle|)
+    if eval_angles:
+        best_idx = min(range(len(eval_angles)), key=lambda i: abs(eval_angles[i]))
+        poster_angle = eval_angles[best_idx]
+        poster_torque = eval_torques[best_idx]
+    else:
+        poster_angle = 0.0
+        poster_torque = 0.0
     final_out, _ = network_forward(actor_net, [0.0, 0.0])
     poster_mean = final_out[0]
     poster_log_std = scalar.clamp(final_out[1], -2.0, 2.0)
