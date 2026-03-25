@@ -702,6 +702,46 @@ class TestPPO:
         assert abs(grad[0] - num_dmean) < 1e-4, f"d_mean: analytical {grad[0]}, numerical {num_dmean}"
         assert abs(grad[1] - num_dlogstd) < 1e-4, f"d_log_std: analytical {grad[1]}, numerical {num_dlogstd}"
 
+    def test_policy_gradient_negative_advantage_clipping(self):
+        """With negative advantage, clipping should work correctly on both sides."""
+        from policywerk.actors.ppo import _policy_gradient
+        import math
+
+        def compute_loss(m, ls, adv, lp_old):
+            std = math.exp(max(-2.0, min(2.0, ls)))
+            diff = 0.5 - m
+            z = diff / std
+            lp_new = -0.5 * (z * z) - math.log(std) - 0.5 * math.log(2.0 * math.pi)
+            ratio = math.exp(lp_new - lp_old)
+            surr1 = ratio * adv
+            clamped = max(0.8, min(1.2, ratio))
+            surr2 = clamped * adv
+            surr = min(surr1, surr2)
+            entropy = 0.5 * (1.0 + math.log(2.0 * math.pi) + 2.0 * max(-2.0, min(2.0, ls)))
+            return -surr - 0.01 * entropy
+
+        eps = 1e-5
+        # Negative advantage, ratio > 1+eps (action became more likely for a BAD action)
+        mean, log_std, action, advantage = 0.0, -0.5, 0.5, -2.0
+        log_prob_old = -3.0  # old policy gave low prob → new ratio will be high
+        grad = _policy_gradient(mean, log_std, action, advantage, log_prob_old, 0.2, 0.01)
+        num_dm = (compute_loss(mean + eps, log_std, advantage, log_prob_old) -
+                  compute_loss(mean - eps, log_std, advantage, log_prob_old)) / (2 * eps)
+        num_dls = (compute_loss(mean, log_std + eps, advantage, log_prob_old) -
+                   compute_loss(mean, log_std - eps, advantage, log_prob_old)) / (2 * eps)
+        assert abs(grad[0] - num_dm) < 1e-3, f"neg adv d_mean: {grad[0]} vs {num_dm}"
+        assert abs(grad[1] - num_dls) < 1e-3, f"neg adv d_log_std: {grad[1]} vs {num_dls}"
+
+    def test_policy_gradient_log_std_saturated(self):
+        """When log_std is outside [-2, 2], gradient should be zero."""
+        from policywerk.actors.ppo import _policy_gradient
+        # log_std at +3.0 is outside the clamp range
+        grad = _policy_gradient(0.0, 3.0, 0.5, 1.0, -1.0, 0.2, 0.01)
+        assert grad[1] == 0.0, f"Saturated log_std should have zero gradient, got {grad[1]}"
+        # log_std at -3.0
+        grad2 = _policy_gradient(0.0, -3.0, 0.5, 1.0, -1.0, 0.2, 0.01)
+        assert grad2[1] == 0.0, f"Saturated log_std should have zero gradient, got {grad2[1]}"
+
     # --- Training loop tests ---
 
     def test_ppo_returns_networks_and_history(self):

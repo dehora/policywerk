@@ -60,12 +60,12 @@ Lesson 02 solved this with Barto, Sutton, and Anderson's 1983 ACE/ASE: 2 discret
 ## Training Results
 
 ```
-Actor:  2 inputs -> 32 hidden (tanh) -> 2 outputs (mean, log_std)
-Critic: 2 inputs -> 32 hidden (tanh) -> 1 output (value)
+Actor:  2 inputs -> 64 hidden (tanh) -> 2 outputs (mean, log_std)
+Critic: 2 inputs -> 64 hidden (tanh) -> 1 output (value)
 
-Iterations:     150
+Iterations:     250
 Steps/iter:     500
-Epochs:         5
+Epochs:         3
 Gamma:          0.99
 Lambda (GAE):   0.95
 Clip epsilon:   0.2
@@ -73,38 +73,43 @@ Actor LR:       0.001
 Critic LR:      0.003
 
 Average per 30 iterations:
-  Iterations   0- 29:  reward    55.2  std 0.965  entropy 1.380
-  Iterations  30- 59:  reward   191.1  std 0.916  entropy 1.329
-  Iterations  60- 89:  reward   267.1  std 0.688  entropy 1.040
-  Iterations  90-119:  reward   315.9  std 0.607  entropy 0.918
-  Iterations 120-149:  reward   422.0  std 0.614  entropy 0.930
+  Iterations   0- 29:  reward    52.7  std 1.058  entropy 1.470
+  Iterations  30- 59:  reward   104.3  std 0.910  entropy 1.317
+  Iterations  60- 89:  reward   249.8  std 0.765  entropy 1.145
+  Iterations  90-119:  reward   311.9  std 0.612  entropy 0.926
+  Iterations 120-149:  reward   425.8  std 0.530  entropy 0.783
+  Iterations 150-179:  reward   381.0  std 0.556  entropy 0.827
+  Iterations 180-209:  reward   386.4  std 0.603  entropy 0.911
+  Iterations 210-239:  reward   473.0  std 0.655  entropy 0.994
 ```
 
-The reward (average episode length) climbs from ~55 to 422 as the agent learns to balance. The standard deviation drops from ~0.97 to ~0.61 — the policy narrows from broad exploration to confident control. Entropy tracks the same trend: from 1.38 (uncertain) to 0.93 (committed).
+The reward (average episode length) climbs from ~53 to 473, with a dip at iterations 150-209 before recovering. The standard deviation drops from ~1.06 to ~0.53 by iteration 150, then increases slightly as the agent explores further refinements. Entropy tracks the same trend.
 
-The jump around iteration 50 is where PPO crosses a tipping point. Before that, the agent falls quickly and collects mostly negative signal. Once it survives long enough to accumulate meaningful advantages, the critic's value estimates improve and the actor updates become more targeted. The subsequent rise from 200 to 400+ is smoother — the agent refines an already-working policy rather than discovering one from scratch.
+The dip at iterations 150-209 is a common PPO pattern. The agent reaches near-optimal performance (reward ~426), then the policy std narrows enough that the advantages become noisier — the critic's estimates are calibrated for a wider exploration range. The recovery to 473 by iterations 210-239 shows the critic catching up. This is exactly the kind of instability that motivates the clipped surrogate: without the clip, this dip would be a collapse.
 
 ## What the Network Learned
 
-With the deterministic policy (using the mean, no sampling):
+With the deterministic policy (using the clamped mean, no sampling):
 
 ```
 Greedy evaluation:
   Steps survived:  500
   Total reward:    500
-  Max |angle|:     0.1107 rad
-  Avg |torque|:    0.1969
+  Max |angle|:     0.1620 rad
+  Avg |torque|:    0.2928
 
 Policy at representative states:
-  upright, still                  mean=-0.228  std=0.719
-  tilting right                   mean=-0.629  std=0.788
-  tilting left                    mean=+0.174  std=0.656
-  upright, rotating right         mean=-1.259  std=0.578
+  upright, still          torque=+0.438  std=0.649
+  tilting right           torque=-0.028  std=0.664
+  tilting left            torque=+0.903  std=0.635
+  rotating right          torque=-0.831  std=0.849
 ```
 
-The agent survived the full 500 steps, keeping the pole within 0.11 radians of vertical with an average torque of 0.20. Compare this to L02's binary push-left/push-right: PPO applies smooth, proportional corrections.
+The agent survived the full 500 steps, keeping the pole within 0.16 radians of vertical with an average executed torque of 0.29. All reported torques are clamped to the environment's [-1, 1] action range.
 
-The policy at representative states reveals the learned controller: tilting right produces negative torque (push left), tilting left produces positive torque (push right), and rotating right produces strong negative torque to counteract the momentum. The "upright, still" state shows a small negative bias — the network learned a slight leftward preference to compensate for the pole's initial rightward tilt of 0.01 radians.
+The policy at representative states reveals the learned controller: tilting left produces strong positive torque (+0.903), rotating right produces strong negative torque (-0.831), and tilting right gets a small corrective nudge (-0.028). The "upright, still" bias (+0.438) reflects the pole's initial rightward tilt of 0.01 radians — the network learned to pre-compensate.
+
+Compare this to L02's binary push-left/push-right: PPO applies smooth, proportional corrections that keep the pole nearly still.
 
 ## Artifacts
 
@@ -124,7 +129,7 @@ The trained pole nearly vertical, the narrow policy Gaussian, and the full train
 
 ![Reward and entropy](img/06_ppo_trace.png)
 
-Top: average reward per iteration climbing from ~50 to 400+. Bottom: policy entropy declining as the agent commits to a strategy.
+Top: average reward per iteration climbing from ~50 to 400+. Bottom: policy entropy declining as the agent commits to a strategy, with the recovery visible around iteration 200.
 
 ## Next
 

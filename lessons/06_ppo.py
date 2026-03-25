@@ -38,10 +38,11 @@ import matplotlib.pyplot as plt
 @dataclass
 class PPOSnapshot(FrameSnapshot):
     angle: float
-    torque: float
+    torque: float       # clamped executed torque, not raw actor mean
     mean: float
     std: float
     step_label: str
+    phase: str = ""     # "random", "training", "trained"
     ep_length: int = 0
 
 
@@ -216,10 +217,10 @@ def main():
     print("TRAINING")
     print("-" * 64)
 
-    num_iterations = 150
+    num_iterations = 250
     steps_per_iter = 500
-    num_epochs = 5
-    hidden_size = 32
+    num_epochs = 3
+    hidden_size = 64
     learning_rate_actor = 0.001
     learning_rate_critic = 0.003
     gamma = 0.99
@@ -291,7 +292,7 @@ def main():
     the network has learned for each state.
     """)
 
-    # Greedy evaluation
+    # Greedy evaluation — use clamped torque (what the environment actually executes)
     eval_env = Balance()
     state = eval_env.reset()
     eval_steps = 0
@@ -301,12 +302,12 @@ def main():
     for _ in range(500):
         actor_out, _ = network_forward(actor_net, state.features)
         mean = actor_out[0]
-        # Greedy: use mean directly, no sampling
-        state, reward, done = eval_env.step_continuous(mean)
+        executed_torque = scalar.clamp(mean, -1.0, 1.0)
+        state, reward, done = eval_env.step_continuous(executed_torque)
         eval_reward += reward
         eval_steps += 1
         eval_angles.append(state.features[0])
-        eval_torques.append(mean)
+        eval_torques.append(executed_torque)
         if done:
             break
 
@@ -319,7 +320,7 @@ def main():
     print(f"      Avg |torque|:    {avg_torque:.4f}")
     print()
 
-    # Policy at a few representative states
+    # Policy at a few representative states — show clamped torque
     print("    Policy at representative states:")
     test_states = [
         (0.0, 0.0, "upright, still"),
@@ -330,12 +331,17 @@ def main():
     for angle, vel, desc in test_states:
         out, _ = network_forward(actor_net, [angle, vel])
         m = out[0]
+        executed = scalar.clamp(m, -1.0, 1.0)
         ls = scalar.clamp(out[1], -2.0, 2.0)
         s = scalar.exp(ls)
-        print(f"      {desc:30s}  mean={m:+.3f}  std={s:.3f}")
+        print(f"      {desc:30s}  torque={executed:+.3f}  std={s:.3f}")
     print()
 
-    print(f"""    The agent survived {eval_steps} steps — the maximum. It kept
+    if eval_steps >= 500:
+        survival_msg = f"The agent survived {eval_steps} steps — the maximum."
+    else:
+        survival_msg = f"The agent survived {eval_steps} of 500 steps."
+    print(f"""    {survival_msg} It kept
     the pole within {max_angle:.4f} radians of vertical, applying
     an average torque of {avg_torque:.4f}. Compare this to L02's
     discrete push-left / push-right: PPO applies smooth,
@@ -381,6 +387,7 @@ def main():
             mean=0.0,
             std=1.0,
             step_label=f"Random policy (step {rand_step})",
+            phase="random",
             ep_length=rand_step,
         ))
     # Hold on final frame
@@ -393,6 +400,7 @@ def main():
             mean=0.0,
             std=1.0,
             step_label=f"Fell after {rand_step} steps",
+            phase="random",
             ep_length=rand_step,
         ))
 
@@ -411,6 +419,7 @@ def main():
             mean=0.0,
             std=h["mean_std"],
             step_label=f"Training: iteration {idx}/{num_iterations}",
+            phase="training",
             ep_length=int(h["avg_reward"]),
         ))
 
@@ -422,23 +431,24 @@ def main():
         t_step = 0
         while not t_done and t_step < 500:
             actor_out, _ = network_forward(actor_net, state.features)
-            mean = actor_out[0]
+            raw_mean = actor_out[0]
+            executed = scalar.clamp(raw_mean, -1.0, 1.0)
             log_std = scalar.clamp(actor_out[1], -2.0, 2.0)
             std = scalar.exp(log_std)
-            state, reward, t_done = t_env.step_continuous(mean)
+            state, reward, t_done = t_env.step_continuous(executed)
             t_step += 1
-            if t_step % 5 == 0 or t_done:  # sample every 5th step to keep GIF reasonable
+            if t_step % 5 == 0 or t_done:
                 snapshots.append(PPOSnapshot(
                     episode=num_iterations,
                     total_reward=float(t_step),
                     angle=state.features[0],
-                    torque=mean,
-                    mean=mean,
+                    torque=executed,
+                    mean=executed,
                     std=std,
                     step_label=f"Trained policy (step {t_step})",
+                    phase="trained",
                     ep_length=t_step,
                 ))
-        # Hold on final
         end_label = f"Balanced for {t_step} steps!" if t_step >= 500 else f"Fell after {t_step} steps"
         for _ in range(12):
             snapshots.append(PPOSnapshot(
@@ -446,9 +456,10 @@ def main():
                 total_reward=float(t_step),
                 angle=state.features[0],
                 torque=0.0,
-                mean=mean,
+                mean=executed,
                 std=std,
                 step_label=end_label,
+                phase="trained",
                 ep_length=t_step,
             ))
 
@@ -464,8 +475,6 @@ def main():
 
     def update(frame_idx):
         snap = snapshots[frame_idx]
-        is_trained = snap.episode >= num_iterations
-        is_random = snap.episode == 0
 
         # Top-left: pole
         axes["env"].clear()
@@ -474,10 +483,10 @@ def main():
 
         # Top-right: policy Gaussian
         axes["algo"].clear()
-        if is_random:
+        if snap.phase == "random":
             draw_policy_gaussian(axes["algo"], 0.0, 1.0, action_range=(-2.0, 2.0))
             axes["algo"].set_title("Random Policy (std=1.0)", fontsize=10)
-        elif is_trained:
+        elif snap.phase == "trained":
             draw_policy_gaussian(axes["algo"], snap.mean, snap.std, action_range=(-2.0, 2.0))
             axes["algo"].set_title(f"Trained Policy (std={snap.std:.2f})", fontsize=10)
         else:
@@ -486,7 +495,7 @@ def main():
 
         # Bottom: reward trace
         axes["trace"].clear()
-        if is_random:
+        if snap.phase == "random":
             axes["trace"].axis("off")
             axes["trace"].text(0.5, 0.5, "Training not started",
                                transform=axes["trace"].transAxes,

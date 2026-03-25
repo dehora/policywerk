@@ -106,8 +106,12 @@ def _policy_gradient(
     with respect to the actor network's two outputs. This vector
     feeds into backward() as the loss_grad argument.
     """
-    # Current distribution parameters
-    std = scalar.exp(scalar.clamp(log_std, -2.0, 2.0))
+    # Current distribution parameters.
+    # Clamp log_std for numerical stability; track whether the clamp
+    # is active so we can zero the gradient when saturated.
+    clamped_log_std = scalar.clamp(log_std, -2.0, 2.0)
+    log_std_active = -2.0 < log_std < 2.0  # gradient flows only when inside
+    std = scalar.exp(clamped_log_std)
     inv_std = scalar.inverse(std)
 
     # Gaussian log probability: -0.5 * ((a - mu)/sigma)^2 - log(sigma) - 0.5*log(2*pi)
@@ -125,8 +129,10 @@ def _policy_gradient(
     surr1 = scalar.multiply(ratio, advantage)
     clamped_ratio = scalar.clamp(ratio, 1.0 - clip_epsilon, 1.0 + clip_epsilon)
     surr2 = scalar.multiply(clamped_ratio, advantage)
-    # Use the min of surr1, surr2 (pessimistic bound)
-    use_clipped = surr2 < surr1 if advantage >= 0 else surr2 > surr1
+    # min(surr1, surr2): when the clipped term is the min, its gradient
+    # is zero (the clip kills it). This is correct for both positive and
+    # negative advantages — no special casing needed.
+    use_clipped = surr2 < surr1
 
     # Gradient of log_prob w.r.t. mean and log_std
     # d_log_prob / d_mean = (action - mean) / std^2
@@ -159,21 +165,26 @@ def _policy_gradient(
         scalar.multiply(entropy_coeff, dent_dlogstd),
     )
 
+    # When log_std is clamped (saturated at bounds), the derivative
+    # through the clamp is zero — no gradient should flow.
+    if not log_std_active:
+        dl_dlogstd = 0.0
+
     return [dl_dmean, dl_dlogstd]
 
 
 def ppo(
     env,
-    num_iterations: int = 150,
+    num_iterations: int = 250,
     steps_per_iter: int = 500,
-    num_epochs: int = 5,
+    num_epochs: int = 3,
     gamma: float = 0.99,
     lam: float = 0.95,
     clip_epsilon: float = 0.2,
     learning_rate_actor: float = 0.001,
     learning_rate_critic: float = 0.003,
     entropy_coeff: float = 0.005,
-    hidden_size: int = 32,
+    hidden_size: int = 64,
     seed: int = 42,
 ) -> tuple[Network, Network, list[dict]]:
     """Train a PPO agent with continuous actions on a balance task.
@@ -210,7 +221,8 @@ def ppo(
     for iteration in range(num_iterations):
         # ---- Phase 1: Collect trajectory of T steps ----
         states: list[Vector] = []
-        actions: list[float] = []
+        raw_actions: list[float] = []  # unclamped samples (for log_prob in update)
+        actions: list[float] = []      # clamped actions (what the env executed)
         rewards: list[float] = []
         log_probs_old: list[float] = []
         values: list[float] = []
@@ -226,11 +238,15 @@ def ppo(
             log_std = scalar.clamp(actor_out[1], -2.0, 2.0)
             std = scalar.exp(log_std)
 
-            # Sample action from Gaussian and compute log probability
+            # Sample from the Gaussian, then clamp for the environment.
+            # The log_prob is computed on the raw sample (not the clamped
+            # action) so the PPO ratio is consistent: it compares old and
+            # new probability of the same sample. The environment executes
+            # the clamped version, which is what generates the reward.
             dist = Gaussian([mean], [std])
-            action_vec = dist.sample(rng)
-            action = action_vec[0]
-            lp = dist.log_prob(action_vec)
+            raw_action = dist.sample(rng)[0]
+            lp = dist.log_prob([raw_action])
+            action = scalar.clamp(raw_action, -1.0, 1.0)
 
             # Critic forward: get value estimate
             value_out, _ = network_forward(critic_net, state.features)
@@ -242,6 +258,7 @@ def ppo(
 
             # Store transition data
             states.append(list(state.features))
+            raw_actions.append(raw_action)
             actions.append(action)
             rewards.append(reward)
             log_probs_old.append(lp)
@@ -306,9 +323,10 @@ def ppo(
                 a_log_std = scalar.clamp(actor_out[1], -2.0, 2.0)
                 a_std = scalar.exp(a_log_std)
 
-                # Policy gradient: dL/d[mean, log_std]
+                # Policy gradient uses raw (unclamped) action to match
+                # the log_prob_old that was computed on the raw sample.
                 loss_grad = _policy_gradient(
-                    a_mean, a_log_std, actions[t], advantages[t],
+                    a_mean, a_log_std, raw_actions[t], advantages[t],
                     log_probs_old[t], clip_epsilon, entropy_coeff,
                 )
                 actor_grads = backward(actor_net, actor_cache, loss_grad)
