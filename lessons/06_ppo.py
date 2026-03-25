@@ -466,7 +466,8 @@ def main():
         print(f"      {desc:30s}  torque={executed:+.3f}  std={s:.3f}")
     print()
 
-    if eval_steps >= 500:
+    eval_survived = (reward == 1.0) and eval_steps >= 500
+    if eval_survived:
         survival_msg = f"The agent survived {eval_steps} steps—the maximum."
     else:
         survival_msg = f"The agent survived {eval_steps} of 500 steps."
@@ -579,7 +580,10 @@ def main():
                     phase="trained",
                     ep_length=t_step,
                 ))
-        if t_step >= 500:
+        # Distinguish timeout success (reward=1.0) from terminal fall (reward=0.0).
+        # Both set done=True at step 500, but the reward differs.
+        survived = (reward == 1.0)
+        if survived and t_step >= 500:
             end_label = f"3/3  Balanced for {t_step} steps!"
             hold_angle = 0.0  # show pole upright for the success frame
         else:
