@@ -464,13 +464,19 @@ class TestCatcherCapacity:
     def test_negative_grid_size_raises(self):
         """Negative grid_size should raise before capacity math."""
         import pytest
-        with pytest.raises(ValueError, match="grid_size must be >= 1"):
+        with pytest.raises(ValueError, match="positive integer"):
             Catcher(grid_size=-2, num_rewards=0, num_hazards=0)
 
     def test_zero_grid_size_raises(self):
         import pytest
-        with pytest.raises(ValueError, match="grid_size must be >= 1"):
+        with pytest.raises(ValueError, match="positive integer"):
             Catcher(grid_size=0, num_rewards=0, num_hazards=0)
+
+    def test_float_grid_size_raises(self):
+        """Non-integer grid_size should raise even if positive."""
+        import pytest
+        with pytest.raises(ValueError, match="positive integer"):
+            Catcher(grid_size=2.5, num_rewards=0, num_hazards=0)
 
 
 class TestCatcherExtended:

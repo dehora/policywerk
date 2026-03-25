@@ -488,11 +488,22 @@ class TestDQN:
         from policywerk.world.breakout import Breakout
         env = self._make_env()
         net, _ = dqn(env, **self._DQN_KWARGS)
-        frame = greedy_poster_frame(net, Breakout(max_steps=50), min_score=0)
-        # A reset board has 12 bricks (all at rows 0-1, cols 1-6).
-        # After any step the ball has moved, so the frame must differ
-        # from the reset frame.
-        reset_env = Breakout(max_steps=50)
+        # Use the default min_score=2 to exercise the threshold path
+        frame = greedy_poster_frame(net, Breakout(max_steps=200))
+        reset_env = Breakout(max_steps=200)
         reset_env.reset()
         reset_frame = reset_env.render_color_frame()
         assert frame != reset_frame, "Poster frame should differ from the reset board"
+
+    def test_greedy_poster_frame_timeout_not_reset(self):
+        """Even on timeout, the frame should be the last stepped frame."""
+        from policywerk.actors.dqn import dqn, greedy_poster_frame
+        from policywerk.world.breakout import Breakout
+        env = self._make_env()
+        net, _ = dqn(env, **self._DQN_KWARGS)
+        # min_score=999 is unreachable, so this exercises the timeout path
+        frame = greedy_poster_frame(net, Breakout(max_steps=5), min_score=999)
+        reset_env = Breakout(max_steps=5)
+        reset_env.reset()
+        reset_frame = reset_env.render_color_frame()
+        assert frame != reset_frame, "Timeout frame should not be the reset board"

@@ -231,13 +231,14 @@ def greedy_poster_frame(net: Network, env, max_steps: int = 200,
     frame if the agent clears or dies before reaching min_score.
     """
     state = env.reset()
-    frame = env.render_color_frame()  # fallback
+    frame = env.render_color_frame()
     for _ in range(max_steps):
         q_vals, _ = network_forward(net, state.features)
         action = q_vals.index(max(q_vals))
         state, _, done = env.step(action)
+        frame = env.render_color_frame()
         if env._score >= min_score and not done:
-            return env.render_color_frame()
+            return frame
         if done:
-            return env.render_color_frame()
+            return frame
     return frame
