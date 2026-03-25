@@ -481,3 +481,18 @@ class TestDQN:
         # Q-values should be non-zero after training
         late_q = history[-1]["avg_q"]
         assert late_q != 0.0, "Q-values should be non-zero after training"
+
+    def test_greedy_poster_frame_is_not_reset(self):
+        """Poster frame should come from a stepped rollout, not a fresh reset."""
+        from policywerk.actors.dqn import dqn, greedy_poster_frame
+        from policywerk.world.breakout import Breakout
+        env = self._make_env()
+        net, _ = dqn(env, **self._DQN_KWARGS)
+        frame = greedy_poster_frame(net, Breakout(max_steps=50), min_score=0)
+        # A reset board has 12 bricks (all at rows 0-1, cols 1-6).
+        # After any step the ball has moved, so the frame must differ
+        # from the reset frame.
+        reset_env = Breakout(max_steps=50)
+        reset_env.reset()
+        reset_frame = reset_env.render_color_frame()
+        assert frame != reset_frame, "Poster frame should differ from the reset board"

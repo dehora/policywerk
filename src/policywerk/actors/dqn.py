@@ -221,3 +221,24 @@ def dqn(
 
     progress_done()
     return online_net, history
+
+
+def greedy_poster_frame(net: Network, env, max_steps: int = 200,
+                        min_score: int = 2) -> list[list[list[float]]]:
+    """Run a greedy rollout and return a mid-game color frame.
+
+    Picks the first frame where at least min_score bricks have been
+    destroyed and the game is still going. Falls back to the final
+    frame if the agent clears or dies before reaching min_score.
+    """
+    state = env.reset()
+    frame = env.render_color_frame()  # fallback
+    for _ in range(max_steps):
+        q_vals, _ = network_forward(net, state.features)
+        action = q_vals.index(max(q_vals))
+        state, _, done = env.step(action)
+        if env._score >= min_score and not done:
+            return env.render_color_frame()
+        if done:
+            return env.render_color_frame()
+    return frame

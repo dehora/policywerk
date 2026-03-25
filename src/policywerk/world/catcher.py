@@ -44,6 +44,10 @@ class Catcher(Environment):
         max_steps: int = 200,
         grid_size: int = SIZE,
     ):
+        if grid_size < 1:
+            raise ValueError(
+                f"grid_size must be >= 1, got {grid_size}"
+            )
         total_objects = 1 + num_rewards + num_hazards  # agent + items
         capacity = grid_size * grid_size
         if total_objects > capacity:

@@ -17,7 +17,7 @@ Artifacts:
 import os
 from dataclasses import dataclass
 
-from policywerk.actors.dqn import dqn
+from policywerk.actors.dqn import dqn, greedy_poster_frame
 from policywerk.building_blocks.network import network_forward
 from policywerk.world.breakout import Breakout, ROWS, COLS
 from policywerk.viz.animate import (
@@ -497,20 +497,7 @@ def main():
         ))
 
     # --- Capture a mid-game frame from the greedy rollout for the poster ---
-    poster_env = Breakout(max_steps=200)
-    poster_state = poster_env.reset()
-    poster_frame = poster_env.render_color_frame()  # fallback
-    for _ps in range(200):
-        pq, _ = network_forward(net, poster_state.features)
-        pa = pq.index(max(pq))
-        poster_state, pr, pd = poster_env.step(pa)
-        # Pick a frame where some bricks have been hit but the game is still going
-        if poster_env._score >= 2 and not pd:
-            poster_frame = poster_env.render_color_frame()
-            break
-        if pd:
-            poster_frame = poster_env.render_color_frame()
-            break
+    poster_frame = greedy_poster_frame(net, Breakout(max_steps=200))
 
     # --- Phase 3: Trained policy replay (looped twice) ---
     for _loop in range(2):
