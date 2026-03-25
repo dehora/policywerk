@@ -464,6 +464,18 @@ class TestDQN:
         # Original should be unchanged
         assert net.layers[0].weights[0][0] != 999.0
 
+    def test_linear_epsilon_normal_path(self):
+        """Epsilon should start at start, end at end, and clamp beyond."""
+        from policywerk.actors.dqn import _linear_epsilon
+        # Episode 0 → start
+        assert _linear_epsilon(0, start=1.0, end=0.1, decay_episodes=200) == 1.0
+        # Episode = decay_episodes → end
+        assert abs(_linear_epsilon(200, 1.0, 0.1, 200) - 0.1) < 1e-10
+        # Midpoint
+        assert abs(_linear_epsilon(100, 1.0, 0.1, 200) - 0.55) < 1e-10
+        # Beyond decay_episodes → clamped at end
+        assert abs(_linear_epsilon(500, 1.0, 0.1, 200) - 0.1) < 1e-10
+
     def test_linear_epsilon_zero_decay(self):
         """decay_episodes=0 should immediately return end epsilon."""
         from policywerk.actors.dqn import _linear_epsilon
@@ -481,6 +493,17 @@ class TestDQN:
         # Q-values should be non-zero after training
         late_q = history[-1]["avg_q"]
         assert late_q != 0.0, "Q-values should be non-zero after training"
+
+    def test_trained_network_output_shape(self):
+        """Trained network should produce one Q-value per action."""
+        from policywerk.actors.dqn import dqn
+        from policywerk.building_blocks.network import network_forward
+        from policywerk.world.breakout import Breakout
+        env = self._make_env()
+        net, _ = dqn(env, **self._DQN_KWARGS)
+        state = Breakout(max_steps=50).reset()
+        q_vals, _ = network_forward(net, state.features)
+        assert len(q_vals) == 3  # left, stay, right
 
     def test_greedy_poster_frame_is_not_reset(self):
         """Poster frame should come from a stepped rollout, not a fresh reset."""

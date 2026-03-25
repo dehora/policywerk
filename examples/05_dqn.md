@@ -43,6 +43,8 @@ DQN replaces the dict with a forward pass:
 Network forward: network(pixels + velocity) -> [Q(s, left), Q(s, stay), Q(s, right)]
 ```
 
+The table memorizes. The network interpolates. Two frames with the ball one pixel apart share most of their weights and produce similar Q-values. The hidden neurons learn to detect patterns — one might activate when the ball is near the paddle, another when bricks are clustered on the left. These patterns are not programmed; they emerge from training.
+
 The update rule is the same TD error from Lesson 04, applied to network weights instead of table entries:
 
 ```
@@ -84,6 +86,8 @@ Average reward per 50 episodes:
 
 Early episodes end in 6 steps (immediate miss, reward -1.05). By episode 50, the agent survives long enough to hit bricks. By episode 250, it averages 72 steps and +7.68 reward per episode.
 
+The dip at episodes 200-249 (4.86, down from 5.60) is real and instructive. Epsilon hits its floor of 0.1 at episode 200 and exploration drops sharply. The agent suddenly relies on its current network, but the network was trained with heavy exploration noise in its replay buffer. The target network, which lags 20 episodes behind, is still calibrated for a more exploratory policy. The agent needs time to adapt — the recovery to 7.68 by episodes 250-299 shows it does, once the replay buffer fills with exploitation-dominated experience and the target network catches up. This is exactly the kind of training instability that makes deep RL hard in practice.
+
 ```
 Early episodes:
   Episode   0:  reward   -1.05  steps   6  epsilon 1.00
@@ -91,6 +95,8 @@ Early episodes:
   Episode   2:  reward   -1.05  steps   6  epsilon 0.99
   Episode   3:  reward   -1.05  steps   6  epsilon 0.99
 ```
+
+The typical early episode: epsilon is 1.0 (pure random), the paddle moves randomly, the ball passes it in 6 steps, reward is -1.05 (the -1.0 miss penalty plus 5 step costs at -0.01). Episode 1 is an outlier — the random policy happened to survive 20 steps before losing.
 
 ## What the Network Learned
 
@@ -109,9 +115,9 @@ Q-values at start position:
   Right: 0.8166 <-- best
 ```
 
-The network destroyed 11 of 12 bricks in 94 steps, earning a reward of 9.18. Compare this to the random policy, which missed the ball within 6 steps and scored nothing.
+The trained agent destroyed 11 of 12 bricks in 94 steps, earning a total reward of 9.18. The random policy, by comparison, missed the ball within 6 steps every time and scored 0 bricks — a reward of -1.05. That gap, from -1.05 to +9.18, came entirely from 300 episodes of gradient updates on a 32-neuron hidden layer.
 
-The Q-values at the start position show the network has learned that moving right is slightly better than staying or moving left, because the ball starts moving down-right and the paddle needs to track it.
+The Q-value spread at the start position (0.636 / 0.776 / 0.817) reveals what the network learned about the opening. The ball starts at row 3, column 4, moving down-right. The network's preference for Right (0.817) over Stay (0.776) over Left (0.636) reflects the ball's rightward trajectory — the paddle needs to track it. The gap between Left and the other two is larger than the gap between Stay and Right, which makes sense: moving left is actively wrong (moving away from the ball), while staying is merely passive (the ball hasn't reached the paddle yet). The network has learned the asymmetry of the opening position from raw pixels and velocity, not from any programmed knowledge of ball physics.
 
 The network does not understand Breakout. It has no concept of ball trajectory or paddle interception. It has a function from 82 numbers to 3 numbers, shaped by thousands of gradient updates, that happens to produce useful behavior. That is function approximation: not understanding, but interpolation that works.
 
@@ -133,7 +139,7 @@ A frame from the greedy rollout, Q-values at the start position, and the full tr
 
 ![Reward curve](img/05_dqn_trace.png)
 
-Raw episode rewards (light) and smoothed rewards (dark). The agent transitions from immediate failure (reward near -1) to sustained play (reward near +8) as epsilon decays and the network improves.
+Raw episode rewards (light) and smoothed rewards (dark). The agent transitions from immediate failure (reward near -1) to sustained play (reward near +8) as epsilon decays and the network improves. The dip around episode 200 is visible where epsilon reaches its floor and the agent adjusts to exploitation-dominated play.
 
 ## Next
 

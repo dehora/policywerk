@@ -155,6 +155,14 @@ class Breakout(Environment):
     def num_actions(self) -> int:
         return 3
 
+    def score(self) -> int:
+        """Number of bricks destroyed so far."""
+        return self._score
+
+    def bricks_remaining(self) -> int:
+        """Number of bricks still on the board."""
+        return len(self._bricks)
+
     def render_frame(self) -> Matrix:
         """Return current state as a 10×8 pixel grid."""
         frame = [[EMPTY] * COLS for _ in range(ROWS)]

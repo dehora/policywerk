@@ -264,10 +264,11 @@ def main():
     begins. The network slowly learns which pixel patterns precede
     reward (+1.0 brick hit) and which precede punishment (-1.0 miss).
 
-    Epsilon decays linearly. By episode 100, the agent takes the
-    network's best action 55% of the time. By episode 200, it is
-    90% greedy. The transition from exploration to exploitation is
-    visible in the reward curve: early episodes cluster near -1
+    Epsilon decays linearly. By episode 100, epsilon is 0.55 —
+    the agent still takes a random action more than half the time.
+    By episode 200, epsilon reaches its floor of 0.1 and the agent
+    is 90% greedy. The transition from exploration to exploitation
+    is visible in the reward curve: early episodes cluster near -1
     (immediate miss), then rewards climb as the agent learns to
     rally and hit bricks.
     """)
@@ -370,7 +371,7 @@ def main():
             break
 
     action_names = ["Left", "Stay", "Right"]
-    bricks_remaining = len(eval_env._bricks)
+    bricks_remaining = eval_env.bricks_remaining()
     print(f"    Greedy evaluation (no exploration):")
     print(f"      Reward:     {eval_total:.2f}")
     print(f"      Steps:      {eval_steps}")
@@ -451,7 +452,7 @@ def main():
             ep_reward=rand_total,
             step_count=rand_step,
             step_label=f"Random policy (step {rand_step})",
-            score=rand_env._score,
+            score=rand_env.score(),
         ))
     # Hold on "Game Over" for a few frames
     game_over_label = "Game Over — random policy" if rand_total < 0 else "Cleared — random policy"
@@ -466,7 +467,7 @@ def main():
             ep_reward=rand_total,
             step_count=rand_step,
             step_label=game_over_label,
-            score=rand_env._score,
+            score=rand_env.score(),
         ))
 
     # --- Phase 2: Training curve summary ---
@@ -521,13 +522,13 @@ def main():
                 ep_reward=g_total,
                 step_count=g_step,
                 step_label=f"Trained policy (step {g_step})",
-                score=g_env._score,
+                score=g_env.score(),
             ))
         # Hold on final frame with Game Over / Cleared
-        if len(g_env._bricks) == 0:
-            end_label = f"Cleared! score={g_env._score}"
+        if g_env.bricks_remaining() == 0:
+            end_label = f"Cleared! score={g_env.score()}"
         else:
-            end_label = f"Game Over — score {g_env._score}/12"
+            end_label = f"Game Over — score {g_env.score()}/12"
         for _ in range(12):
             snapshots.append(DQNSnapshot(
                 episode=num_episodes,
@@ -539,7 +540,7 @@ def main():
                 ep_reward=g_total,
                 step_count=g_step,
                 step_label=end_label,
-                score=g_env._score,
+                score=g_env.score(),
             ))
 
     # --- Artifact 1: Animation ---

@@ -237,7 +237,7 @@ def greedy_poster_frame(net: Network, env, max_steps: int = 200,
         action = q_vals.index(max(q_vals))
         state, _, done = env.step(action)
         frame = env.render_color_frame()
-        if env._score >= min_score and not done:
+        if env.score() >= min_score and not done:
             return frame
         if done:
             return frame
