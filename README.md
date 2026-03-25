@@ -15,7 +15,7 @@ The project follows seven landmark papers chronologically, each one building on 
 | 03 | Sutton, "Learning to Predict by the Methods of Temporal Differences" | 1988 | TD(0) and TD(λ) | Random walk | Done |
 | 04 | Watkins, "Learning from Delayed Rewards" | 1989 | Q-learning | Cliff walking | Done |
 | 05 | Mnih et al., "Playing Atari with Deep Reinforcement Learning" | 2013 | DQN | Mini Breakout | Done |
-| 06 | Schulman et al., "Proximal Policy Optimization Algorithms" | 2017 | PPO | Point-mass control | — |
+| 06 | Schulman et al., "Proximal Policy Optimization Algorithms" | 2017 | PPO | Balance (continuous) | Done |
 | 07 | Hafner et al., "Mastering Diverse Domains through World Models" | 2023 | DreamerV3 | Pixel point-mass | — |
 
 ## Concepts
