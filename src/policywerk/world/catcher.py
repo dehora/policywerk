@@ -44,7 +44,7 @@ class Catcher(Environment):
         max_steps: int = 200,
         grid_size: int = SIZE,
     ):
-        if not isinstance(grid_size, int) or grid_size < 1:
+        if isinstance(grid_size, bool) or not isinstance(grid_size, int) or grid_size < 1:
             raise ValueError(
                 f"grid_size must be a positive integer, got {grid_size!r}"
             )

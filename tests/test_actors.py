@@ -505,28 +505,98 @@ class TestDQN:
         q_vals, _ = network_forward(net, state.features)
         assert len(q_vals) == 3  # left, stay, right
 
-    def test_greedy_poster_frame_is_not_reset(self):
-        """Poster frame should come from a stepped rollout, not a fresh reset."""
-        from policywerk.actors.dqn import dqn, greedy_poster_frame
-        from policywerk.world.breakout import Breakout
-        env = self._make_env()
-        net, _ = dqn(env, **self._DQN_KWARGS)
-        # Use the default min_score=2 to exercise the threshold path
-        frame = greedy_poster_frame(net, Breakout(max_steps=200))
-        reset_env = Breakout(max_steps=200)
-        reset_env.reset()
-        reset_frame = reset_env.render_color_frame()
-        assert frame != reset_frame, "Poster frame should differ from the reset board"
+    def test_greedy_poster_frame_threshold_path(self):
+        """greedy_poster_frame should return a frame from the score threshold path."""
+        from policywerk.actors.dqn import greedy_poster_frame
+        from policywerk.building_blocks.network import create_network, Network
+        from policywerk.building_blocks.mdp import State
 
-    def test_greedy_poster_frame_timeout_not_reset(self):
-        """Even on timeout, the frame should be the last stepped frame."""
-        from policywerk.actors.dqn import dqn, greedy_poster_frame
-        from policywerk.world.breakout import Breakout
-        env = self._make_env()
-        net, _ = dqn(env, **self._DQN_KWARGS)
-        # min_score=999 is unreachable, so this exercises the timeout path
-        frame = greedy_poster_frame(net, Breakout(max_steps=5), min_score=999)
-        reset_env = Breakout(max_steps=5)
-        reset_env.reset()
-        reset_frame = reset_env.render_color_frame()
-        assert frame != reset_frame, "Timeout frame should not be the reset board"
+        class StubEnv:
+            """Env that reaches score=2 on step 3, then keeps going."""
+            def __init__(self):
+                self._step = 0
+                self._sc = 0
+            def reset(self):
+                self._step = 0
+                self._sc = 0
+                return State(features=[0.0] * 4, label="s0")
+            def step(self, action):
+                self._step += 1
+                self._sc = self._step  # score increments each step
+                done = self._step >= 10
+                return State(features=[float(self._step)] * 4, label=f"s{self._step}"), 0.0, done
+            def score(self):
+                return self._sc
+            def render_color_frame(self):
+                # Encode step number in the frame so we can verify which frame was returned
+                return [[[float(self._step), 0.0, 0.0]]]
+            def num_actions(self):
+                return 3
+
+        rng = create_rng(42)
+        net = create_network(rng, [4, 4, 3], [relu, identity])
+        stub = StubEnv()
+
+        # min_score=2 → should return frame from step 2 (score reaches 2, not done)
+        frame = greedy_poster_frame(net, stub, min_score=2)
+        assert frame == [[[2.0, 0.0, 0.0]]], f"Expected frame from step 2, got {frame}"
+
+    def test_greedy_poster_frame_fallback_on_early_done(self):
+        """If done before min_score, should return the done frame, not reset."""
+        from policywerk.actors.dqn import greedy_poster_frame
+        from policywerk.building_blocks.network import create_network
+        from policywerk.building_blocks.mdp import State
+
+        class EarlyDoneEnv:
+            """Env that ends on step 1 with score=0."""
+            def __init__(self):
+                self._step = 0
+            def reset(self):
+                self._step = 0
+                return State(features=[0.0] * 4, label="s0")
+            def step(self, action):
+                self._step = 1
+                return State(features=[1.0] * 4, label="s1"), -1.0, True
+            def score(self):
+                return 0
+            def render_color_frame(self):
+                return [[[float(self._step), 0.0, 0.0]]]
+            def num_actions(self):
+                return 3
+
+        rng = create_rng(42)
+        net = create_network(rng, [4, 4, 3], [relu, identity])
+        stub = EarlyDoneEnv()
+        frame = greedy_poster_frame(net, stub, min_score=2)
+        # Should be step-1 frame (done), not step-0 (reset)
+        assert frame == [[[1.0, 0.0, 0.0]]], f"Expected done frame from step 1, got {frame}"
+
+    def test_greedy_poster_frame_timeout_returns_last_frame(self):
+        """On timeout, should return the last stepped frame."""
+        from policywerk.actors.dqn import greedy_poster_frame
+        from policywerk.building_blocks.network import create_network
+        from policywerk.building_blocks.mdp import State
+
+        class NeverScoresEnv:
+            """Env that never scores and never ends."""
+            def __init__(self):
+                self._step = 0
+            def reset(self):
+                self._step = 0
+                return State(features=[0.0] * 4, label="s0")
+            def step(self, action):
+                self._step += 1
+                return State(features=[float(self._step)] * 4, label=f"s{self._step}"), 0.0, False
+            def score(self):
+                return 0
+            def render_color_frame(self):
+                return [[[float(self._step), 0.0, 0.0]]]
+            def num_actions(self):
+                return 3
+
+        rng = create_rng(42)
+        net = create_network(rng, [4, 4, 3], [relu, identity])
+        stub = NeverScoresEnv()
+        frame = greedy_poster_frame(net, stub, max_steps=5, min_score=2)
+        # Should be step-5 frame, not step-0 (reset)
+        assert frame == [[[5.0, 0.0, 0.0]]], f"Expected last frame from step 5, got {frame}"

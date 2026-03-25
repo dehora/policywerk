@@ -478,6 +478,12 @@ class TestCatcherCapacity:
         with pytest.raises(ValueError, match="positive integer"):
             Catcher(grid_size=2.5, num_rewards=0, num_hazards=0)
 
+    def test_bool_grid_size_raises(self):
+        """bool is a subclass of int but should be rejected."""
+        import pytest
+        with pytest.raises(ValueError, match="positive integer"):
+            Catcher(grid_size=True, num_rewards=0, num_hazards=0)
+
 
 class TestCatcherExtended:
     def test_hazard_ends_episode(self):
