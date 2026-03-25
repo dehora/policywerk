@@ -844,3 +844,17 @@ class TestPPO:
         out, _ = network_forward(actor, [0.0, 0.0])
         assert len(out) == 2, f"Actor should output 2 values (mean, log_std), got {len(out)}"
 
+    def test_balance_outcome_step_500_success(self):
+        """Surviving to step 500 with reward=1.0 should be labeled success."""
+        from policywerk.actors.ppo import balance_outcome
+        survived, label = balance_outcome(500, final_reward=1.0)
+        assert survived is True
+        assert "Balanced" in label
+
+    def test_balance_outcome_step_500_fall(self):
+        """Falling on step 500 (reward=0.0) should be labeled failure."""
+        from policywerk.actors.ppo import balance_outcome
+        survived, label = balance_outcome(500, final_reward=0.0)
+        assert survived is False
+        assert "Fell" in label
+

@@ -399,3 +399,19 @@ def ppo(
 
     progress_done()
     return actor_net, critic_net, history
+
+
+def balance_outcome(steps: int, final_reward: float, max_steps: int = 500
+                    ) -> tuple[bool, str]:
+    """Determine whether a Balance episode ended in success or failure.
+
+    Returns (survived, label). Uses the final reward to distinguish
+    timeout success (reward=1.0) from a terminal fall (reward=0.0)
+    at the same step count.
+    """
+    survived = (final_reward == 1.0) and steps >= max_steps
+    if survived:
+        label = f"Balanced for {steps} steps!"
+    else:
+        label = f"Fell after {steps} steps"
+    return survived, label

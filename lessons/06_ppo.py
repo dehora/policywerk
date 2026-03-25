@@ -19,7 +19,7 @@ import os
 import math
 from dataclasses import dataclass
 
-from policywerk.actors.ppo import ppo
+from policywerk.actors.ppo import ppo, balance_outcome
 from policywerk.building_blocks.network import network_forward
 from policywerk.building_blocks.distributions import Gaussian
 from policywerk.world.balance import Balance
@@ -466,7 +466,7 @@ def main():
         print(f"      {desc:30s}  torque={executed:+.3f}  std={s:.3f}")
     print()
 
-    eval_survived = (reward == 1.0) and eval_steps >= 500
+    eval_survived, _ = balance_outcome(eval_steps, reward)
     if eval_survived:
         survival_msg = f"The agent survived {eval_steps} steps—the maximum."
     else:
@@ -580,15 +580,9 @@ def main():
                     phase="trained",
                     ep_length=t_step,
                 ))
-        # Distinguish timeout success (reward=1.0) from terminal fall (reward=0.0).
-        # Both set done=True at step 500, but the reward differs.
-        survived = (reward == 1.0)
-        if survived and t_step >= 500:
-            end_label = f"3/3  Balanced for {t_step} steps!"
-            hold_angle = 0.0  # show pole upright for the success frame
-        else:
-            end_label = f"3/3  Fell after {t_step} steps"
-            hold_angle = state.features[0]  # show where it fell
+        survived, outcome_label = balance_outcome(t_step, reward)
+        end_label = f"3/3  {outcome_label}"
+        hold_angle = 0.0 if survived else state.features[0]
         for _ in range(12):
             snapshots.append(PPOSnapshot(
                 episode=num_iterations,
