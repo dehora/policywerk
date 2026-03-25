@@ -198,9 +198,11 @@ def main():
     much when subsequent steps bring the estimate back to earth.
 
     Lambda = 0.95 is the standard choice. It leans toward longer
-    horizons while keeping variance manageable. With lambda = 1,
-    the advantage is a discounted sum of all future residuals —
-    equivalent to Monte Carlo.
+    horizons while keeping variance manageable. With lambda = 1
+    on a complete episode, the advantage equals the discounted
+    Monte Carlo return minus the baseline. In PPO's truncated
+    batches, the final step still bootstraps from the critic's
+    value estimate, so it is never purely Monte Carlo in practice.
     """)
 
     # -----------------------------------------------------------------------

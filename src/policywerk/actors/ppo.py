@@ -289,7 +289,6 @@ def ppo(
         advantages = [(a - adv_mean) / adv_std for a in advantages]
 
         # ---- Phase 3: K epochs of PPO updates ----
-        iter_policy_loss = 0.0
         iter_value_loss = 0.0
         iter_entropy = 0.0
         iter_std_sum = 0.0
@@ -353,16 +352,12 @@ def ppo(
                 iter_entropy += ent
                 iter_std_sum += a_std
 
-                # Compute actual surrogate loss for diagnostics
-                dist_new = Gaussian([a_mean], [a_std])
-                lp_new = dist_new.log_prob([raw_actions[t]])
-                ratio = scalar.exp(scalar.subtract(lp_new, log_probs_old[t]))
-                surr1 = scalar.multiply(ratio, advantages[t])
-                clamped_r = scalar.clamp(ratio, 1.0 - clip_epsilon, 1.0 + clip_epsilon)
-                surr2 = scalar.multiply(clamped_r, advantages[t])
-                iter_policy_loss += -min(surr1, surr2) - entropy_coeff * ent
-
-                # Value loss: squared error between critic and return
+                # Value loss: squared error between critic prediction and GAE return.
+                # Both are based on the rewards the environment produced from the
+                # clamped action, so this diagnostic is internally consistent.
+                # Policy loss is omitted because the ratio uses the raw (unclamped)
+                # action's log_prob while the advantage reflects the clamped action's
+                # reward—logging it would be misleading.
                 v_err = value_out[0] - returns[t]
                 iter_value_loss += v_err * v_err
 
@@ -386,14 +381,12 @@ def ppo(
         avg_entropy = iter_entropy / update_count if update_count else 0.0
         avg_std = iter_std_sum / update_count if update_count else 1.0
 
-        avg_ploss = iter_policy_loss / update_count if update_count else 0.0
         avg_vloss = iter_value_loss / update_count if update_count else 0.0
 
         history.append({
             "iteration": iteration,
             "avg_reward": avg_reward,
             "episodes_completed": len(ep_rewards),
-            "policy_loss": avg_ploss,
             "value_loss": avg_vloss,
             "entropy": avg_entropy,
             "mean_std": avg_std,

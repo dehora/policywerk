@@ -803,9 +803,19 @@ class TestPPO:
         from policywerk.actors.ppo import ppo
         _, _, history = ppo(self._make_env(), **self._PPO_KWARGS)
         expected = {"iteration", "avg_reward", "episodes_completed",
-                    "policy_loss", "value_loss", "entropy", "mean_std"}
+                    "value_loss", "entropy", "mean_std"}
         for h in history:
             assert set(h.keys()) == expected, f"Missing keys: {expected - set(h.keys())}"
+
+    def test_ppo_value_loss_is_finite_and_nonzero(self):
+        """value_loss should be finite and non-zero on at least one iteration."""
+        from policywerk.actors.ppo import ppo
+        import math
+        _, _, history = ppo(self._make_env(), **self._PPO_KWARGS)
+        for h in history:
+            assert math.isfinite(h["value_loss"]), f"value_loss not finite: {h['value_loss']}"
+        has_nonzero = any(h["value_loss"] > 0 for h in history)
+        assert has_nonzero, "value_loss should be non-zero on at least one iteration"
 
     def test_ppo_deterministic_with_seed(self):
         """Same seed should produce identical history."""
