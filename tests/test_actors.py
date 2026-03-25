@@ -833,3 +833,26 @@ class TestPPO:
         for h in history:
             assert h["entropy"] > 0, "Entropy should be positive"
             assert h["entropy"] < 100, "Entropy should be finite"
+
+    def test_ppo_actor_output_shape(self):
+        """Trained actor should output [mean, log_std] for any 2D state."""
+        from policywerk.actors.ppo import ppo
+        from policywerk.building_blocks.network import network_forward
+        actor, _, _ = ppo(self._make_env(), **self._PPO_KWARGS)
+        out, _ = network_forward(actor, [0.0, 0.0])
+        assert len(out) == 2, f"Actor should output 2 values (mean, log_std), got {len(out)}"
+
+    def test_gae_lesson_example(self):
+        """GAE with the lesson's worked example should produce A_0 ≈ 2.69."""
+        from policywerk.actors.ppo import _compute_gae_with_resets
+        # Exact numbers from the lesson narrative
+        rewards = [1.0, 1.0, 1.0]
+        values = [10.0, 12.0, 11.0]
+        dones = [False, False, False]
+        next_value = 10.0
+        adv = _compute_gae_with_resets(rewards, values, dones, next_value, gamma=0.99, lam=0.95)
+        # Lesson says: A_0 ≈ 2.69 with lambda=0.95
+        assert abs(adv[0] - 2.69) < 0.01, f"Lesson claims A_0 ≈ 2.69, got {adv[0]:.4f}"
+        # Lesson says: delta_0 = 2.88 (lambda=0 case)
+        adv_td = _compute_gae_with_resets(rewards, values, dones, next_value, gamma=0.99, lam=0.0)
+        assert abs(adv_td[0] - 2.88) < 1e-10, f"Lesson claims delta_0 = 2.88, got {adv_td[0]}"

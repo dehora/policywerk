@@ -34,9 +34,9 @@ Same environment, same goal, but 34 years of algorithmic progress.
 
 ## The Simplest Policy Gradient
 
-The core idea fits in one sentence: if an action worked well, adjust the network to make that action more likely next time. If it worked badly, make it less likely.
+The core idea fits in one sentence: if an action turned out better than expected, adjust the network to make that action more likely next time. If it turned out worse than expected, make it less likely.
 
-Concrete example: the pole is tilting right. The network outputs a bell curve centered at torque=0.1. The agent samples torque=-0.3. The pole recovers. The update: shift the bell curve so torque=-0.3 becomes more probable when the pole tilts right.
+The intuition: the pole is tilting right. The network outputs a bell curve centered at torque=0.1. The agent samples torque=-0.3. Over the next several steps, the pole recovers and the agent survives longer than the critic predicted. That produces a positive advantage for torque=-0.3. The update: shift the bell curve so that torque becomes more probable. (The mechanism—advantages, the critic, how "better than expected" is computed—comes later.)
 
 Compare this to DQN's update. DQN asked "what is this action worth?" and updated a value toward a target. PPO asks "should I do this action more or less often?" and adjusts a probability. There is no target in the DQN sense—there is only the direction: more likely or less likely.
 

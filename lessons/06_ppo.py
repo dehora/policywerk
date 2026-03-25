@@ -130,19 +130,23 @@ def main():
     print("-" * 64)
     print("""
     The core idea of policy gradient methods fits in one sentence:
-    if an action worked well, adjust the network to make that
-    action more likely next time. If it worked badly, make it
-    less likely.
+    if an action turned out better than expected, adjust the
+    network to make that action more likely next time. If it
+    turned out worse than expected, make it less likely.
 
-    Concrete example. The pole is tilting right. The network
+    The intuition. The pole is tilting right. The network
     outputs a bell curve centered at torque = 0.1. The agent
-    samples torque = -0.3 from the tail of the curve. The pole
-    recovers. The reward is +1.
+    samples torque = -0.3 from the tail of the curve. Over the
+    next several steps, the pole recovers and the agent survives
+    longer than the critic predicted. That sequence of events
+    produces a positive advantage for torque = -0.3.
 
     The update: shift the bell curve so that torque = -0.3
     becomes more probable when the pole tilts right. The network
     adjusts its weights, and the bell curve's center moves
-    toward -0.3.
+    toward -0.3. (The actual mechanism—advantages, the critic,
+    and how "better than expected" is computed—comes in section
+    6. For now, the key point is the direction of the update.)
 
     Compare this to DQN's update rule. DQN asked "what is this
     action worth?" and updated a value toward a target. PPO asks
@@ -305,11 +309,9 @@ def main():
     # 7. Multiple epochs
     # -----------------------------------------------------------------------
 
-    num_epochs = 3  # defined here for the narrative; used again in training
-
     print("MULTIPLE EPOCHS")
     print("-" * 64)
-    print(f"""
+    print("""
     PPO is on-policy: it collects a batch of experience, learns
     from it, then throws it away and collects fresh data. DQN
     (Lesson 05) solved data efficiency through experience
@@ -328,7 +330,7 @@ def main():
     per batch (better sample efficiency), but push the policy
     further from the collection policy (more staleness). K=3 to
     K=10 is typical; beyond that, the clip fires on most samples
-    and learning stalls. We use K={num_epochs}.
+    and learning stalls. We use K=3.
     """)
 
     # -----------------------------------------------------------------------
