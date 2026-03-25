@@ -595,3 +595,56 @@ class TestPixelPointMass:
 
     def test_num_actions(self):
         assert PixelPointMass().num_actions() == 9
+
+
+class TestCenteredPixelCanvas:
+    """Verify the centered-frame canvas used in L07 animation Phase 1."""
+
+    def test_canvas_dimensions(self):
+        """Canvas should be 16 rows x 33 cols (matching split-screen width)."""
+        from policywerk.viz.trajectories import _frame_to_rgb
+        frame = [[0.0] * 16 for _ in range(16)]
+        frame[7][7] = 1.0  # agent
+        frame[10][10] = 0.7  # target
+
+        rows_f = len(frame)
+        cols_f = len(frame[0])
+        canvas_cols = cols_f * 2 + 1  # 33
+        bg = [0.10, 0.10, 0.18]
+        canvas = [[list(bg) for _ in range(canvas_cols)] for _ in range(rows_f)]
+        rgb_frame = _frame_to_rgb(frame)
+        offset = (canvas_cols - cols_f) // 2  # 8
+        for r in range(rows_f):
+            for c in range(cols_f):
+                canvas[r][offset + c] = rgb_frame[r][c]
+
+        assert len(canvas) == 16, f"Expected 16 rows, got {len(canvas)}"
+        assert len(canvas[0]) == 33, f"Expected 33 cols, got {len(canvas[0])}"
+        assert offset == 8, f"Expected offset 8, got {offset}"
+
+    def test_frame_is_centered(self):
+        """Frame content should occupy columns 8-23, padding should be background."""
+        from policywerk.viz.trajectories import _frame_to_rgb
+        frame = [[0.0] * 16 for _ in range(16)]
+        frame[7][7] = 1.0  # agent
+
+        rows_f, cols_f = 16, 16
+        canvas_cols = 33
+        bg = [0.10, 0.10, 0.18]
+        canvas = [[list(bg) for _ in range(canvas_cols)] for _ in range(rows_f)]
+        rgb_frame = _frame_to_rgb(frame)
+        offset = 8
+        for r in range(rows_f):
+            for c in range(cols_f):
+                canvas[r][offset + c] = rgb_frame[r][c]
+
+        # Left padding (cols 0-7) should be background
+        for c in range(offset):
+            assert canvas[0][c] == bg, f"Col {c} should be bg, got {canvas[0][c]}"
+
+        # Right padding (cols 24-32) should be background
+        for c in range(offset + cols_f, canvas_cols):
+            assert canvas[0][c] == bg, f"Col {c} should be bg, got {canvas[0][c]}"
+
+        # Agent at (7,7) in frame → canvas column 8+7=15, should NOT be background
+        assert canvas[7][15] != bg, "Agent pixel should not be background"

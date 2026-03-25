@@ -476,30 +476,9 @@ def main():
         # Top-left: pixel frames
         axes["env"].clear()
         if snap.phase == "random":
-            # Center the single frame in the same canvas size as the
-            # split-screen (16+1+16=33 cols) so the animation doesn't jump.
-            from policywerk.viz.trajectories import _frame_to_rgb, _add_pixel_grid
-            rows_f = len(snap.real_frame)
-            cols_f = len(snap.real_frame[0]) if snap.real_frame else 0
-            canvas_cols = cols_f * 2 + 1  # match split-screen width
-            bg = [0.10, 0.10, 0.18]
-            canvas = [[list(bg) for _ in range(canvas_cols)] for _ in range(rows_f)]
-            rgb_frame = _frame_to_rgb(snap.real_frame)
-            offset = (canvas_cols - cols_f) // 2  # center horizontally
-            for r in range(rows_f):
-                for c in range(cols_f):
-                    canvas[r][offset + c] = rgb_frame[r][c]
-            axes["env"].imshow(canvas, interpolation="nearest", aspect="equal")
-            # Grid only over the 16x16 frame area, not the padding
-            for r in range(rows_f + 1):
-                axes["env"].axhline(r - 0.5, xmin=offset / canvas_cols,
-                                    xmax=(offset + cols_f) / canvas_cols,
-                                    color="#333333", linewidth=0.3, zorder=2)
-            for c in range(cols_f + 1):
-                axes["env"].axvline(offset + c - 0.5,
-                                    color="#333333", linewidth=0.3, zorder=2)
-            axes["env"].set_xticks([])
-            axes["env"].set_yticks([])
+            # Show real frame on the left, blank on the right—same layout
+            # as Phase 3 so the animation doesn't jump in size.
+            draw_real_vs_imagined(axes["env"], snap.real_frame, blank_frame)
         else:
             # Training and eval: show real vs reconstructed
             draw_real_vs_imagined(axes["env"], snap.real_frame, snap.imagined_frame)

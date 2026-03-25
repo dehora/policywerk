@@ -436,9 +436,12 @@ def _frame_to_rgb(frame: Matrix, imagined: bool = False) -> list[list[list[float
     pixels.sort(key=lambda x: -x[0])
 
     # The brightest pixel is the target (decoder reconstructs it best ~0.7),
-    # the second brightest is the agent (decoder reaches ~0.35)
-    target_pos = (pixels[0][1], pixels[0][2]) if pixels else None
-    agent_pos = (pixels[1][1], pixels[1][2]) if len(pixels) > 1 else None
+    # the second brightest is the agent (decoder reaches ~0.35).
+    # Only force-color if the brightest pixel is meaningfully above zero
+    # (skip blank frames where all pixels are ~0).
+    min_active = 0.05
+    target_pos = (pixels[0][1], pixels[0][2]) if pixels and pixels[0][0] > min_active else None
+    agent_pos = (pixels[1][1], pixels[1][2]) if len(pixels) > 1 and pixels[1][0] > min_active else None
 
     rgb = [[list(bg) for _ in range(cols)] for _ in range(rows)]
 
