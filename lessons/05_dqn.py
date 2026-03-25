@@ -264,10 +264,12 @@ def main():
     begins. The network slowly learns which pixel patterns precede
     reward (+1.0 brick hit) and which precede punishment (-1.0 miss).
 
-    Epsilon decays linearly. By episode 100, epsilon is 0.55 —
-    the agent still takes a random action more than half the time.
-    By episode 200, epsilon reaches its floor of 0.1 and the agent
-    is 90% greedy. The transition from exploration to exploitation
+    Epsilon decays linearly. By episode 100, epsilon is 0.55.
+    With 3 actions, the greedy action is chosen about 63% of the
+    time (0.45 exploit + 0.55/3 random chance of picking it).
+    By episode 200, epsilon reaches its floor of 0.1 and the
+    greedy action is chosen about 93% of the time. The transition
+    from exploration to exploitation
     is visible in the reward curve: early episodes cluster near -1
     (immediate miss), then rewards climb as the agent learns to
     rally and hit bricks.

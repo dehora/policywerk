@@ -115,7 +115,7 @@ Q-values at start position:
   Right: 0.8166 <-- best
 ```
 
-The trained agent destroyed 11 of 12 bricks in 94 steps, earning a total reward of 9.18. The random policy, by comparison, missed the ball within 6 steps every time and scored 0 bricks — a reward of -1.05. That gap, from -1.05 to +9.18, came entirely from 300 episodes of gradient updates on a 32-neuron hidden layer.
+The trained agent destroyed 11 of 12 bricks in 94 steps, earning a total reward of 9.18. In the animation's comparison rollout, the random policy missed the ball in 6 steps and scored 0 bricks (reward -1.05). Typical early episodes show the same pattern — most end in 6 steps, though occasionally a random policy survives longer by luck (episode 1 lasted 20 steps). That gap, from -1.05 to +9.18, came entirely from 300 episodes of gradient updates on a 32-neuron hidden layer.
 
 The Q-value spread at the start position (0.636 / 0.776 / 0.817) reveals what the network learned about the opening. The ball starts at row 3, column 4, moving down-right. The network's preference for Right (0.817) over Stay (0.776) over Left (0.636) reflects the ball's rightward trajectory — the paddle needs to track it. The gap between Left and the other two is larger than the gap between Stay and Right, which makes sense: moving left is actively wrong (moving away from the ball), while staying is merely passive (the ball hasn't reached the paddle yet). The network has learned the asymmetry of the opening position from raw pixels and velocity, not from any programmed knowledge of ball physics.
 
