@@ -664,6 +664,50 @@ class TestPPO:
         expected_0 = 1.0 + 0.99 * 0.95 * 1.0
         assert abs(adv[0] - expected_0) < 1e-10, f"Step 0: expected {expected_0}, got {adv[0]}"
 
+    def test_gae_known_values(self):
+        """GAE with known inputs should produce specific advantage values."""
+        from policywerk.actors.ppo import _compute_gae_with_resets
+
+        # 3-step episode: rewards all 1.0, values and next_value known
+        rewards = [1.0, 1.0, 1.0]
+        values = [10.0, 12.0, 11.0]
+        dones = [False, False, False]
+        next_value = 10.0
+        gamma = 0.99
+
+        # lambda=0: advantage is just the 1-step TD residual
+        adv_td = _compute_gae_with_resets(rewards, values, dones, next_value, gamma, lam=0.0)
+        delta_0 = 1.0 + 0.99 * 12.0 - 10.0  # 2.88
+        delta_1 = 1.0 + 0.99 * 11.0 - 12.0  # -0.11
+        delta_2 = 1.0 + 0.99 * 10.0 - 11.0  # -0.10
+        assert abs(adv_td[0] - delta_0) < 1e-10
+        assert abs(adv_td[1] - delta_1) < 1e-10
+        assert abs(adv_td[2] - delta_2) < 1e-10
+
+        # lambda=0.95: advantages accumulate backward
+        adv_gae = _compute_gae_with_resets(rewards, values, dones, next_value, gamma, lam=0.95)
+        # A_2 = delta_2
+        assert abs(adv_gae[2] - delta_2) < 1e-10
+        # A_1 = delta_1 + gamma*lam*A_2
+        expected_1 = delta_1 + 0.99 * 0.95 * delta_2
+        assert abs(adv_gae[1] - expected_1) < 1e-10
+        # A_0 = delta_0 + gamma*lam*A_1
+        expected_0 = delta_0 + 0.99 * 0.95 * expected_1
+        assert abs(adv_gae[0] - expected_0) < 1e-10
+
+    def test_policy_gradient_pushes_toward_good_action(self):
+        """With positive advantage and ratio=1, gradient should push mean toward action."""
+        from policywerk.actors.ppo import _policy_gradient
+        import math
+        # Action=0.5, mean=0.0, advantage>0: gradient should push mean toward 0.5
+        # (d_mean component should be negative, since loss = -surrogate)
+        grad = _policy_gradient(0.0, 0.0, 0.5, 2.0, -0.9189, 0.2, 0.0)
+        # log_prob of 0.5 under Gaussian(0,1) ≈ -1.0439
+        # ratio ≈ exp(-1.0439 - (-0.9189)) = exp(-0.125) ≈ 0.882, within clip
+        # dsurr/d_mean = advantage * ratio * (action - mean)/std^2 = 2.0 * 0.882 * 0.5 > 0
+        # dL/d_mean = -dsurr/d_mean < 0 → gradient descent on mean moves it positive (toward action)
+        assert grad[0] < 0, f"Gradient should push mean toward action (negative loss grad), got {grad[0]}"
+
     def test_policy_gradient_numerical_check(self):
         """Policy gradient should match finite-difference approximation."""
         from policywerk.actors.ppo import _policy_gradient

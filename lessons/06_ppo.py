@@ -176,15 +176,62 @@ def main():
       delta_t = r_t + gamma * V(s_{t+1}) - V(s_t)
       A_t = delta_t + (gamma * lambda) * delta_{t+1} + ...
 
-    With lambda = 0, only the one-step TD residual is used.
-    With lambda = 1, the advantage is a discounted sum of all
-    future residuals — equivalent to Monte Carlo. Lambda = 0.95
-    is a standard choice that leans toward longer horizons while
-    keeping variance manageable.
+    Concrete example. Three steps with gamma=0.99:
+
+      Step 0: reward=1.0, V(s_0)=10.0, V(s_1)=12.0
+        delta_0 = 1.0 + 0.99*12.0 - 10.0 = 2.88
+
+      Step 1: reward=1.0, V(s_1)=12.0, V(s_2)=11.0
+        delta_1 = 1.0 + 0.99*11.0 - 12.0 = -0.11
+
+      Step 2: reward=1.0, V(s_2)=11.0, V(s_3)=10.0
+        delta_2 = 1.0 + 0.99*10.0 - 11.0 = -0.10
+
+    With lambda=0 (pure TD): A_0 = delta_0 = 2.88.
+    Only the one-step residual matters.
+
+    With lambda=0.95: A_0 = 2.88 + 0.94*(-0.11) + 0.89*(-0.10) = 2.69.
+    The positive delta_0 is partially offset by the negative
+    deltas that follow — the critic was already too optimistic
+    about V(s_1), so the advantage shrinks. This is GAE reducing
+    variance: one lucky step doesn't inflate the advantage as
+    much when subsequent steps bring the estimate back to earth.
+
+    Lambda = 0.95 is the standard choice. It leans toward longer
+    horizons while keeping variance manageable. With lambda = 1,
+    the advantage is a discounted sum of all future residuals —
+    equivalent to Monte Carlo.
     """)
 
     # -----------------------------------------------------------------------
-    # 5. Revisiting Balance
+    # 5. Multiple epochs
+    # -----------------------------------------------------------------------
+
+    print("MULTIPLE EPOCHS")
+    print("-" * 64)
+    print("""
+    PPO is on-policy: it collects a batch of experience, learns
+    from it, then throws it away and collects fresh data. DQN
+    (Lesson 05) solved data efficiency through experience replay —
+    a buffer of past transitions, sampled repeatedly. PPO cannot
+    reuse old data because the policy has changed since it was
+    collected, making the old transitions off-policy.
+
+    But PPO can reuse the current batch. After collecting T steps,
+    PPO runs K passes (epochs) of gradient descent over the same
+    data. The clipped surrogate is what makes this safe: even if
+    the policy drifts during the K passes, the clip prevents it
+    from moving too far from the policy that collected the data.
+
+    This is a direct tradeoff. More epochs extract more learning
+    per batch (better sample efficiency), but push the policy
+    further from the collection policy (more staleness). K=3 to
+    K=10 is typical; beyond that, the clip fires on most samples
+    and learning stalls. We use K={num_epochs}.
+    """)
+
+    # -----------------------------------------------------------------------
+    # 6. Revisiting Balance
     # -----------------------------------------------------------------------
 
     print("REVISITING BALANCE")
@@ -232,10 +279,15 @@ def main():
     Each iteration collects {steps_per_iter} steps of experience, then
     runs {num_epochs} epochs of PPO updates over the whole batch.
     The actor and critic are separate networks, each with a
-    {hidden_size}-neuron hidden layer (tanh activation).
+    {hidden_size}-neuron hidden layer. The hidden activation is
+    tanh instead of DQN's ReLU: tanh's bounded output (-1 to +1)
+    prevents activation explosion when inputs are continuous and
+    potentially large. ReLU's unbounded positive range works well
+    for pixel inputs (non-negative) but can cause instability
+    with raw continuous state variables.
 
-    Actor:  2 inputs (angle, velocity) -> {hidden_size} hidden -> 2 outputs (mean, log_std)
-    Critic: 2 inputs (angle, velocity) -> {hidden_size} hidden -> 1 output (value)
+    Actor:  2 inputs (angle, velocity) -> {hidden_size} hidden (tanh) -> 2 outputs (mean, log_std)
+    Critic: 2 inputs (angle, velocity) -> {hidden_size} hidden (tanh) -> 1 output (value)
 
     Hyperparameters:
       Iterations:     {num_iterations}
@@ -350,9 +402,10 @@ def main():
     The policy at representative states shows what the network
     learned: when the pole tilts right, apply negative torque
     (push left). When tilting left, apply positive torque (push
-    right). When upright and still, apply near-zero torque. The
-    std of ~{history[-1]['mean_std']:.2f} means the agent still explores slightly,
-    but the mean torque does the real work.
+    right). When rotating right, apply strong negative torque to
+    counteract the momentum. The "upright, still" torque is not
+    zero — the network learned to pre-compensate for the pole's
+    initial rightward tilt of 0.01 radians.
     """)
     print()
 

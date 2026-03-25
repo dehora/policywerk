@@ -349,10 +349,23 @@ def ppo(
                         critic_acc[i].bias_grads, grads.bias_grads)
 
                 # Track metrics
-                # Entropy of current policy
                 ent = 0.5 * (1.0 + math.log(2.0 * math.pi) + 2.0 * scalar.log(a_std))
                 iter_entropy += ent
                 iter_std_sum += a_std
+
+                # Compute actual surrogate loss for diagnostics
+                dist_new = Gaussian([a_mean], [a_std])
+                lp_new = dist_new.log_prob([raw_actions[t]])
+                ratio = scalar.exp(scalar.subtract(lp_new, log_probs_old[t]))
+                surr1 = scalar.multiply(ratio, advantages[t])
+                clamped_r = scalar.clamp(ratio, 1.0 - clip_epsilon, 1.0 + clip_epsilon)
+                surr2 = scalar.multiply(clamped_r, advantages[t])
+                iter_policy_loss += -min(surr1, surr2) - entropy_coeff * ent
+
+                # Value loss: squared error between critic and return
+                v_err = value_out[0] - returns[t]
+                iter_value_loss += v_err * v_err
+
                 update_count += 1
 
             # Average gradients over trajectory length
@@ -373,12 +386,15 @@ def ppo(
         avg_entropy = iter_entropy / update_count if update_count else 0.0
         avg_std = iter_std_sum / update_count if update_count else 1.0
 
+        avg_ploss = iter_policy_loss / update_count if update_count else 0.0
+        avg_vloss = iter_value_loss / update_count if update_count else 0.0
+
         history.append({
             "iteration": iteration,
             "avg_reward": avg_reward,
             "episodes_completed": len(ep_rewards),
-            "policy_loss": 0.0,  # tracked in gradient, not recomputed
-            "value_loss": 0.0,
+            "policy_loss": avg_ploss,
+            "value_loss": avg_vloss,
             "entropy": avg_entropy,
             "mean_std": avg_std,
         })
