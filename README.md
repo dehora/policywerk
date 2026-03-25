@@ -121,7 +121,8 @@ src/policywerk/
     balance.py          Simplified 1D inverted pendulum (L02)
     random_walk.py      5-state chain with known true values (L03)
     cliffworld.py       4×12 cliff walking grid (L04)
-    catcher.py          16×16 pixel gridworld (L05)
+    breakout.py         8×10 mini Breakout with pixel+velocity obs (L05)
+    catcher.py          16×16 pixel gridworld (general purpose)
     pointmass.py        2D continuous point-mass control (L06)
     pixel_pointmass.py  Pixel-observed point-mass wrapper (L07)
 

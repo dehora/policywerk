@@ -24,7 +24,7 @@ Reinforcement learning actors from scratch, built piece by piece from scalar ope
 
 - `src/policywerk/primitives/` — scalar, vector, matrix ops, activations, losses
 - `src/policywerk/building_blocks/` — RL components (MDP, value functions, policies, traces, replay buffer, returns, distributions) + NN components (dense, conv, network, backprop, optimizers)
-- `src/policywerk/world/` — environments (gridworld, cartpole, random walk, cliffworld, catcher, pendulum)
+- `src/policywerk/world/` — environments (gridworld, cartpole, random walk, cliffworld, breakout, catcher, pendulum)
 - `src/policywerk/actors/` — the seven RL implementations (bellman, barto_sutton, td_learner, q_learner, dqn, ppo, dreamer)
 - `src/policywerk/data/` — episode collection and logging
 - `src/policywerk/viz/` — matplotlib visualizations
