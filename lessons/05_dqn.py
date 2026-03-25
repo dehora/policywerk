@@ -108,7 +108,7 @@ def main():
 
     DQN replaces the dict with a forward pass through a neural network:
 
-      Network forward: network(pixels) -> [Q(s, left), Q(s, stay), Q(s, right)]
+      Network forward: network(state) -> [Q(s, left), Q(s, stay), Q(s, right)]
 
     The network takes 82 values as input: 80 pixel values from
     the grid plus 2 ball velocity components (vertical and
@@ -427,7 +427,6 @@ def main():
     # Build snapshots: random policy → training curve → trained policy
     snapshots: list[DQNSnapshot] = []
     from policywerk.primitives.random import create_rng as _create_rng
-    from policywerk.building_blocks.policies import epsilon_greedy as _eps_greedy
 
     # --- Phase 1: Random policy replay (before training) ---
     # Shows the ball falling past a randomly-moving paddle.

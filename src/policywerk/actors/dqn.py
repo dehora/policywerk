@@ -5,8 +5,8 @@ Mnih et al. (2013), 'Playing Atari with Deep Reinforcement Learning.'
 Q-learning (L04) stores one value per state-action pair in a table.
 That works when the state space is small and discrete — 48 cells on
 the cliff world. But when the agent sees pixels, the table approach
-breaks: each observation is effectively
-unique, and the table cannot generalize across similar-looking states.
+breaks: each observation is effectively unique, and the table cannot
+generalize across similar-looking states.
 
 DQN replaces the table with a neural network. The network takes
 state features as input and outputs Q-values for every action.
@@ -32,12 +32,12 @@ Three ideas make this work:
 from policywerk.primitives import scalar, vector, matrix
 from policywerk.primitives.progress import progress_bar, progress_done
 from policywerk.primitives.activations import relu, identity
-from policywerk.primitives.losses import huber_derivative
+from policywerk.primitives.losses import huber, huber_derivative
 from policywerk.primitives.random import create_rng
-from policywerk.building_blocks.dense import DenseLayer, create_dense
+from policywerk.building_blocks.dense import DenseLayer
 from policywerk.building_blocks.network import Network, create_network, network_forward
 from policywerk.building_blocks.grad import backward, LayerGradients
-from policywerk.building_blocks.optimizers import AdamState, create_adam_state, adam_update
+from policywerk.building_blocks.optimizers import create_adam_state, adam_update
 from policywerk.building_blocks.replay_buffer import ReplayBuffer
 from policywerk.building_blocks.mdp import Transition
 from policywerk.building_blocks.policies import epsilon_greedy
@@ -185,9 +185,8 @@ def dqn(
                         acc_grads[i].bias_grads = vector.add(
                             acc_grads[i].bias_grads, grads.bias_grads)
 
-                    # Track loss
-                    diff = scalar.subtract(online_q_vals[t.action], target_q)
-                    batch_loss += scalar.multiply(diff, diff)
+                    # Track loss (Huber, matching the gradient function)
+                    batch_loss += huber(online_q_vals, targets)
 
                 # Average gradients over batch
                 inv_bs = scalar.inverse(float(batch_size))
