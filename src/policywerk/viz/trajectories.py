@@ -376,21 +376,31 @@ def draw_breakout_frame(
 def _pixel_to_rgb(val: float) -> list[float]:
     """Map a grayscale pixel value to RGB for display.
 
-    0.0 = dark background, ~0.7 = orange (target), ~1.0 = teal (agent).
-    The agent threshold is set at 0.75 (not 0.85) so decoder outputs
-    in the 0.6-0.8 range still appear as teal on the reconstructed side.
+    Three bands with sharp transitions:
+      0.0-0.15  → dark background
+      0.15-0.80 → orange, intensity grows with value (target = 0.7)
+      0.80-1.0  → teal, intensity grows with value (agent = 1.0)
+
+    The 0.80 threshold ensures the real target (0.7) is always orange
+    and the real agent (1.0) is always teal. Decoder outputs in the
+    0.3-0.7 range show as visible orange blobs.
     """
-    if val < 0.25:
-        t = val / 0.25
-        return [0.10 + 0.10 * t, 0.10 + 0.10 * t, 0.18 + 0.10 * t]
-    elif val < 0.55:
-        t = (val - 0.25) / 0.30
-        # Blend from dark to orange (ORANGE = #E8915C ≈ 0.91, 0.57, 0.36)
-        return [0.10 + 0.81 * t, 0.10 + 0.47 * t, 0.18 + 0.18 * t]
+    # ORANGE = #E8915C (0.91, 0.57, 0.36), TEAL = #5CB8B2 (0.36, 0.72, 0.70)
+    bg = [0.10, 0.10, 0.18]
+    if val < 0.15:
+        return list(bg)
+    elif val < 0.80:
+        # Orange band: intensity ramps from dim to full over 0.15→0.80
+        t = (val - 0.15) / 0.65
+        return [bg[0] + (0.91 - bg[0]) * t,
+                bg[1] + (0.57 - bg[1]) * t,
+                bg[2] + (0.36 - bg[2]) * t]
     else:
-        t = min((val - 0.55) / 0.45, 1.0)
-        # Blend from orange to teal (TEAL = #5CB8B2 ≈ 0.36, 0.72, 0.70)
-        return [0.91 - 0.55 * t, 0.57 + 0.15 * t, 0.36 + 0.34 * t]
+        # Teal band: intensity ramps from dim to full over 0.80→1.0
+        t = (val - 0.80) / 0.20
+        return [bg[0] + (0.36 - bg[0]) * t,
+                bg[1] + (0.72 - bg[1]) * t,
+                bg[2] + (0.70 - bg[2]) * t]
 
 
 def _frame_to_rgb(frame: Matrix) -> list[list[list[float]]]:
