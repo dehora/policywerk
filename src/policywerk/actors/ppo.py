@@ -401,7 +401,7 @@ def ppo(
     return actor_net, critic_net, history
 
 
-def balance_outcome(steps: int, final_reward: float, max_steps: int = 500
+def balance_outcome(steps: int, final_reward: float, max_steps: int
                     ) -> tuple[bool, str]:
     """Determine whether a Balance episode ended in success or failure.
 

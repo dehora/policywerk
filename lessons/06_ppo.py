@@ -466,7 +466,7 @@ def main():
         print(f"      {desc:30s}  torque={executed:+.3f}  std={s:.3f}")
     print()
 
-    eval_survived, _ = balance_outcome(eval_steps, reward)
+    eval_survived, _ = balance_outcome(eval_steps, reward, max_steps=500)
     if eval_survived:
         survival_msg = f"The agent survived {eval_steps} steps—the maximum."
     else:
@@ -580,7 +580,7 @@ def main():
                     phase="trained",
                     ep_length=t_step,
                 ))
-        survived, outcome_label = balance_outcome(t_step, reward)
+        survived, outcome_label = balance_outcome(t_step, reward, max_steps=500)
         end_label = f"3/3  {outcome_label}"
         hold_angle = 0.0 if survived else state.features[0]
         for _ in range(12):
