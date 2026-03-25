@@ -414,10 +414,51 @@ def _pixel_to_rgb(val: float, imagined: bool = False) -> list[float]:
 def _frame_to_rgb(frame: Matrix, imagined: bool = False) -> list[list[list[float]]]:
     """Convert a grayscale pixel frame to RGB using the project color scheme.
 
-    imagined=True uses a lighter background and lower thresholds so
-    the decoder's soft outputs are visible as colored dots.
+    For imagined frames, the decoder's outputs are too soft to distinguish
+    agent from target by value alone (sigmoid squashes the agent from 1.0
+    to ~0.35). Instead, we find the two brightest pixels and force-color
+    the brightest as teal (agent) and the second as orange (target). This
+    is a display-level boost—the model's actual outputs are unchanged.
     """
-    return [[_pixel_to_rgb(val, imagined=imagined) for val in row] for row in frame]
+    if not imagined:
+        return [[_pixel_to_rgb(val) for val in row] for row in frame]
+
+    # Imagined side: find the two most active pixels
+    rows = len(frame)
+    cols = len(frame[0]) if frame else 0
+    bg = [0.15, 0.15, 0.22]
+
+    # Collect all pixel values with positions
+    pixels = []
+    for r in range(rows):
+        for c in range(cols):
+            pixels.append((frame[r][c], r, c))
+    pixels.sort(key=lambda x: -x[0])
+
+    # The brightest pixel is the target (decoder reconstructs it best ~0.7),
+    # the second brightest is the agent (decoder reaches ~0.35)
+    target_pos = (pixels[0][1], pixels[0][2]) if pixels else None
+    agent_pos = (pixels[1][1], pixels[1][2]) if len(pixels) > 1 else None
+
+    rgb = [[list(bg) for _ in range(cols)] for _ in range(rows)]
+
+    # Color background pixels based on value (subtle glow for active areas)
+    for r in range(rows):
+        for c in range(cols):
+            val = frame[r][c]
+            if val > 0.02:
+                t = min(val / 0.5, 1.0)
+                rgb[r][c] = [bg[0] + 0.10 * t, bg[1] + 0.10 * t, bg[2] + 0.08 * t]
+
+    # Force-color the top two pixels
+    if target_pos:
+        r, c = target_pos
+        rgb[r][c] = [0.91, 0.57, 0.36]  # ORANGE
+    if agent_pos:
+        r, c = agent_pos
+        rgb[r][c] = [0.36, 0.72, 0.70]  # TEAL
+
+    return rgb
 
 
 def _add_pixel_grid(ax: plt.Axes, rows: int, cols: int) -> None:
