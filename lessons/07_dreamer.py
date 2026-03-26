@@ -465,7 +465,10 @@ def main():
             phase="random",
         ))
 
-    # --- Phase 2: Training progression ---
+    # Save the final random walk for fading in Phase 2
+    final_rand_path = list(rand_path)
+
+    # --- Phase 2: Training progression (random walk stays faded) ---
     sample_iters = sorted(set(
         list(range(0, num_iterations, max(1, num_iterations // 10))) +
         [num_iterations - 1]
@@ -475,9 +478,10 @@ def main():
         snapshots.append(DreamerSnapshot(
             episode=idx,
             total_reward=h["avg_reward"],
-            real_path=empty_path, imagined_path=empty_path,
+            real_path=list(final_rand_path),  # faded in renderer
+            imagined_path=empty_path,
             real_frame=blank_frame, imagined_frame=blank_frame,
-            step_label=f"2/3  Training: iter {idx}  recon={h['recon_loss']:.4f}",
+            step_label=f"Iteration {idx} of {num_iterations}",
             phase="training",
         ))
 
@@ -489,9 +493,8 @@ def main():
             total_reward=eval_reward,
             real_path=[(p[0], p[1]) for p in real_positions[:step_idx + 1]],
             imagined_path=list(imagined_positions[:step_idx + 1]),
-            real_frame=eval_real_frames[step_idx] if step_idx < len(eval_real_frames) else blank_frame,
-            imagined_frame=eval_imagined_frames[step_idx] if step_idx < len(eval_imagined_frames) else blank_frame,
-            step_label=f"3/3  Real vs imagined (step {step_idx})",
+            real_frame=blank_frame, imagined_frame=blank_frame,
+            step_label=f"Step {step_idx}",
             phase="eval",
         ))
     for _ in range(12):
@@ -501,7 +504,7 @@ def main():
             real_path=[(p[0], p[1]) for p in real_positions[:n_traj]],
             imagined_path=list(imagined_positions[:n_traj]),
             real_frame=blank_frame, imagined_frame=blank_frame,
-            step_label=f"3/3  Reward: {eval_reward:.1f}",
+            step_label=f"Final reward: {eval_reward:.1f}",
             phase="eval",
         ))
 
@@ -517,10 +520,17 @@ def main():
 
     from policywerk.viz.trajectories import draw_trajectory, draw_agent, draw_target
 
+    # Compute trajectory bounds from all data so nothing clips
+    all_pts = (list(rand_path) + list(real_positions)
+               + list(imagined_positions) + [target_pos])
+    max_x = max(abs(p[0]) for p in all_pts) * 1.15
+    max_y = max(abs(p[1]) for p in all_pts) * 1.15
+    traj_bound = max(max_x, max_y, 1.1)  # at least 1.1 to show target
+
     def _setup_trajectory_axes(ax):
-        """Configure a clean 2D trajectory plot."""
-        ax.set_xlim(-0.8, 1.3)
-        ax.set_ylim(-0.8, 1.3)
+        """Configure a clean 2D trajectory plot with data-driven bounds."""
+        ax.set_xlim(-traj_bound * 0.3, traj_bound)
+        ax.set_ylim(-traj_bound * 0.3, traj_bound)
         ax.set_aspect("equal")
         ax.grid(True, alpha=0.15)
         ax.tick_params(labelsize=6, length=2)
@@ -529,56 +539,85 @@ def main():
             spine.set_color("#999999")
         draw_target(ax, target_pos)
 
+    # --- Unified text template for the RHS pane ---
+    def _draw_info(ax, phase_label, description, metrics):
+        """Draw consistent text layout: label at top, description, metrics."""
+        ax.clear()
+        ax.axis("off")
+        # Phase label (bold, top)
+        ax.text(0.5, 0.92, phase_label,
+                transform=ax.transAxes, ha="center", va="top",
+                fontsize=11, fontweight="bold", color=DARK_GRAY)
+        # Description (middle)
+        ax.text(0.5, 0.58, description,
+                transform=ax.transAxes, ha="center", va="center",
+                fontsize=9, color=DARK_GRAY)
+        # Metrics (bottom, monospace)
+        if metrics:
+            ax.text(0.5, 0.12, metrics,
+                    transform=ax.transAxes, ha="center", va="bottom",
+                    fontsize=8, color=DARK_GRAY, fontfamily="monospace")
+
     def update(frame_idx):
         snap = snapshots[frame_idx]
 
-        # Top-left: 2D trajectory plot
+        # ---- Left pane: 2D trajectory (always present) ----
         axes["env"].clear()
         _setup_trajectory_axes(axes["env"])
 
-        if snap.real_path:
-            draw_trajectory(axes["env"], snap.real_path, color=TEAL, linewidth=2.0)
-            draw_agent(axes["env"], snap.real_path[-1], color=TEAL)
-        if snap.imagined_path:
-            # Imagined trajectory as dashed orange
-            xs = [p[0] for p in snap.imagined_path]
-            ys = [p[1] for p in snap.imagined_path]
-            axes["env"].plot(xs, ys, color=ORANGE, linewidth=2.0,
-                             linestyle="--", alpha=0.8)
-            axes["env"].scatter([xs[-1]], [ys[-1]], c=ORANGE, s=60,
-                                zorder=10, edgecolors=DARK_GRAY, linewidths=0.5)
-
-        axes["env"].set_title(snap.step_label, fontsize=10)
-
-        # Top-right: always text (consistent layout across all phases)
-        axes["algo"].clear()
-        axes["algo"].axis("off")
         if snap.phase == "random":
-            axes["algo"].text(0.5, 0.5,
-                              "Before training\n(random actions)\n\n"
-                              f"Reward: {snap.total_reward:+.1f}",
-                              transform=axes["algo"].transAxes,
-                              ha="center", va="center", fontsize=10, color=DARK_GRAY)
+            # Random walk building up
+            if snap.real_path:
+                draw_trajectory(axes["env"], snap.real_path, color=TEAL, linewidth=1.5)
+                draw_agent(axes["env"], snap.real_path[-1], color=TEAL)
         elif snap.phase == "training":
-            axes["algo"].text(0.5, 0.55,
-                              f"Iteration:  {snap.episode}\n"
-                              f"Reward:     {snap.total_reward:+.1f}\n"
-                              f"Recon MSE:  {history[snap.episode]['recon_loss']:.4f}",
-                              transform=axes["algo"].transAxes,
-                              ha="center", va="center", fontsize=9,
-                              color=DARK_GRAY, fontfamily="monospace")
-            axes["algo"].set_title("World Model Training", fontsize=10)
+            # Random walk stays visible but faded
+            if snap.real_path:
+                draw_trajectory(axes["env"], snap.real_path,
+                                color=TEAL, linewidth=1.0, alpha=0.2)
         else:
-            axes["algo"].text(0.5, 0.5,
-                              "\u2500\u2500  Real path (teal)\n"
-                              "- -  Imagined path (orange)\n"
-                              "\u2605   Target\n\n"
-                              f"Reward: {snap.total_reward:+.1f}",
-                              transform=axes["algo"].transAxes,
-                              ha="center", va="center", fontsize=10, color=DARK_GRAY)
-            axes["algo"].set_title("Trajectory Comparison", fontsize=10)
+            # Real path (solid teal) and imagined path (dashed orange)
+            if snap.real_path:
+                draw_trajectory(axes["env"], snap.real_path, color=TEAL, linewidth=2.0)
+                draw_agent(axes["env"], snap.real_path[-1], color=TEAL)
+            if snap.imagined_path:
+                xs = [p[0] for p in snap.imagined_path]
+                ys = [p[1] for p in snap.imagined_path]
+                axes["env"].plot(xs, ys, color=ORANGE, linewidth=2.0,
+                                 linestyle="--", alpha=0.8, clip_on=True)
+                axes["env"].scatter([xs[-1]], [ys[-1]], c=ORANGE, s=60,
+                                    zorder=10, edgecolors=DARK_GRAY, linewidths=0.5)
 
-        # Bottom: loss trace
+        axes["env"].set_title(snap.step_label, fontsize=9)
+
+        # ---- Right pane: consistent text template ----
+        if snap.phase == "random":
+            _draw_info(axes["algo"],
+                       "Before Training",
+                       "The agent acts randomly.\n"
+                       "No world model exists yet.",
+                       f"Reward: {snap.total_reward:+.1f}")
+        elif snap.phase == "training":
+            _draw_info(axes["algo"],
+                       "Learning the World",
+                       "The world model learns to\n"
+                       "predict next states and rewards\n"
+                       "from pixel observations.",
+                       f"Iteration:  {snap.episode} / {num_iterations}\n"
+                       f"Recon MSE:  {history[snap.episode]['recon_loss']:.4f}\n"
+                       f"Reward:     {snap.total_reward:+.1f}")
+        else:
+            _draw_info(axes["algo"],
+                       "Real vs Imagined",
+                       "\u2500\u2500  Real path (teal)\n"
+                       "- -  Imagined path (orange)\n"
+                       "\u2605   Target\n\n"
+                       "The agent trained on imagined\n"
+                       "paths, then acted in the real\n"
+                       "world. The gap is model error.",
+                       f"Reward: {snap.total_reward:+.1f}")
+
+        # ---- Bottom pane: loss trace ----
         axes["trace"].clear()
         if snap.phase == "random":
             axes["trace"].axis("off")
@@ -593,7 +632,6 @@ def main():
                                   label="Reconstruction loss", color=TEAL)
             axes["trace"].set_ylabel("Loss", fontsize=9)
             axes["trace"].set_xlabel("Iteration", fontsize=9)
-            axes["trace"].set_title("World Model Learning", fontsize=10)
 
     with Spinner("Generating animation"):
         save_animation(fig, update, len(snapshots),
@@ -607,26 +645,36 @@ def main():
         figsize=(12, 7),
     )
 
-    # Use a mid-evaluation frame
-    mid = len(eval_real_frames) // 3
-    poster_real = eval_real_frames[mid] if eval_real_frames else blank_frame
-    poster_imag = eval_imagined_frames[mid] if eval_imagined_frames else blank_frame
-
+    # Poster matches Phase 3: trajectory comparison + text
     def update_poster(frame_idx):
-        draw_real_vs_imagined(axes2["env"], poster_real, poster_imag)
-        axes2["env"].set_title("Real (left) vs Reconstructed (right)", fontsize=10)
+        # Left: full trajectory comparison
+        _setup_trajectory_axes(axes2["env"])
+        real_pts = [(p[0], p[1]) for p in real_positions]
+        draw_trajectory(axes2["env"], real_pts, color=TEAL, linewidth=2.0)
+        if real_pts:
+            draw_agent(axes2["env"], real_pts[-1], color=TEAL)
+        xs = [p[0] for p in imagined_positions]
+        ys = [p[1] for p in imagined_positions]
+        axes2["env"].plot(xs, ys, color=ORANGE, linewidth=2.0,
+                          linestyle="--", alpha=0.8, clip_on=True)
+        if xs:
+            axes2["env"].scatter([xs[-1]], [ys[-1]], c=ORANGE, s=60,
+                                 zorder=10, edgecolors=DARK_GRAY, linewidths=0.5)
+        axes2["env"].set_title("Real vs Imagined Trajectory", fontsize=10)
 
-        axes2["algo"].clear()
-        axes2["algo"].axis("off")
-        axes2["algo"].text(0.1, 0.9,
-                           f"Eval reward: {eval_reward:+.1f}\n"
-                           f"Eval steps:  {eval_steps}\n"
-                           f"Avg recon MSE: {avg_recon:.4f}",
-                           transform=axes2["algo"].transAxes,
-                           fontsize=10, verticalalignment="top",
-                           fontfamily="monospace", color=DARK_GRAY)
-        axes2["algo"].set_title("Trained Agent", fontsize=10)
+        # Right: same template as animation
+        _draw_info(axes2["algo"],
+                   "Trained Agent",
+                   "\u2500\u2500  Real path (teal)\n"
+                   "- -  Imagined path (orange)\n"
+                   "\u2605   Target\n\n"
+                   "The agent trained on imagined\n"
+                   "paths, then acted in the real\n"
+                   "world. The gap is model error.",
+                   f"Reward:     {eval_reward:+.1f}\n"
+                   f"Recon MSE:  {avg_recon:.4f}")
 
+        # Bottom: loss + reward curves
         axes2["trace"].plot(range(num_iterations), recon_list,
                             color=TEAL, linewidth=1.0, label="Reconstruction loss")
         reward_list = [h["avg_reward"] for h in history]
