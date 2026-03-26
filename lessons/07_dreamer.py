@@ -39,8 +39,10 @@ Matrix = list[list[float]]
 
 @dataclass
 class DreamerSnapshot(FrameSnapshot):
-    real_frame: Matrix
-    imagined_frame: Matrix
+    real_path: list          # list of (x, y) tuples—real trajectory so far
+    imagined_path: list      # list of (x, y) tuples—imagined trajectory so far
+    real_frame: Matrix       # current pixel frame (real)
+    imagined_frame: Matrix   # current pixel frame (reconstructed)
     step_label: str
     phase: str = ""
 
@@ -388,23 +390,67 @@ def main():
     snapshots: list[DreamerSnapshot] = []
 
     blank_frame = [[0.0] * SIZE for _ in range(SIZE)]
+    empty_path: list[tuple[float, float]] = []
 
-    # --- Phase 1: Random policy (no world model yet) ---
-    # Use strong random forces so the dot visibly moves at 16x16 resolution.
-    # Sample every 3rd step to keep this phase short.
+    # --- Generate imagined rollout for trajectory comparison ---
+    # Start from the same state as the real evaluation, then roll
+    # the GRU forward without real observations. The actor chooses
+    # actions in latent space, and we decode each step to find where
+    # the model thinks the agent is.
+    def _grid_to_pos(frame: Matrix) -> tuple[float, float]:
+        """Find the brightest pixel and convert to continuous (x, y)."""
+        best_val, best_r, best_c = -1.0, SIZE // 2, SIZE // 2
+        for r in range(SIZE):
+            for c in range(SIZE):
+                if frame[r][c] > best_val:
+                    best_val, best_r, best_c = frame[r][c], r, c
+        bounds = 2.0  # PointMass default
+        x = (best_c / (SIZE - 1)) * 2 * bounds - bounds
+        y = (best_r / (SIZE - 1)) * 2 * bounds - bounds
+        return (x, y)
+
+    # Real trajectory positions (already collected during eval)
+    real_positions = list(eval_positions)
+
+    # Imagined trajectory: start from the first real observation,
+    # then run the GRU forward without real pixels
+    imag_env = PixelPointMass(max_steps=100)
+    imag_state = imag_env.reset()
+    h_imag, _ = network_forward(encoder, imag_state.features)
+    imagined_positions: list[tuple[float, float]] = [_grid_to_pos(imag_env.render_frame())]
+
+    for _step in range(min(len(real_positions), 50)):
+        actor_out, _ = network_forward(actor_net, h_imag)
+        mean_x, mean_y = actor_out[0], actor_out[1]
+        action = [scalar.clamp(mean_x, -1.0, 1.0),
+                  scalar.clamp(mean_y, -1.0, 1.0)]
+        # GRU predicts next state from (current_latent, action)
+        h_imag, _ = gru_forward(gru, h_imag, action)
+        # Decode to pixels to find the predicted position
+        recon, _ = network_forward(decoder, h_imag)
+        recon_frame = matrix.reshape(recon, SIZE, SIZE)
+        imagined_positions.append(_grid_to_pos(recon_frame))
+
+    # Target position for drawing
+    target_pos = (0.8, 0.8)  # PointMass default
+
+    # --- Phase 1: Random agent trajectory ---
     from policywerk.primitives.random import create_rng as _create_rng
     rand_rng = _create_rng(99)
     rand_env = PixelPointMass(max_steps=50)
     state = rand_env.reset()
     rand_reward = 0.0
+    rand_path: list[tuple[float, float]] = [rand_env._inner.position]
     for step in range(30):
         action = [rand_rng.choice([-1.0, 1.0]), rand_rng.choice([-1.0, 1.0])]
         state, reward, done = rand_env.step_continuous(action)
         rand_reward += reward
+        rand_path.append(rand_env._inner.position)
         if step % 3 == 0:
             snapshots.append(DreamerSnapshot(
                 episode=0, total_reward=rand_reward,
-                real_frame=rand_env.render_frame(), imagined_frame=blank_frame,
+                real_path=list(rand_path), imagined_path=empty_path,
+                real_frame=blank_frame, imagined_frame=blank_frame,
                 step_label=f"1/3  Random policy (step {step})",
                 phase="random",
             ))
@@ -413,18 +459,13 @@ def main():
     for _ in range(4):
         snapshots.append(DreamerSnapshot(
             episode=0, total_reward=rand_reward,
-            real_frame=rand_env.render_frame(), imagined_frame=blank_frame,
+            real_path=list(rand_path), imagined_path=empty_path,
+            real_frame=blank_frame, imagined_frame=blank_frame,
             step_label=f"1/3  Random: reward {rand_reward:.1f}",
             phase="random",
         ))
 
     # --- Phase 2: Training progression ---
-    # Show the starting frame as static context while the loss curve builds.
-    start_frame = PixelPointMass(max_steps=10).reset()
-    ref_frame = PixelPointMass(max_steps=10)
-    ref_frame.reset()
-    reference_frame = ref_frame.render_frame()
-
     sample_iters = sorted(set(
         list(range(0, num_iterations, max(1, num_iterations // 10))) +
         [num_iterations - 1]
@@ -434,28 +475,32 @@ def main():
         snapshots.append(DreamerSnapshot(
             episode=idx,
             total_reward=h["avg_reward"],
-            real_frame=reference_frame,
-            imagined_frame=blank_frame,
+            real_path=empty_path, imagined_path=empty_path,
+            real_frame=blank_frame, imagined_frame=blank_frame,
             step_label=f"2/3  Training: iter {idx}  recon={h['recon_loss']:.4f}",
             phase="training",
         ))
 
-    # --- Phase 3: Trained agent with real vs reconstructed ---
-    for step_idx in range(min(len(eval_real_frames), 50)):
+    # --- Phase 3: Real vs imagined trajectory, building step by step ---
+    n_traj = min(len(real_positions), len(imagined_positions), 50)
+    for step_idx in range(n_traj):
         snapshots.append(DreamerSnapshot(
             episode=num_iterations,
             total_reward=eval_reward,
-            real_frame=eval_real_frames[step_idx],
-            imagined_frame=eval_imagined_frames[step_idx],
-            step_label=f"3/3  Trained agent (step {step_idx})",
+            real_path=[(p[0], p[1]) for p in real_positions[:step_idx + 1]],
+            imagined_path=list(imagined_positions[:step_idx + 1]),
+            real_frame=eval_real_frames[step_idx] if step_idx < len(eval_real_frames) else blank_frame,
+            imagined_frame=eval_imagined_frames[step_idx] if step_idx < len(eval_imagined_frames) else blank_frame,
+            step_label=f"3/3  Real vs imagined (step {step_idx})",
             phase="eval",
         ))
     for _ in range(12):
         snapshots.append(DreamerSnapshot(
             episode=num_iterations,
             total_reward=eval_reward,
-            real_frame=eval_real_frames[-1] if eval_real_frames else blank_frame,
-            imagined_frame=eval_imagined_frames[-1] if eval_imagined_frames else blank_frame,
+            real_path=[(p[0], p[1]) for p in real_positions[:n_traj]],
+            imagined_path=list(imagined_positions[:n_traj]),
+            real_frame=blank_frame, imagined_frame=blank_frame,
             step_label=f"3/3  Reward: {eval_reward:.1f}",
             phase="eval",
         ))
@@ -470,44 +515,69 @@ def main():
 
     recon_list = [h["recon_loss"] for h in history]
 
+    from policywerk.viz.trajectories import draw_trajectory, draw_agent, draw_target
+
+    def _setup_trajectory_axes(ax):
+        """Configure a 2D trajectory plot matching PointMass bounds."""
+        ax.set_xlim(-2.2, 2.2)
+        ax.set_ylim(-2.2, 2.2)
+        ax.set_aspect("equal")
+        ax.grid(True, alpha=0.2)
+        # Draw target
+        draw_target(ax, target_pos)
+
     def update(frame_idx):
         snap = snapshots[frame_idx]
 
-        # Top-left: pixel frames
+        # Top-left: 2D trajectory plot
         axes["env"].clear()
-        if snap.phase == "random":
-            # Show real frame on the left, blank on the right—same layout
-            # as Phase 3 so the animation doesn't jump in size.
-            draw_real_vs_imagined(axes["env"], snap.real_frame, blank_frame)
-        else:
-            # Training and eval: show real vs reconstructed
-            draw_real_vs_imagined(axes["env"], snap.real_frame, snap.imagined_frame)
+        _setup_trajectory_axes(axes["env"])
+
+        if snap.real_path:
+            draw_trajectory(axes["env"], snap.real_path, color=TEAL, linewidth=2.0)
+            draw_agent(axes["env"], snap.real_path[-1], color=TEAL)
+        if snap.imagined_path:
+            # Imagined trajectory as dashed orange
+            xs = [p[0] for p in snap.imagined_path]
+            ys = [p[1] for p in snap.imagined_path]
+            axes["env"].plot(xs, ys, color=ORANGE, linewidth=2.0,
+                             linestyle="--", alpha=0.8)
+            axes["env"].scatter([xs[-1]], [ys[-1]], c=ORANGE, s=60,
+                                zorder=10, edgecolors=DARK_GRAY, linewidths=0.5)
+
         axes["env"].set_title(snap.step_label, fontsize=10)
 
-        # Top-right: phase info
+        # Top-right: phase info + pixel reconstruction (small)
         axes["algo"].clear()
-        axes["algo"].axis("off")
-        if snap.phase == "random":
-            axes["algo"].text(0.5, 0.5, "Before training\n(random actions)\n\n"
-                              "No world model yet—\nthe right side is empty\n\n"
-                              f"Reward: {snap.total_reward:+.1f}",
-                              transform=axes["algo"].transAxes,
-                              ha="center", va="center", fontsize=10, color=DARK_GRAY)
-        elif snap.phase == "training":
-            axes["algo"].text(0.1, 0.7,
-                              f"Iteration: {snap.episode}\n"
-                              f"Reward:    {snap.total_reward:+.1f}\n"
-                              f"Recon MSE: {history[snap.episode]['recon_loss']:.4f}",
-                              transform=axes["algo"].transAxes,
-                              fontsize=10, color=DARK_GRAY, fontfamily="monospace",
-                              verticalalignment="top")
-            axes["algo"].set_title("World Model Training", fontsize=10)
+        if snap.phase == "eval" and snap.real_frame != blank_frame:
+            # Show pixel reconstruction comparison as a small inset
+            draw_real_vs_imagined(axes["algo"], snap.real_frame, snap.imagined_frame)
+            axes["algo"].set_title("Pixels: Real vs Reconstructed", fontsize=9)
         else:
-            axes["algo"].text(0.5, 0.5, "Real (left) vs\nReconstructed (right)\n\n"
-                              f"Reward: {snap.total_reward:+.1f}",
-                              transform=axes["algo"].transAxes,
-                              ha="center", va="center", fontsize=10, color=DARK_GRAY)
-            axes["algo"].set_title("Trained Agent", fontsize=10)
+            axes["algo"].axis("off")
+            if snap.phase == "random":
+                axes["algo"].text(0.5, 0.5, "Before training\n(random actions)\n\n"
+                                  f"Reward: {snap.total_reward:+.1f}",
+                                  transform=axes["algo"].transAxes,
+                                  ha="center", va="center", fontsize=10, color=DARK_GRAY)
+            elif snap.phase == "training":
+                axes["algo"].text(0.1, 0.7,
+                                  f"Iteration: {snap.episode}\n"
+                                  f"Reward:    {snap.total_reward:+.1f}\n"
+                                  f"Recon MSE: {history[snap.episode]['recon_loss']:.4f}",
+                                  transform=axes["algo"].transAxes,
+                                  fontsize=10, color=DARK_GRAY, fontfamily="monospace",
+                                  verticalalignment="top")
+                axes["algo"].set_title("World Model Training", fontsize=10)
+            else:
+                axes["algo"].axis("off")
+                text = "Real (teal) vs\nImagined (orange)\n\n"
+                if snap.imagined_path:
+                    text += f"Reward: {snap.total_reward:+.1f}"
+                axes["algo"].text(0.5, 0.5, text,
+                                  transform=axes["algo"].transAxes,
+                                  ha="center", va="center", fontsize=10, color=DARK_GRAY)
+                axes["algo"].set_title("Trajectory Comparison", fontsize=10)
 
         # Bottom: loss trace
         axes["trace"].clear()
