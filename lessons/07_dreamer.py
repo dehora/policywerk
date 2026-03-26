@@ -518,12 +518,14 @@ def main():
     from policywerk.viz.trajectories import draw_trajectory, draw_agent, draw_target
 
     def _setup_trajectory_axes(ax):
-        """Configure a 2D trajectory plot matching PointMass bounds."""
-        ax.set_xlim(-2.2, 2.2)
-        ax.set_ylim(-2.2, 2.2)
+        """Configure a 2D trajectory plot zoomed to the action area."""
+        ax.set_xlim(-1.0, 1.5)
+        ax.set_ylim(-1.0, 1.5)
         ax.set_aspect("equal")
         ax.grid(True, alpha=0.2)
-        # Draw target
+        ax.set_xlabel("x", fontsize=8)
+        ax.set_ylabel("y", fontsize=8)
+        ax.tick_params(labelsize=7)
         draw_target(ax, target_pos)
 
     def update(frame_idx):
@@ -561,12 +563,12 @@ def main():
                                   transform=axes["algo"].transAxes,
                                   ha="center", va="center", fontsize=10, color=DARK_GRAY)
             elif snap.phase == "training":
-                axes["algo"].text(0.1, 0.7,
-                                  f"Iteration: {snap.episode}\n"
-                                  f"Reward:    {snap.total_reward:+.1f}\n"
-                                  f"Recon MSE: {history[snap.episode]['recon_loss']:.4f}",
+                axes["algo"].text(0.15, 0.65,
+                                  f"Iteration:  {snap.episode}\n"
+                                  f"Reward:     {snap.total_reward:+.1f}\n"
+                                  f"Recon MSE:  {history[snap.episode]['recon_loss']:.4f}",
                                   transform=axes["algo"].transAxes,
-                                  fontsize=10, color=DARK_GRAY, fontfamily="monospace",
+                                  fontsize=9, color=DARK_GRAY, fontfamily="monospace",
                                   verticalalignment="top")
                 axes["algo"].set_title("World Model Training", fontsize=10)
             else:
