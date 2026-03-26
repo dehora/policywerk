@@ -397,36 +397,29 @@ def main():
     # the GRU forward without real observations. The actor chooses
     # actions in latent space, and we decode each step to find where
     # the model thinks the agent is.
-    def _grid_to_pos(frame: Matrix, find_agent: bool = True) -> tuple[float, float]:
+    def _grid_to_pos(frame: Matrix, decoded: bool = False) -> tuple[float, float]:
         """Extract agent position from a pixel frame.
 
-        The decoder reconstructs the target (~0.7) more strongly than
-        the agent (~0.35). The brightest pixel is the target; the
-        second-brightest is the agent. For real frames (find_agent=True
-        with exact values), the agent is at 1.0 and the target at 0.7.
+        Real frames: agent is the brightest pixel (1.0 > 0.7 target).
+        Decoded frames: the decoder reconstructs the target more
+        strongly (~0.7) than the agent (~0.35), so the agent is the
+        second-brightest pixel.
         """
         pixels = []
         for r in range(SIZE):
             for c in range(SIZE):
-                if frame[r][c] > 0.02:  # above background
+                if frame[r][c] > 0.02:
                     pixels.append((frame[r][c], r, c))
         pixels.sort(key=lambda x: -x[0])
 
-        if find_agent and len(pixels) >= 2:
-            # For real frames: agent is brightest (1.0 > 0.7)
-            # For decoded frames: agent is second-brightest (~0.35 < ~0.7)
-            # Use the pixel that's closer to the expected agent value
-            p0, p1 = pixels[0], pixels[1]
-            if abs(p0[0] - 1.0) < abs(p1[0] - 1.0):
-                pick = p0  # real frame: 1.0 is the agent
-            else:
-                pick = p1  # decoded frame: second brightest is agent
+        if decoded and len(pixels) >= 2:
+            pick = pixels[1]  # second-brightest is the agent
         elif pixels:
-            pick = pixels[0]
+            pick = pixels[0]  # brightest is the agent (real frame)
         else:
             pick = (0.0, SIZE // 2, SIZE // 2)
 
-        bounds = 2.0  # PointMass default
+        bounds = 2.0
         x = (pick[2] / (SIZE - 1)) * 2 * bounds - bounds
         y = (pick[1] / (SIZE - 1)) * 2 * bounds - bounds
         return (x, y)
@@ -451,7 +444,7 @@ def main():
         # Decode to pixels to find the predicted position
         recon, _ = network_forward(decoder, h_imag)
         recon_frame = matrix.reshape(recon, SIZE, SIZE)
-        imagined_positions.append(_grid_to_pos(recon_frame))
+        imagined_positions.append(_grid_to_pos(recon_frame, decoded=True))
 
     # Target position for drawing
     target_pos = (0.8, 0.8)  # PointMass default

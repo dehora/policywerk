@@ -446,11 +446,10 @@ def _frame_to_rgb(frame: Matrix, imagined: bool = False) -> list[list[list[float
     agent_pos = None
     if pixels and pixels[0][0] > bg_median + min_margin:
         target_pos = (pixels[0][1], pixels[0][2])
-        # Agent must also be above background and spatially distinct from target
+        # Agent must also be above background and not the same cell as target
         if len(pixels) > 1 and pixels[1][0] > bg_median + min_margin:
-            p0r, p0c = pixels[0][1], pixels[0][2]
             p1r, p1c = pixels[1][1], pixels[1][2]
-            if abs(p0r - p1r) + abs(p0c - p1c) > 1:  # not adjacent/same blob
+            if (p1r, p1c) != target_pos:  # distinct cell (adjacent is fine)
                 agent_pos = (p1r, p1c)
 
     rgb = [[list(bg) for _ in range(cols)] for _ in range(rows)]
