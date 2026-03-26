@@ -437,11 +437,21 @@ def _frame_to_rgb(frame: Matrix, imagined: bool = False) -> list[list[list[float
 
     # The brightest pixel is the target (decoder reconstructs it best ~0.7),
     # the second brightest is the agent (decoder reaches ~0.35).
-    # Only force-color if the brightest pixel is meaningfully above zero
-    # (skip blank frames where all pixels are ~0).
-    min_active = 0.05
-    target_pos = (pixels[0][1], pixels[0][2]) if pixels and pixels[0][0] > min_active else None
-    agent_pos = (pixels[1][1], pixels[1][2]) if len(pixels) > 1 and pixels[1][0] > min_active else None
+    # Require meaningful activation above the background median to avoid
+    # coloring noise in blank or low-contrast frames.
+    bg_vals = sorted([frame[r][c] for r in range(rows) for c in range(cols)])
+    bg_median = bg_vals[len(bg_vals) // 2] if bg_vals else 0.0
+    min_margin = 0.10  # must be this much above background median
+    target_pos = None
+    agent_pos = None
+    if pixels and pixels[0][0] > bg_median + min_margin:
+        target_pos = (pixels[0][1], pixels[0][2])
+        # Agent must also be above background and spatially distinct from target
+        if len(pixels) > 1 and pixels[1][0] > bg_median + min_margin:
+            p0r, p0c = pixels[0][1], pixels[0][2]
+            p1r, p1c = pixels[1][1], pixels[1][2]
+            if abs(p0r - p1r) + abs(p0c - p1c) > 1:  # not adjacent/same blob
+                agent_pos = (p1r, p1c)
 
     rgb = [[list(bg) for _ in range(cols)] for _ in range(rows)]
 

@@ -597,54 +597,42 @@ class TestPixelPointMass:
         assert PixelPointMass().num_actions() == 9
 
 
-class TestCenteredPixelCanvas:
-    """Verify the centered-frame canvas used in L07 animation Phase 1."""
+class TestPixelViz:
+    """Tests for the pixel-frame visualization functions."""
 
-    def test_canvas_dimensions(self):
-        """Canvas should be 16 rows x 33 cols (matching split-screen width)."""
+    def test_frame_to_rgb_real_colors(self):
+        """Real frame: agent (1.0) should be teal, target (0.7) orange."""
         from policywerk.viz.trajectories import _frame_to_rgb
-        frame = [[0.0] * 16 for _ in range(16)]
-        frame[7][7] = 1.0  # agent
-        frame[10][10] = 0.7  # target
+        frame = [[0.0] * 4 for _ in range(4)]
+        frame[1][1] = 1.0  # agent
+        frame[2][3] = 0.7  # target
+        rgb = _frame_to_rgb(frame, imagined=False)
+        # Agent pixel should be teal-ish (high green/blue, low red)
+        assert rgb[1][1][1] > rgb[1][1][0], "Agent should be teal (G > R)"
+        # Target pixel should be orange-ish (high red, medium green)
+        assert rgb[2][3][0] > rgb[2][3][2], "Target should be orange (R > B)"
+        # Background should be dark
+        assert rgb[0][0][0] < 0.15, "Background should be dark"
 
-        rows_f = len(frame)
-        cols_f = len(frame[0])
-        canvas_cols = cols_f * 2 + 1  # 33
-        bg = [0.10, 0.10, 0.18]
-        canvas = [[list(bg) for _ in range(canvas_cols)] for _ in range(rows_f)]
-        rgb_frame = _frame_to_rgb(frame)
-        offset = (canvas_cols - cols_f) // 2  # 8
-        for r in range(rows_f):
-            for c in range(cols_f):
-                canvas[r][offset + c] = rgb_frame[r][c]
-
-        assert len(canvas) == 16, f"Expected 16 rows, got {len(canvas)}"
-        assert len(canvas[0]) == 33, f"Expected 33 cols, got {len(canvas[0])}"
-        assert offset == 8, f"Expected offset 8, got {offset}"
-
-    def test_frame_is_centered(self):
-        """Frame content should occupy columns 8-23, padding should be background."""
+    def test_frame_to_rgb_imagined_blank_no_coloring(self):
+        """Blank imagined frame should not force-color any pixels."""
         from policywerk.viz.trajectories import _frame_to_rgb
-        frame = [[0.0] * 16 for _ in range(16)]
-        frame[7][7] = 1.0  # agent
+        frame = [[0.0] * 4 for _ in range(4)]
+        rgb = _frame_to_rgb(frame, imagined=True)
+        # All pixels should be background (no false teal/orange)
+        bg = rgb[0][0]
+        for r in range(4):
+            for c in range(4):
+                assert rgb[r][c] == bg, f"Blank frame pixel ({r},{c}) should be bg"
 
-        rows_f, cols_f = 16, 16
-        canvas_cols = 33
-        bg = [0.10, 0.10, 0.18]
-        canvas = [[list(bg) for _ in range(canvas_cols)] for _ in range(rows_f)]
-        rgb_frame = _frame_to_rgb(frame)
-        offset = 8
-        for r in range(rows_f):
-            for c in range(cols_f):
-                canvas[r][offset + c] = rgb_frame[r][c]
-
-        # Left padding (cols 0-7) should be background
-        for c in range(offset):
-            assert canvas[0][c] == bg, f"Col {c} should be bg, got {canvas[0][c]}"
-
-        # Right padding (cols 24-32) should be background
-        for c in range(offset + cols_f, canvas_cols):
-            assert canvas[0][c] == bg, f"Col {c} should be bg, got {canvas[0][c]}"
-
-        # Agent at (7,7) in frame → canvas column 8+7=15, should NOT be background
-        assert canvas[7][15] != bg, "Agent pixel should not be background"
+    def test_frame_to_rgb_imagined_force_colors(self):
+        """Imagined frame with two active pixels should force-color them."""
+        from policywerk.viz.trajectories import _frame_to_rgb
+        frame = [[0.0] * 8 for _ in range(8)]
+        frame[2][2] = 0.7  # target (brightest)
+        frame[5][5] = 0.35  # agent (second brightest)
+        rgb = _frame_to_rgb(frame, imagined=True)
+        # Target should be orange
+        assert rgb[2][2][0] > 0.8, "Target should be bright orange (R > 0.8)"
+        # Agent should be teal
+        assert rgb[5][5][1] > 0.6, "Agent should be teal (G > 0.6)"

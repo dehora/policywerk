@@ -305,7 +305,7 @@ def main():
 
     eval_real_frames = []
     eval_imagined_frames = []
-    eval_positions = []
+    eval_positions = [eval_env._inner.position]  # include initial position
 
     for _ in range(100):
         pixels = state.features
@@ -397,16 +397,38 @@ def main():
     # the GRU forward without real observations. The actor chooses
     # actions in latent space, and we decode each step to find where
     # the model thinks the agent is.
-    def _grid_to_pos(frame: Matrix) -> tuple[float, float]:
-        """Find the brightest pixel and convert to continuous (x, y)."""
-        best_val, best_r, best_c = -1.0, SIZE // 2, SIZE // 2
+    def _grid_to_pos(frame: Matrix, find_agent: bool = True) -> tuple[float, float]:
+        """Extract agent position from a pixel frame.
+
+        The decoder reconstructs the target (~0.7) more strongly than
+        the agent (~0.35). The brightest pixel is the target; the
+        second-brightest is the agent. For real frames (find_agent=True
+        with exact values), the agent is at 1.0 and the target at 0.7.
+        """
+        pixels = []
         for r in range(SIZE):
             for c in range(SIZE):
-                if frame[r][c] > best_val:
-                    best_val, best_r, best_c = frame[r][c], r, c
+                if frame[r][c] > 0.02:  # above background
+                    pixels.append((frame[r][c], r, c))
+        pixels.sort(key=lambda x: -x[0])
+
+        if find_agent and len(pixels) >= 2:
+            # For real frames: agent is brightest (1.0 > 0.7)
+            # For decoded frames: agent is second-brightest (~0.35 < ~0.7)
+            # Use the pixel that's closer to the expected agent value
+            p0, p1 = pixels[0], pixels[1]
+            if abs(p0[0] - 1.0) < abs(p1[0] - 1.0):
+                pick = p0  # real frame: 1.0 is the agent
+            else:
+                pick = p1  # decoded frame: second brightest is agent
+        elif pixels:
+            pick = pixels[0]
+        else:
+            pick = (0.0, SIZE // 2, SIZE // 2)
+
         bounds = 2.0  # PointMass default
-        x = (best_c / (SIZE - 1)) * 2 * bounds - bounds
-        y = (best_r / (SIZE - 1)) * 2 * bounds - bounds
+        x = (pick[2] / (SIZE - 1)) * 2 * bounds - bounds
+        y = (pick[1] / (SIZE - 1)) * 2 * bounds - bounds
         return (x, y)
 
     # Real trajectory positions (already collected during eval)
