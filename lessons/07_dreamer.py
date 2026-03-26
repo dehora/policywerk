@@ -518,14 +518,15 @@ def main():
     from policywerk.viz.trajectories import draw_trajectory, draw_agent, draw_target
 
     def _setup_trajectory_axes(ax):
-        """Configure a 2D trajectory plot zoomed to the action area."""
-        ax.set_xlim(-1.0, 1.5)
-        ax.set_ylim(-1.0, 1.5)
+        """Configure a clean 2D trajectory plot."""
+        ax.set_xlim(-0.8, 1.3)
+        ax.set_ylim(-0.8, 1.3)
         ax.set_aspect("equal")
-        ax.grid(True, alpha=0.2)
-        ax.set_xlabel("x", fontsize=8)
-        ax.set_ylabel("y", fontsize=8)
-        ax.tick_params(labelsize=7)
+        ax.grid(True, alpha=0.15)
+        ax.tick_params(labelsize=6, length=2)
+        for spine in ax.spines.values():
+            spine.set_linewidth(0.5)
+            spine.set_color("#999999")
         draw_target(ax, target_pos)
 
     def update(frame_idx):
@@ -549,37 +550,33 @@ def main():
 
         axes["env"].set_title(snap.step_label, fontsize=10)
 
-        # Top-right: phase info + pixel reconstruction (small)
+        # Top-right: always text (consistent layout across all phases)
         axes["algo"].clear()
-        if snap.phase == "eval" and snap.real_frame != blank_frame:
-            # Show pixel reconstruction comparison as a small inset
-            draw_real_vs_imagined(axes["algo"], snap.real_frame, snap.imagined_frame)
-            axes["algo"].set_title("Pixels: Real vs Reconstructed", fontsize=9)
+        axes["algo"].axis("off")
+        if snap.phase == "random":
+            axes["algo"].text(0.5, 0.5,
+                              "Before training\n(random actions)\n\n"
+                              f"Reward: {snap.total_reward:+.1f}",
+                              transform=axes["algo"].transAxes,
+                              ha="center", va="center", fontsize=10, color=DARK_GRAY)
+        elif snap.phase == "training":
+            axes["algo"].text(0.5, 0.55,
+                              f"Iteration:  {snap.episode}\n"
+                              f"Reward:     {snap.total_reward:+.1f}\n"
+                              f"Recon MSE:  {history[snap.episode]['recon_loss']:.4f}",
+                              transform=axes["algo"].transAxes,
+                              ha="center", va="center", fontsize=9,
+                              color=DARK_GRAY, fontfamily="monospace")
+            axes["algo"].set_title("World Model Training", fontsize=10)
         else:
-            axes["algo"].axis("off")
-            if snap.phase == "random":
-                axes["algo"].text(0.5, 0.5, "Before training\n(random actions)\n\n"
-                                  f"Reward: {snap.total_reward:+.1f}",
-                                  transform=axes["algo"].transAxes,
-                                  ha="center", va="center", fontsize=10, color=DARK_GRAY)
-            elif snap.phase == "training":
-                axes["algo"].text(0.15, 0.65,
-                                  f"Iteration:  {snap.episode}\n"
-                                  f"Reward:     {snap.total_reward:+.1f}\n"
-                                  f"Recon MSE:  {history[snap.episode]['recon_loss']:.4f}",
-                                  transform=axes["algo"].transAxes,
-                                  fontsize=9, color=DARK_GRAY, fontfamily="monospace",
-                                  verticalalignment="top")
-                axes["algo"].set_title("World Model Training", fontsize=10)
-            else:
-                axes["algo"].axis("off")
-                text = "Real (teal) vs\nImagined (orange)\n\n"
-                if snap.imagined_path:
-                    text += f"Reward: {snap.total_reward:+.1f}"
-                axes["algo"].text(0.5, 0.5, text,
-                                  transform=axes["algo"].transAxes,
-                                  ha="center", va="center", fontsize=10, color=DARK_GRAY)
-                axes["algo"].set_title("Trajectory Comparison", fontsize=10)
+            axes["algo"].text(0.5, 0.5,
+                              "\u2500\u2500  Real path (teal)\n"
+                              "- -  Imagined path (orange)\n"
+                              "\u2605   Target\n\n"
+                              f"Reward: {snap.total_reward:+.1f}",
+                              transform=axes["algo"].transAxes,
+                              ha="center", va="center", fontsize=10, color=DARK_GRAY)
+            axes["algo"].set_title("Trajectory Comparison", fontsize=10)
 
         # Bottom: loss trace
         axes["trace"].clear()
