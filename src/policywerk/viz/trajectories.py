@@ -446,10 +446,13 @@ def _frame_to_rgb(frame: Matrix, imagined: bool = False) -> list[list[list[float
     agent_pos = None
     if pixels and pixels[0][0] > bg_median + min_margin:
         target_pos = (pixels[0][1], pixels[0][2])
-        # Agent must also be above background and not the same cell as target
+        # Agent must be a clearly separate second peak: above background,
+        # on a different cell, and strong enough relative to the brightest
+        # to indicate a real blob rather than halo/noise from the target.
         if len(pixels) > 1 and pixels[1][0] > bg_median + min_margin:
             p1r, p1c = pixels[1][1], pixels[1][2]
-            if (p1r, p1c) != target_pos:  # distinct cell (adjacent is fine)
+            ratio = pixels[1][0] / pixels[0][0] if pixels[0][0] > 0 else 0
+            if (p1r, p1c) != target_pos and ratio > 0.2:
                 agent_pos = (p1r, p1c)
 
     rgb = [[list(bg) for _ in range(cols)] for _ in range(rows)]

@@ -146,10 +146,11 @@ def dreamer(
 
     history: list[dict] = []
     state = env.reset()
-    prev_action = [0.0, 0.0]
 
     for iteration in range(num_iterations):
-        # ---- Phase 1: Collect T real steps ----
+        # ---- Phase 1: Collect real experience ----
+        # The actor chooses actions from pixel observations. Outputs:
+        # sequences of pixels, actions, rewards for world model training.
         pixels_seq: list[Vector] = []
         actions_seq: list[Vector] = []
         rewards_seq: list[float] = []
@@ -188,6 +189,9 @@ def dreamer(
                 state = env.reset()
 
         # ---- Phase 2: Train world model (teacher-forced) ----
+        # The encoder sees real pixels at every step. The GRU predicts
+        # next latent states, the decoder reconstructs pixels, and the
+        # reward head predicts rewards. All four components update.
         iter_recon_loss = 0.0
         iter_reward_loss = 0.0
 
@@ -221,20 +225,36 @@ def dreamer(
                 iter_reward_loss += reward_err
 
                 # ---- Backprop through the world model graph ----
-                # Decoder backward → grad_h from reconstruction
+                # The gradient flows backward through the computation:
+                #
+                #   pixels[t+1] <-- decoder <-- h_next <-- GRU <-- (z_t, action)
+                #   rewards[t]  <-- reward_head --^                  ^
+                #                                              encoder <-- pixels[t]
+                #
+                # 1. Decoder backward: recon error -> grad on h_next
+                # 2. Reward head backward: reward error -> grad on h_next
+                # 3. Sum both gradients (two losses share h_next)
+                # 4. GRU backward: grad on h_next -> grads on z_t and weights
+                # 5. Encoder backward: grad on z_t -> grads on encoder weights
+
+                # Step 1: decoder gradient on h_next
                 dec_grads, grad_h_dec = backward_with_input_grad(
                     decoder, dec_cache, recon_grad)
-                # Reward head backward → grad_h from reward prediction
+                # Step 2: reward head gradient on h_next
                 rew_grads, grad_h_rew = backward_with_input_grad(
                     reward_head, rew_cache, reward_grad)
-                # Total gradient on h_next
+                # Step 3: sum both gradients on h_next
                 grad_h = vector.add(grad_h_dec, grad_h_rew)
 
-                # GRU backward: grad on hidden → grads for weights, z_t, action
+                # Step 4: GRU backward -> grads for weights, z_t, and action
                 grad_z, grad_action, gru_grads = gru_backward(
                     gru, gru_cache, grad_h)
+                # grad_action is unused: during world model training, actions
+                # come from replay data (already happened). We only need
+                # gradients for encoder and GRU weights. The actor's gradients
+                # come separately in Phase 4.
 
-                # Encoder backward
+                # Step 5: encoder backward
                 enc_grads = backward(encoder, enc_cache, grad_z)
 
                 # Accumulate all gradients
@@ -265,7 +285,11 @@ def dreamer(
             adam_update(decoder, dec_acc, dec_adam, learning_rate_wm)
             adam_update(reward_head, rew_acc, rew_adam, learning_rate_wm)
 
-            # GRU Adam update (manual—GRU isn't a Network)
+            # GRU Adam update (manual implementation).
+            # adam_update() works on Network objects (a list of layers),
+            # but the GRU is a GRULayer with six named weight matrices
+            # (W_z, b_z, W_r, b_r, W_h, b_h). The math is identical
+            # to adam_update(); only the data access pattern differs.
             if gru_w_acc is not None:
                 gru_t[0] += 1
                 for attr in ["W_z", "b_z", "W_r", "b_r", "W_h", "b_h"]:
@@ -291,7 +315,10 @@ def dreamer(
                             v_hat = v[i] / (1 - 0.999 ** gru_t[0])
                             param[i] -= learning_rate_wm * m_hat / (math.sqrt(v_hat) + 1e-8)
 
-        # ---- Phase 3: Imagine trajectories ----
+        # ---- Phase 3: Imagine trajectories in latent space ----
+        # Start from real observations, then roll the GRU forward with
+        # actor-chosen actions. No real environment interaction. Outputs:
+        # imagined latent states, actions, rewards, values, log-probs.
         all_imagined_h: list[list[Vector]] = []
         all_imagined_actions: list[list[Vector]] = []
         all_imagined_rewards: list[list[float]] = []
@@ -340,6 +367,9 @@ def dreamer(
             all_imagined_log_probs.append(traj_lp)
 
         # ---- Phase 4: Train actor-critic on imagined data ----
+        # The actor learns to choose actions that lead to higher imagined
+        # rewards. The critic learns to predict imagined returns. Neither
+        # sees pixels—both operate on latent states from Phase 3.
         act_acc = _zero_grads(actor)
         crt_acc = _zero_grads(critic)
         total_imagined_reward = 0.0
@@ -387,7 +417,12 @@ def dreamer(
                 ls_y = scalar.clamp(actor_out[3], -2.0, 2.0)
                 s_x, s_y = scalar.exp(ls_x), scalar.exp(ls_y)
 
-                # d_log_prob / d_output for each of the 4 outputs
+                # Gaussian log-probability derivatives (same math as L06).
+                # For action a sampled from Gaussian(mean, std):
+                #   d(log_prob)/d(mean)    = (a - mean) / std^2
+                #   d(log_prob)/d(log_std) = ((a - mean)/std)^2 - 1
+                # Multiply by -advantage: gradient descent minimizes loss,
+                # but we want to maximize expected reward.
                 a_x, a_y = a_seq[t][0], a_seq[t][1]
                 dlp_dm_x = (a_x - m_x) / (s_x * s_x)
                 dlp_dm_y = (a_y - m_y) / (s_y * s_y)

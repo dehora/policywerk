@@ -77,6 +77,14 @@ def main():
     of trajectories without touching the real environment, and
     train its policy on imagined experience.
 
+    This matters because real environment steps are expensive.
+    Physics must be simulated, pixels must be rendered, and the
+    agent must wait for the result. In robotics, each step means
+    a physical robot moving and risking damage. A world model
+    turns one real episode into many training episodes. This is
+    sample efficiency—getting more learning out of fewer real
+    interactions.
+
     This is the final paradigm in this series:
 
       L01-L05:  learn values, derive actions
@@ -122,17 +130,37 @@ def main():
       Decoder:     latent state (32) -> predicted pixels (256)
       Reward head: latent state (32) -> predicted reward (1)
 
-    The encoder compresses 256 pixel values into 32 numbers—a
-    compact representation of what matters in the scene. The GRU
-    (a recurrent network from L03's building blocks) predicts
-    how the latent state changes when the agent takes an action.
-    This is the learned "physics engine."
+    The encoder compresses 256 pixel values into 32 numbers
+    called the latent state. "Latent" means hidden—the raw
+    pixels are what the agent observes, but the latent state is
+    a hidden summary that the encoder learns to extract. Of the
+    256 pixels, most are black background. The encoder learns to
+    keep what matters—where the agent and target are—and
+    discard the rest.
+
+    The GRU (Gated Recurrent Unit) predicts how the latent state
+    changes when the agent takes an action. This is the learned
+    "physics engine"—the transition function that turns (current
+    state, action) into a predicted next state.
+
+    Unlike the feed-forward networks from L05, the GRU is a
+    recurrent network: it carries a hidden state from one step
+    to the next, so its output depends on the history of inputs.
+    A feed-forward network processes one input and forgets it.
+    The GRU remembers. Its internal gates control what to keep
+    from the previous state and what to update. A gate is a
+    learned value between 0 and 1 that multiplies another
+    signal—near 0 it blocks information, near 1 it passes
+    through. The GRU has two gates: one decides how much of
+    the old state to keep, the other decides how much new
+    information to mix in.
 
     The decoder and reward head are training signals, not used
     during imagination. The decoder forces the encoder to
-    preserve enough information to reconstruct the scene. The
-    reward head forces the dynamics to track reward-relevant
-    features—where the agent is relative to the target.
+    preserve enough information to reconstruct the full scene
+    from the 32-number summary. The reward head forces the
+    dynamics to track features that matter for reward—
+    specifically, where the agent is relative to the target.
 
     All four components are dense networks. The real DreamerV3
     uses convolutional encoders for high-resolution images.
@@ -154,14 +182,17 @@ def main():
 
     At each step, we reset the latent state to the encoder's
     output from the actual observation rather than using the
-    GRU's prediction. This is called teacher forcing: the model
+    GRU's prediction. This is called teacher forcing—named by
+    analogy to a teacher who corrects a student's workbook at
+    every step rather than letting errors accumulate. The model
     always sees the ground truth, never its own mistakes.
 
     Teacher forcing makes training stable—each step's gradients
     are independent, no errors accumulate. But it creates a gap:
     during training, the model never practices running without
-    observations. During imagination, it must run open-loop—no
-    observations to correct it.
+    observations. During imagination, it must run open-loop—
+    advancing step by step with no real observations to correct
+    accumulated errors, like navigating with your eyes closed.
 
     The result: early imagination steps closely match reality
     (the model just saw a real observation), but later steps
@@ -192,9 +223,17 @@ def main():
     never rendered, physics is never simulated. Only 32 latent
     numbers flow through the GRU at each step.
 
-    This is why world models are valuable: imagining a step
-    costs one GRU forward pass (32 numbers), while a real step
-    costs a full environment simulation plus 256-pixel rendering.
+    Concrete example. The encoder sees a 16x16 frame where the
+    agent is at pixel (4, 5) and the target is at (12, 12). It
+    produces a 32-number latent state. The actor reads this
+    latent state and outputs mean_x=0.6, mean_y=0.4—meaning
+    "push mostly right and somewhat up." The GRU takes the
+    latent state and the action [0.6, 0.4] and produces a new
+    32-number latent state: its prediction of what the world
+    looks like after that push. The reward head reads this new
+    state and predicts reward=-1.2, meaning "still far from the
+    target." No pixels were rendered. No physics was simulated.
+    The entire step happened in 32 numbers.
     """)
 
     # -----------------------------------------------------------------------
@@ -208,16 +247,24 @@ def main():
     They never see pixels—only the 32-number latent state.
 
     From each imagined trajectory, the critic estimates the
-    value of each latent state, and lambda returns (the same
-    mechanism from Lessons 03 and 06) compute the target return.
-    The advantage is the difference: how much better was the
-    imagined outcome than the critic predicted?
+    value of each latent state. Lambda returns (the same
+    mechanism from Lessons 03 and 06) compute the target
+    return by blending short-term predicted rewards with the
+    critic's estimate of future value. The advantage is the
+    difference between the lambda return and the critic's
+    prediction: a positive advantage means the imagined
+    trajectory turned out better than the critic expected, a
+    negative advantage means worse. The only difference from
+    L06 is that the rewards and values come from the world
+    model's predictions rather than from the real environment.
 
-    The actor gradient is the same as L06's simplest policy
-    gradient: increase the probability of actions with positive
+    The actor gradient is the same as L06's policy gradient:
+    increase the probability of actions with positive
     advantage, decrease the probability of actions with negative
     advantage. No PPO clip is needed because the imagined data
-    is freshly generated (on-policy by construction).
+    is freshly generated—on-policy, meaning the data comes
+    from the same policy being trained, not from old stored
+    experience like DQN's replay buffer.
 
     The full training loop alternates:
       1. Collect real data (actor chooses actions from pixels)
@@ -255,6 +302,29 @@ def main():
       World model epochs:  {world_model_epochs}
       Imagination horizon: {imagination_horizon}
       Num imaginations:    {num_imaginations}
+
+    The imagination horizon is how many steps the GRU rolls
+    forward without real observations. Ten steps means each
+    imagined trajectory is ten actions long. Longer horizons
+    give the actor more future context but accumulate more
+    prediction error—the same compounding drift described in
+    the teacher forcing section.
+
+    Reconstruction loss measures how well the decoder recreates
+    the original pixels from the latent state. Lower means the
+    encoder is preserving more useful information in its
+    32-number summary. Reward prediction loss measures how well
+    the dynamics model predicts the reward the agent will
+    receive—lower means the GRU is tracking the agent's
+    position relative to the target.
+
+    Expect noisy training. The world model and the policy learn
+    simultaneously, and when one improves, the other's data
+    changes. When the world model gets better at predicting
+    pixels, the imagined trajectories the actor trains on shift.
+    When the actor improves, it visits new states the world
+    model has not seen. This co-adaptation is a fundamental
+    challenge of model-based reinforcement learning.
     """)
 
     env = PixelPointMass(max_steps=100)
@@ -283,6 +353,14 @@ def main():
         print(f"      Iterations {start:3d}-{end-1:3d}:  "
               f"reward {avg_r:+7.1f}  recon {avg_rc:.4f}  rew_loss {avg_rl:.4f}")
     print()
+
+    print("""    The reconstruction loss drops steadily—the world model gets
+    better at predicting pixels. The reward is non-monotonic,
+    reflecting the co-adaptation described above: when the world
+    model improves, the actor's imagined training data shifts;
+    when the actor improves, it explores states the world model
+    has not seen.
+    """)
 
     # -----------------------------------------------------------------------
     # 8. What Dreamer learned
@@ -354,6 +432,27 @@ def main():
         final_pos = eval_positions[-1] if eval_positions else (0, 0)
         print(f"    Final position: ({final_pos[0]:.2f}, {final_pos[1]:.2f})")
         print(f"    Target: (0.80, 0.80)")
+        print()
+        print("""    This is a teaching implementation, designed to show where
+    simplified world models break down. Three architectural
+    choices limit the agent:
+
+    First, the teacher forcing gap described earlier. The world
+    model never practices open-loop prediction during training,
+    so multi-step imagined trajectories drift from reality.
+
+    Second, no uncertainty. The full DreamerV3 maintains two
+    estimates of the latent state—one from prediction alone,
+    one informed by the actual observation—and uses the gap
+    between them to measure how much the model trusts its own
+    predictions. Our deterministic GRU produces one estimate
+    and commits to it fully.
+
+    Third, scale. Sixty iterations with a 32-dimensional latent
+    space and dense networks is a minimal training budget. The
+    world model learned pixel structure (the low reconstruction
+    MSE shows this), but the actor-critic did not have enough
+    imagined experience to converge.""")
     print()
 
     print(f"""    The world model learned to reconstruct pixel frames with
@@ -403,7 +502,9 @@ def main():
         Real frames: agent is the brightest pixel (1.0 > 0.7 target).
         Decoded frames: the decoder reconstructs the target more
         strongly (~0.7) than the agent (~0.35), so the agent is the
-        second-brightest pixel.
+        second-brightest pixel—provided there is a clearly separate
+        second peak. When agent and target overlap or the decoder
+        produces a single blob, the brightest pixel is used instead.
         """
         pixels = []
         for r in range(SIZE):
@@ -413,7 +514,15 @@ def main():
         pixels.sort(key=lambda x: -x[0])
 
         if decoded and len(pixels) >= 2:
-            pick = pixels[1]  # second-brightest is the agent
+            p0, p1 = pixels[0], pixels[1]
+            # Only use the second peak if it is clearly distinct:
+            # different cell AND noticeably above background noise.
+            same_cell = (p0[1] == p1[1] and p0[2] == p1[2])
+            well_separated = p1[0] > 0.15  # above decoder noise floor
+            if not same_cell and well_separated:
+                pick = p1  # second-brightest is the agent
+            else:
+                pick = p0  # single blob or merged—use brightest
         elif pixels:
             pick = pixels[0]  # brightest is the agent (real frame)
         else:
@@ -629,7 +738,8 @@ def main():
                        "\u2605   Target\n\n"
                        "The agent trained on imagined\n"
                        "paths, then acted in the real\n"
-                       "world. The gap is model error.",
+                       "world. The gap shows where\n"
+                       "predictions diverge from reality.",
                        f"Reward: {snap.total_reward:+.1f}")
 
         # ---- Bottom pane: loss trace ----
@@ -677,17 +787,46 @@ def main():
                                  zorder=10, edgecolors=DARK_GRAY, linewidths=0.5)
         axes2["env"].set_title("Real vs Imagined Trajectory", fontsize=10)
 
-        # Right: same template as animation
-        _draw_info(axes2["algo"],
-                   "Trained Agent",
-                   "\u2500\u2500  Real path (teal)\n"
-                   "- -  Imagined path (orange)\n"
-                   "\u2605   Target\n\n"
-                   "The agent trained on imagined\n"
-                   "paths, then acted in the real\n"
-                   "world. The gap is model error.",
-                   f"Reward:     {eval_reward:+.1f}\n"
-                   f"Recon MSE:  {avg_recon:.4f}")
+        # Right: pixel reconstruction comparison + legend
+        axes2["algo"].clear()
+        axes2["algo"].axis("off")
+
+        # Title
+        axes2["algo"].text(0.5, 0.97, "Trained Agent",
+                           transform=axes2["algo"].transAxes, ha="center", va="top",
+                           fontsize=11, fontweight="bold", color=DARK_GRAY)
+
+        # Show real vs reconstructed pixel frames side by side
+        mid = min(len(eval_real_frames), len(eval_imagined_frames)) // 2
+        if mid > 0:
+            # Real frame
+            ax_real = axes2["algo"].inset_axes([0.05, 0.48, 0.4, 0.4])
+            ax_real.imshow(eval_real_frames[mid], cmap="gray", vmin=0, vmax=1,
+                           origin="upper", interpolation="nearest")
+            ax_real.set_title("Real", fontsize=8, pad=3, color=DARK_GRAY)
+            ax_real.set_xticks([])
+            ax_real.set_yticks([])
+
+            # Reconstructed frame
+            ax_recon = axes2["algo"].inset_axes([0.55, 0.48, 0.4, 0.4])
+            ax_recon.imshow(eval_imagined_frames[mid], cmap="gray", vmin=0, vmax=1,
+                            origin="upper", interpolation="nearest")
+            ax_recon.set_title("Reconstruction", fontsize=8, pad=3, color=DARK_GRAY)
+            ax_recon.set_xticks([])
+            ax_recon.set_yticks([])
+
+        # Legend + metrics below
+        axes2["algo"].text(0.5, 0.35,
+                           "\u2500\u2500  Real path (teal)\n"
+                           "- -  Imagined path (orange)\n"
+                           "\u2605   Target",
+                           transform=axes2["algo"].transAxes, ha="center", va="top",
+                           fontsize=9, color=DARK_GRAY)
+        axes2["algo"].text(0.5, 0.08,
+                           f"Reward:     {eval_reward:+.1f}\n"
+                           f"Recon MSE:  {avg_recon:.4f}",
+                           transform=axes2["algo"].transAxes, ha="center", va="bottom",
+                           fontsize=8, color=DARK_GRAY, fontfamily="monospace")
 
         # Bottom: loss + reward curves
         axes2["trace"].plot(range(num_iterations), recon_list,

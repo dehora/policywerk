@@ -8,7 +8,7 @@ uv run python lessons/07_dreamer.py
 
 ## The Imagination Insight
 
-Every algorithm so far learned from real experience. DreamerV3 asks: what if the agent could practice in its head? Instead of learning values or a policy from real transitions, Dreamer learns a model of the world itself—what happens next given a state and action—then imagines thousands of trajectories without touching the real environment.
+Every algorithm so far learned from real experience. DreamerV3 asks: what if the agent could practice in its head? Instead of learning values or a policy from real transitions, Dreamer learns a model of the world itself—what happens next given a state and action—then imagines thousands of trajectories without touching the real environment. This matters because real steps are expensive (physics, rendering, risk); a world model turns one real episode into many training episodes.
 
 ```
 L01-L05:  learn values, derive actions
@@ -73,6 +73,8 @@ Greedy evaluation:
 
 The world model learned to reconstruct pixel frames with MSE of 0.004. The encoder compresses 256 pixels into 32 latent numbers, and the decoder reconstructs them well enough for the dynamics model to predict meaningful future states.
 
+This is a teaching implementation, designed to show where simplified world models break down. Three architectural choices limit the agent: (1) the teacher forcing gap—the world model never practices open-loop prediction, so imagined trajectories drift; (2) no uncertainty—the full DreamerV3 maintains two latent estimates and uses their gap to measure trust, while our deterministic GRU commits fully to one; (3) minimal training budget—60 iterations is enough to learn pixel structure but not enough for the actor-critic to converge.
+
 This is a simplified version of DreamerV3. The full paper uses a stochastic RSSM with prior/posterior distributions, KL regularization, symlog predictions, and twohot value distributions. We kept the core idea—learn what happens next, then practice in imagination—and used dense networks with teacher forcing and MSE losses.
 
 ## Artifacts
@@ -81,13 +83,13 @@ This is a simplified version of DreamerV3. The full paper uses a stochastic RSSM
 
 ![Dreamer training animation](img/07_dreamer_artifact.gif)
 
-Three phases: real vs reconstructed frames showing the world model's quality, training progression with reconstruction loss dropping, and evaluation with the trained agent.
+Three phases: (1) random trajectory before training, (2) training progression with reconstruction loss dropping, (3) real vs imagined trajectory comparison showing where the world model's predictions diverge from reality.
 
-### Real vs Reconstructed
+### Trained Agent
 
 ![Trained agent](img/07_dreamer_poster.png)
 
-Real pixel frame (left) beside the world model's reconstruction (right). The two dots (agent and target) appear in approximately the right positions.
+Left: real (teal) vs imagined (orange dashed) trajectory. Right: real pixel frame beside the world model's reconstruction, showing the encoder learned to preserve agent and target positions. Bottom: training progress curves.
 
 ### Loss Curves
 
