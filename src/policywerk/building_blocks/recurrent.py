@@ -106,11 +106,6 @@ def gru_backward(
 ) -> tuple[Vector, Vector, GRULayer]:
     """GRU backward pass.
 
-    TODO: decompose into per-gate helper functions before L07 (DreamerV3).
-    This 100-line function works but is hard to debug. Splitting into
-    _backward_interpolation, _backward_candidate, _backward_reset_gate,
-    _backward_update_gate would make it testable per-component.
-
     Reverse each forward step, computing how the error flows backward through:
     (1) the output interpolation, (2) the candidate computation, (3) the reset
     gate, (4) the update gate. Each path contributes gradients to the previous

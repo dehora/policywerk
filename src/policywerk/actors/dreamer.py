@@ -1,4 +1,4 @@
-"""Level 3: DreamerV3 World Model (simplified).
+"""Level 3: Dreamer-style World Model.
 
 Hafner et al. (2023), 'Mastering Diverse Domains through World Models.'
 
@@ -411,6 +411,12 @@ def dreamer(
                 h_t = h_seq[t]
 
                 # Actor gradient: -advantage * d_log_prob / d_params
+                # Note: no entropy bonus here (PPO uses entropy_coeff=0.005
+                # to prevent premature policy collapse). Without it the
+                # policy can narrow too fast, which may contribute to the
+                # training instability in later iterations. Acceptable for
+                # this simplified version; the full DreamerV3 uses a
+                # different entropy mechanism (reinmax/straight-through).
                 actor_out, actor_cache = network_forward(actor, h_t)
                 m_x, m_y = actor_out[0], actor_out[1]
                 ls_x = scalar.clamp(actor_out[2], -2.0, 2.0)

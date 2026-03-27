@@ -475,25 +475,39 @@ class TestRecurrent:
             numerical = (loss_from_h(h_plus) - loss_from_h(h_minus)) / (2 * eps)
             assert abs(numerical - grad_h_prev[i]) < 1e-4, f"grad_h_prev[{i}]: {numerical} vs {grad_h_prev[i]}"
 
-        # Check a representative weight gradient (W_z[0][0])
-        orig = layer.W_z[0][0]
-        layer.W_z[0][0] = orig + eps
-        h_plus, _ = gru_forward(layer, h_prev, x)
-        layer.W_z[0][0] = orig - eps
-        h_minus, _ = gru_forward(layer, h_prev, x)
-        layer.W_z[0][0] = orig
-        numerical = (loss_from_h(h_plus) - loss_from_h(h_minus)) / (2 * eps)
-        assert abs(numerical - grad_layer.W_z[0][0]) < 1e-4, f"grad W_z[0][0]: {numerical} vs {grad_layer.W_z[0][0]}"
+        # Check ALL weight and bias gradients for every gate.
+        # This is the highest-risk code in the project—100 lines of
+        # hand-coded backward pass—so we verify every element.
+        for attr in ["W_z", "W_r", "W_h"]:
+            W = getattr(layer, attr)
+            grad_W = getattr(grad_layer, attr)
+            for r in range(len(W)):
+                for c in range(len(W[0])):
+                    orig = W[r][c]
+                    W[r][c] = orig + eps
+                    h_plus, _ = gru_forward(layer, h_prev, x)
+                    W[r][c] = orig - eps
+                    h_minus, _ = gru_forward(layer, h_prev, x)
+                    W[r][c] = orig
+                    numerical = (loss_from_h(h_plus) - loss_from_h(h_minus)) / (2 * eps)
+                    assert abs(numerical - grad_W[r][c]) < 1e-4, (
+                        f"grad {attr}[{r}][{c}]: numerical={numerical} vs analytic={grad_W[r][c]}"
+                    )
 
-        # Check a representative bias gradient (b_h[0])
-        orig = layer.b_h[0]
-        layer.b_h[0] = orig + eps
-        h_plus, _ = gru_forward(layer, h_prev, x)
-        layer.b_h[0] = orig - eps
-        h_minus, _ = gru_forward(layer, h_prev, x)
-        layer.b_h[0] = orig
-        numerical = (loss_from_h(h_plus) - loss_from_h(h_minus)) / (2 * eps)
-        assert abs(numerical - grad_layer.b_h[0]) < 1e-4, f"grad b_h[0]: {numerical} vs {grad_layer.b_h[0]}"
+        for attr in ["b_z", "b_r", "b_h"]:
+            b = getattr(layer, attr)
+            grad_b = getattr(grad_layer, attr)
+            for i in range(len(b)):
+                orig = b[i]
+                b[i] = orig + eps
+                h_plus, _ = gru_forward(layer, h_prev, x)
+                b[i] = orig - eps
+                h_minus, _ = gru_forward(layer, h_prev, x)
+                b[i] = orig
+                numerical = (loss_from_h(h_plus) - loss_from_h(h_minus)) / (2 * eps)
+                assert abs(numerical - grad_b[i]) < 1e-4, (
+                    f"grad {attr}[{i}]: numerical={numerical} vs analytic={grad_b[i]}"
+                )
 
 
 class TestSGDMomentum:

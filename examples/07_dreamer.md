@@ -1,4 +1,4 @@
-# Lesson 7: DreamerV3 World Model (Hafner et al., 2023)
+# Lesson 7: Dreamer-style World Model (Hafner et al., 2023)
 
 Dreamer learns a model of the world from pixel observations, imagines trajectories in latent space, and trains the policy on imagined data. Real data trains the world model; imagined data trains the policy.
 
@@ -8,7 +8,7 @@ uv run python lessons/07_dreamer.py
 
 ## The Imagination Insight
 
-Every algorithm so far learned from real experience. DreamerV3 asks: what if the agent could practice in its head? Instead of learning values or a policy from real transitions, Dreamer learns a model of the world itself—what happens next given a state and action—then imagines thousands of trajectories without touching the real environment. This matters because real steps are expensive (physics, rendering, risk); a world model turns one real episode into many training episodes.
+Every algorithm so far learned from real experience. Dreamer asks: what if the agent could practice in its head? Instead of learning values or a policy from real transitions, Dreamer learns a model of the world itself—what happens next given a state and action—then imagines thousands of trajectories without touching the real environment. This matters because real steps are expensive (physics, rendering, risk); a world model turns one real episode into many training episodes.
 
 ```
 L01-L05:  learn values, derive actions
@@ -71,9 +71,9 @@ Greedy evaluation:
   Avg recon MSE: 0.0042
 ```
 
-The world model learned to reconstruct pixel frames with MSE of 0.004. The encoder compresses 256 pixels into 32 latent numbers, and the decoder reconstructs them well enough for the dynamics model to predict meaningful future states.
+The world model learned to reconstruct pixel frames with MSE of 0.004, yet the greedy reward (-95.2) is close to a random policy despite training reaching -30. The main reason is a distribution shift: during imagination the actor trains on GRU hidden states (the dynamics model's predictions), but during evaluation it sees encoder outputs (compressions of real pixels). These are different distributions, and the mismatch erases the training gains. The full DreamerV3 solves this with the RSSM, which combines the GRU prediction with the current observation at each step to produce a consistent latent state for both training and inference.
 
-This is a teaching implementation, designed to show where simplified world models break down. Three architectural choices limit the agent: (1) the teacher forcing gap—the world model never practices open-loop prediction, so imagined trajectories drift; (2) no uncertainty—the full DreamerV3 maintains two latent estimates and uses their gap to measure trust, while our deterministic GRU commits fully to one; (3) minimal training budget—60 iterations is enough to learn pixel structure but not enough for the actor-critic to converge.
+Three further simplifications compound the problem: (1) teacher forcing—the GRU never practices open-loop prediction, so imagined trajectories drift; (2) no uncertainty—the full DreamerV3 uses the gap between prediction and observation to measure trust, while our deterministic GRU commits fully to one estimate; (3) minimal training budget—60 iterations is enough to learn pixel structure but not enough for the actor-critic to converge.
 
 This is a simplified version of DreamerV3. The full paper uses a stochastic RSSM with prior/posterior distributions, KL regularization, symlog predictions, and twohot value distributions. We kept the core idea—learn what happens next, then practice in imagination—and used dense networks with teacher forcing and MSE losses.
 

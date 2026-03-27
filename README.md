@@ -16,7 +16,7 @@ The project follows seven landmark papers chronologically, each one building on 
 | 04 | Watkins, "Learning from Delayed Rewards" | 1989 | Q-learning | Cliff walking | Done |
 | 05 | Mnih et al., "Playing Atari with Deep Reinforcement Learning" | 2013 | DQN | Mini Breakout | Done |
 | 06 | Schulman et al., "Proximal Policy Optimization Algorithms" | 2017 | PPO | Balance (continuous) | Done |
-| 07 | Hafner et al., "Mastering Diverse Domains through World Models" | 2023 | DreamerV3 | Pixel point-mass | Done |
+| 07 | Hafner et al., "Mastering Diverse Domains through World Models" | 2023 | Dreamer (simplified) | Pixel point-mass | Done |
 
 ## Concepts
 
@@ -43,7 +43,7 @@ L05 (DQN)            → Function approximation: neural nets replace tables
     ↓
 L06 (PPO)            → Policy gradients: optimize the policy directly
     ↓
-L07 (DreamerV3)      → World models: learn the dynamics, train in imagination
+L07 (Dreamer)        → World models: learn the dynamics, train in imagination
 ```
 
 ## Artifacts
@@ -133,7 +133,7 @@ src/policywerk/
     q_learner.py        Tabular Q-learning (L04)
     dqn.py              Deep Q-network (L05)
     ppo.py              Proximal policy optimization (L06)
-    dreamer.py          DreamerV3 world model (L07)
+    dreamer.py          Dreamer-style world model (L07)
 
   data/               Episode collection and training metrics
   viz/                Animated visualizations (matplotlib)

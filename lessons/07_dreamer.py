@@ -1,4 +1,4 @@
-"""Lesson 07: DreamerV3 World Model (simplified).
+"""Lesson 07: Dreamer-style World Model.
 
 Hafner et al. (2023), 'Mastering Diverse Domains through World Models.'
 
@@ -49,7 +49,7 @@ class DreamerSnapshot(FrameSnapshot):
 
 def main():
     print("=" * 64)
-    print("  Lesson 07: DreamerV3 World Model (2023)")
+    print("  Lesson 07: Dreamer-style World Model (2023)")
     print("  Hafner et al., 'Mastering Diverse Domains'")
     print("=" * 64)
     print()
@@ -67,7 +67,7 @@ def main():
     replay buffer. PPO collected fresh batches each iteration.
     But every training step required a real environment step.
 
-    DreamerV3 asks: what if the agent could practice in its head?
+    Dreamer asks: what if the agent could practice in its head?
 
     Instead of learning a value function (L01-L05) or a policy
     (L06), Dreamer learns a model of the world itself. Given the
@@ -196,9 +196,12 @@ def main():
 
     The result: early imagination steps closely match reality
     (the model just saw a real observation), but later steps
-    diverge as prediction errors compound. The animation shows
-    this—the imagined frame tracks the real one at first, then
-    drifts. This is the fundamental tradeoff of world models:
+    diverge as prediction errors compound. Each GRU prediction
+    becomes the input to the next prediction, and small errors
+    in one step shift the input distribution for the next,
+    causing drift to accelerate. The animation shows this—the
+    imagined path tracks the real one at first, then veers away.
+    This is the fundamental tradeoff of world models:
     imagination is free but imperfect.
     """)
 
@@ -318,9 +321,12 @@ def main():
     receive—lower means the GRU is tracking the agent's
     position relative to the target.
 
-    Expect noisy training. The world model and the policy learn
-    simultaneously, and when one improves, the other's data
-    changes. When the world model gets better at predicting
+    Expect noisy training. Sixty iterations at 100 steps each
+    is 6,000 real environment steps—the world model is learning
+    on very little data. The full DreamerV3 trains for millions
+    of steps. On top of that, the world model and the policy
+    learn simultaneously, and when one improves, the other's
+    data changes. When the world model gets better at predicting
     pixels, the imagined trajectories the actor trains on shift.
     When the actor improves, it visits new states the world
     model has not seen. This co-adaptation is a fundamental
@@ -383,7 +389,7 @@ def main():
 
     eval_real_frames = []
     eval_imagined_frames = []
-    eval_positions = [eval_env._inner.position]  # include initial position
+    eval_positions = [eval_env.position]  # include initial position
 
     for _ in range(100):
         pixels = state.features
@@ -405,7 +411,7 @@ def main():
         state, reward, done = eval_env.step_continuous(action)
         eval_reward += reward
         eval_steps += 1
-        eval_positions.append(eval_env._inner.position)
+        eval_positions.append(eval_env.position)
 
         if done:
             break
@@ -433,26 +439,35 @@ def main():
         print(f"    Final position: ({final_pos[0]:.2f}, {final_pos[1]:.2f})")
         print(f"    Target: (0.80, 0.80)")
         print()
-        print("""    This is a teaching implementation, designed to show where
-    simplified world models break down. Three architectural
-    choices limit the agent:
+        print("""    The greedy reward is close to a random policy, yet
+    training reached -30 by iterations 30-44. The main reason
+    is a distribution shift between training and evaluation.
 
-    First, the teacher forcing gap described earlier. The world
-    model never practices open-loop prediction during training,
-    so multi-step imagined trajectories drift from reality.
+    During imagination, the actor trains on GRU hidden states—
+    the dynamics model's predictions of what comes next. During
+    evaluation, the actor sees encoder outputs—the encoder's
+    compression of actual pixels. These are different
+    distributions. The actor learned a policy that works on
+    imagined GRU states, then encounters encoder states at
+    test time. The mismatch is enough to erase the training
+    gains.
 
-    Second, no uncertainty. The full DreamerV3 maintains two
-    estimates of the latent state—one from prediction alone,
-    one informed by the actual observation—and uses the gap
-    between them to measure how much the model trusts its own
-    predictions. Our deterministic GRU produces one estimate
-    and commits to it fully.
+    The full DreamerV3 solves this with the RSSM (recurrent
+    state-space model). At each step, the RSSM combines the
+    GRU's prediction with the current observation to produce
+    a consistent latent state used in both training and
+    inference. Our simplified version skips this—the encoder
+    and GRU produce separate representations that the actor
+    must bridge, and it cannot.
 
-    Third, scale. Sixty iterations with a 32-dimensional latent
-    space and dense networks is a minimal training budget. The
-    world model learned pixel structure (the low reconstruction
-    MSE shows this), but the actor-critic did not have enough
-    imagined experience to converge.""")
+    Three further simplifications compound the problem: the
+    teacher forcing gap described earlier (the GRU never
+    practices open-loop prediction); no uncertainty (the full
+    DreamerV3 uses the gap between prediction and observation
+    to measure trust, while our deterministic GRU commits
+    fully to one estimate); and a minimal training budget
+    that does not give the actor-critic enough imagined
+    experience to converge.""")
     print()
 
     print(f"""    The world model learned to reconstruct pixel frames with
@@ -564,12 +579,12 @@ def main():
     rand_env = PixelPointMass(max_steps=50)
     state = rand_env.reset()
     rand_reward = 0.0
-    rand_path: list[tuple[float, float]] = [rand_env._inner.position]
+    rand_path: list[tuple[float, float]] = [rand_env.position]
     for step in range(30):
         action = [rand_rng.choice([-1.0, 1.0]), rand_rng.choice([-1.0, 1.0])]
         state, reward, done = rand_env.step_continuous(action)
         rand_reward += reward
-        rand_path.append(rand_env._inner.position)
+        rand_path.append(rand_env.position)
         if step % 3 == 0:
             snapshots.append(DreamerSnapshot(
                 episode=0, total_reward=rand_reward,
@@ -635,7 +650,7 @@ def main():
     # --- Artifact 1: Animation ---
 
     fig, axes = create_lesson_figure(
-        "Lesson 07: DreamerV3",
+        "Lesson 07: Dreamer",
         subtitle="Hafner et al. (2023) | learn the world, train in imagination",
         figsize=(12, 7),
     )
@@ -765,7 +780,7 @@ def main():
     # --- Artifact 2: Poster ---
 
     fig2, axes2 = create_lesson_figure(
-        "Lesson 07: DreamerV3",
+        "Lesson 07: Dreamer",
         subtitle="Hafner et al. (2023)",
         figsize=(12, 7),
     )
@@ -854,7 +869,7 @@ def main():
     ax_r.plot(range(num_iterations), reward_list,
               color=TEAL, linewidth=1.0, label="Reward")
     ax_r.set_ylabel("Avg Reward", fontsize=9)
-    ax_r.set_title("DreamerV3 Training on Pixel World", fontsize=10)
+    ax_r.set_title("Dreamer Training on Pixel World", fontsize=10)
     ax_r.legend(fontsize=8)
     ax_r.grid(True, alpha=0.3)
 
@@ -887,7 +902,7 @@ def main():
     print("=" * 64)
     print("  Lesson 07 complete.")
     print()
-    print("  DreamerV3 closed the final gap in this series: learning")
+    print("  Dreamer closed the final gap in this series: learning")
     print("  a model of the world and training in imagination.")
     print()
     print("  Lesson 01 started with a known model and exact planning.")

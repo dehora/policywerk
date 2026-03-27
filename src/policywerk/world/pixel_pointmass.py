@@ -43,6 +43,11 @@ class PixelPointMass(Environment):
         _, reward, done = self._inner.step_continuous(force)
         return self._make_state(), reward, done
 
+    @property
+    def position(self) -> tuple[float, float]:
+        """Current agent position in continuous coordinates."""
+        return self._inner.position
+
     def num_actions(self) -> int:
         return self._inner.num_actions()
 
